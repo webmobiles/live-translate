@@ -29,7 +29,7 @@
     },
     "plugins": [
       "expo-router",
-      "expo-av",
+      "expo-audio",
       "expo-asset"
     ],
     "experiments": {

@@ -1,10 +1,17 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, TextInput, Pressable, FlatList,
-  SafeAreaView, KeyboardAvoidingView, Platform, Alert, Clipboard,
+  KeyboardAvoidingView, Platform, Alert, Clipboard,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Audio } from 'expo-av';
+import {
+  getRecordingPermissionsAsync,
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+} from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
 import { getSocket } from '@/lib/socket';
 import { ParticipantList } from '@/components/ParticipantList';
@@ -29,7 +36,8 @@ export default function RoomScreen() {
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [myLanguage, setMyLanguage] = useState(initialLang ?? 'en');
 
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recordingRef = useRef<ReturnType<typeof useAudioRecorder> | null>(null);
   const listRef = useRef<FlatList>(null);
   const socketRef = useRef(getSocket());
   const mySocketId = useRef<string>('');
@@ -96,10 +104,10 @@ export default function RoomScreen() {
     setIsConnected(socket.connected);
 
     // Request audio permissions on mount
-    Audio.requestPermissionsAsync().catch(() => {});
-    Audio.setAudioModeAsync({
-      allowsRecordingIOS: true,
-      playsInSilentModeIOS: true,
+    requestRecordingPermissionsAsync().catch(() => {});
+    setAudioModeAsync({
+      allowsRecording: true,
+      playsInSilentMode: true,
     }).catch(() => {});
 
     return () => {
@@ -136,28 +144,27 @@ export default function RoomScreen() {
 
   const startRecording = useCallback(async () => {
     try {
-      const { granted } = await Audio.getPermissionsAsync();
+      const { granted } = await getRecordingPermissionsAsync();
       if (!granted) {
-        const { granted: g } = await Audio.requestPermissionsAsync();
+        const { granted: g } = await requestRecordingPermissionsAsync();
         if (!g) { Alert.alert('Microphone permission required'); return; }
       }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY,
-      );
-      recordingRef.current = recording;
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      recordingRef.current = recorder;
       setIsRecording(true);
     } catch (err) {
       console.error('startRecording', err);
     }
-  }, []);
+  }, [recorder]);
 
   const stopAndSend = useCallback(async () => {
     if (!recordingRef.current) return;
     setIsRecording(false);
     try {
-      await recordingRef.current.stopAndUnloadAsync();
-      const uri = recordingRef.current.getURI();
+      await recordingRef.current.stop();
+      const uri = recordingRef.current.uri;
       recordingRef.current = null;
       if (!uri) return;
 

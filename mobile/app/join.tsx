@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, Pressable, SafeAreaView,
+  View, Text, TextInput, Pressable,
   KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { connectSocket } from '@/lib/socket';
 import { LanguageSelector, LanguageBadge } from '@/components/LanguageSelector';

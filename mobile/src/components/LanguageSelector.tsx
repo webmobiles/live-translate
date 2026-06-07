@@ -5,8 +5,8 @@ import {
   Text,
   Pressable,
   FlatList,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LANGUAGES, getLang, type Language } from '@/lib/languages';
 
 interface Props {

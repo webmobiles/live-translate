@@ -11,7 +11,7 @@
     "babel-preset-expo": "~54.0.10",
     "expo": "^54.0.35",
     "expo-asset": "~12.0.13",
-    "expo-av": "~16.0.8",
+    "expo-audio": "~1.1.1",
     "expo-file-system": "~19.0.23",
     "expo-haptics": "~15.0.8",
     "expo-router": "~6.0.24",
@@ -29,6 +29,7 @@
   "devDependencies": {
     "@babel/core": "^7.25.0",
     "@types/react": "~19.1.10",
+    "react-dom": "^19.1.0",
     "typescript": "^5.3.3"
   }
 }
