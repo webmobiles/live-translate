@@ -17,6 +17,7 @@ export interface Message {
   isAudio?: boolean;
   timestamp: number;
   isTranslating?: boolean;
+  deliveryStatus?: 'sending' | 'queued' | 'delivered' | 'read' | 'failed';
 }
 
 export interface Room {

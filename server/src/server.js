@@ -78,7 +78,7 @@ async function startKafkaConsumer() {
           sender:     message.sender,
           senderLang: message.senderLang,
           targetLang: participant.language,
-          isMine:     false, // will be corrected below for the sender
+          isMine:     participant.socketId === message.senderSocketId,
           isAudio:    message.isAudio,
           timestamp:  message.timestamp,
         });
@@ -201,11 +201,14 @@ io.on('connection', (socket) => {
   });
 
   // ── Text message → Redpanda + Inngest ────────────────────────────────────
-  socket.on('message:text', async ({ text } = {}) => {
+  socket.on('message:text', async ({ text, clientMsgId } = {}, cb) => {
     const { roomCode, roomId, participant } = socket.data;
-    if (!roomCode || !participant || !text?.trim()) return;
+    if (!roomCode || !participant || !text?.trim()) {
+      cb?.({ ok: false, error: 'Not connected to a room.' });
+      return;
+    }
 
-    const msgId        = makeMsgId();
+    const msgId        = clientMsgId || makeMsgId();
     const participants = roomManager.getParticipants(roomCode);
 
     try {
@@ -217,14 +220,17 @@ io.on('connection', (socket) => {
         msgId,
         roomCode,
         roomId,
-        text:        text.trim(),
-        senderLang:  participant.language,
-        sender:      participant.nickname,
+        text:           text.trim(),
+        senderLang:     participant.language,
+        sender:         participant.nickname,
+        senderSocketId: socket.id,
         participants,
       });
+      cb?.({ ok: true, id: msgId });
     } catch (err) {
       console.error('[message:text]', err.message);
       await publishMessageError(roomCode, msgId);
+      cb?.({ ok: false, id: msgId, error: err.message });
     }
   });
 
@@ -247,8 +253,9 @@ io.on('connection', (socket) => {
         roomId,
         audioBase64,
         mimeType,
-        senderLang: participant.language,
-        sender:     participant.nickname,
+        senderLang:     participant.language,
+        sender:         participant.nickname,
+        senderSocketId: socket.id,
         participants,
       });
     } catch (err) {

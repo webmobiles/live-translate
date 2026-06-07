@@ -134,13 +134,39 @@ function RoomScreen() {
     }
     const onMessageIncoming = (msg: Message) => {
       setMessages(prev => {
+        const existing = prev.find(m => m.id === msg.id)
         const filtered = prev.filter(m => m.id !== msg.id)
-        return [...filtered, { ...msg, isTranslating: false }]
+        const isMine = existing?.isMine ?? msg.isMine
+        return [...filtered, {
+          ...msg,
+          isMine,
+          isTranslating: false,
+          deliveryStatus: isMine ? 'delivered' : undefined,
+        }]
       })
+      // Tell the server we've seen these incoming (not-mine) messages
+      if (!msg.isMine) {
+        socket.emit('message:read', { msgIds: [msg.id] })
+      }
       setTimeout(scrollToBottom, 100)
     }
     const onMessageError = ({ id }: { id: string }) => {
-      setMessages(prev => prev.filter(m => m.id !== id))
+      setMessages(prev => prev.flatMap(m => {
+        if (m.id !== id) return [m]
+        return m.isMine ? [{ ...m, deliveryStatus: 'failed' as const }] : []
+      }))
+    }
+    const onMessageDelivered = ({ id }: { id: string }) => {
+      setMessages(prev => prev.map(m =>
+        m.id === id && m.isMine && m.deliveryStatus !== 'read'
+          ? { ...m, deliveryStatus: 'delivered' as const }
+          : m
+      ))
+    }
+    const onMessageRead = ({ id }: { id: string }) => {
+      setMessages(prev => prev.map(m =>
+        m.id === id && m.isMine ? { ...m, deliveryStatus: 'read' as const } : m
+      ))
     }
 
     // Load chat history sent by server on join
@@ -157,6 +183,8 @@ function RoomScreen() {
     socket.on('message:translating', onMessageTranslating)
     socket.on('message:incoming', onMessageIncoming)
     socket.on('message:error', onMessageError)
+    socket.on('message:delivered', onMessageDelivered)
+    socket.on('message:read', onMessageRead)
     socket.on('room:history', onHistory)
 
     if (socket.connected) {
@@ -165,6 +193,17 @@ function RoomScreen() {
       setIsConnected(false)
       socket.connect()
     }
+
+    // Mark history messages as read on mount/focus
+    const markHistoryRead = () => {
+      setMessages(prev => {
+        const unreadIds = prev.filter(m => !m.isMine && m.id).map(m => m.id)
+        if (unreadIds.length > 0) socket.emit('message:read', { msgIds: unreadIds })
+        return prev
+      })
+    }
+    markHistoryRead()
+    window.addEventListener('focus', markHistoryRead)
 
     return () => {
       socket.off('connect', onConnect)
@@ -175,7 +214,10 @@ function RoomScreen() {
       socket.off('message:translating', onMessageTranslating)
       socket.off('message:incoming', onMessageIncoming)
       socket.off('message:error', onMessageError)
+      socket.off('message:delivered', onMessageDelivered)
+      socket.off('message:read', onMessageRead)
       socket.off('room:history', onHistory)
+      window.removeEventListener('focus', markHistoryRead)
     }
   }, [addSystemMsg, code, isHost, nickname, roomName, scrollToBottom])
 
@@ -197,9 +239,32 @@ function RoomScreen() {
   const sendText = useCallback(() => {
     const text = inputText.trim()
     if (!text || !isConnected) return
-    socketRef.current.emit('message:text', { text })
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    setMessages(prev => [...prev, {
+      id,
+      original: text,
+      translated: text,
+      sender: nickname || 'Me',
+      senderLang: myLanguageRef.current,
+      targetLang: myLanguageRef.current,
+      isMine: true,
+      timestamp: Date.now(),
+      isTranslating: false,
+      deliveryStatus: 'sending',
+    }])
+    socketRef.current.timeout(8000).emit(
+      'message:text',
+      { text, clientMsgId: id },
+      (err: Error | null, res?: { ok: boolean; id?: string; error?: string }) => {
+        setMessages(prev => prev.map(m => {
+          if (m.id !== id) return m
+          if (err || !res?.ok) return { ...m, deliveryStatus: 'failed' as const }
+          return { ...m, deliveryStatus: 'queued' as const }
+        }))
+      },
+    )
     setInputText('')
-  }, [inputText, isConnected])
+  }, [inputText, isConnected, nickname])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText() }
@@ -383,11 +448,20 @@ function RoomScreen() {
 }
 
 function MessageBubble({ message }: { message: Message }) {
-  const { isMine, sender, senderLang, translated, original, isTranslating, isAudio, timestamp } = message
+  const { isMine, sender, senderLang, translated, original, isTranslating, isAudio, timestamp, deliveryStatus } = message
   const [showOriginal, setShowOriginal] = useState(false)
   const senderInfo = getLang(senderLang)
   const time = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const hasTranslation = translated !== original
+  const statusText = deliveryStatus === 'sending'
+    ? 'Sending...'
+    : deliveryStatus === 'queued'
+      ? 'Queued'
+      : deliveryStatus === 'sent'
+        ? 'Sent'
+        : deliveryStatus === 'failed'
+          ? 'Failed to send'
+          : ''
 
   if (isTranslating) {
     return (
@@ -411,7 +485,7 @@ function MessageBubble({ message }: { message: Message }) {
         onClick={() => hasTranslation && setShowOriginal(v => !v)}
         className={`max-w-[78%] px-4 py-3 rounded-2xl transition-opacity ${
           isMine ? 'bg-lt-primary rounded-br-sm' : 'bg-lt-card rounded-bl-sm border border-lt-border'
-        } ${hasTranslation ? 'cursor-pointer' : ''}`}
+        } ${deliveryStatus === 'failed' ? 'border border-lt-danger' : ''} ${hasTranslation ? 'cursor-pointer' : ''}`}
       >
         {isAudio && (
           <p className={`text-xs mb-1 ${isMine ? 'text-white/60' : 'text-lt-muted'}`}>🎤 Voice</p>
@@ -425,7 +499,9 @@ function MessageBubble({ message }: { message: Message }) {
           </p>
         )}
       </div>
-      <span className="text-lt-muted text-xs mt-1 mx-1">{time}</span>
+      <span className={`text-xs mt-1 mx-1 ${deliveryStatus === 'failed' ? 'text-lt-danger' : 'text-lt-muted'}`}>
+        {statusText ? `${time} · ${statusText}` : time}
+      </span>
     </div>
   )
 }

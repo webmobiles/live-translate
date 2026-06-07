@@ -24,7 +24,7 @@ const translateMessage = inngest.createFunction(
     triggers: [{ event: 'message/translate' }],
   },
   async ({ event, step }) => {
-    const { msgId, roomCode, roomId, text, senderLang, sender, participants } = event.data;
+    const { msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, participants } = event.data;
     const targetLangs = participants.map(p => p.language);
 
     const translations = await step.run('translate-text', () =>
@@ -37,7 +37,7 @@ const translateMessage = inngest.createFunction(
 
     await step.run('broadcast', () =>
       queue.publishMessageReady(roomCode, {
-        id: msgId, sender, senderLang, original: text, translations, isAudio: false, timestamp: Date.now(),
+        id: msgId, sender, senderLang, senderSocketId, original: text, translations, isAudio: false, timestamp: Date.now(),
       }),
     );
 
@@ -54,7 +54,7 @@ const transcribeAndTranslate = inngest.createFunction(
     triggers: [{ event: 'message/transcribe' }],
   },
   async ({ event, step }) => {
-    const { msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, participants } = event.data;
+    const { msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, participants } = event.data;
     const targetLangs = participants.map(p => p.language);
 
     const text = await step.run('transcribe-audio', async () => {
@@ -73,7 +73,7 @@ const transcribeAndTranslate = inngest.createFunction(
 
     await step.run('broadcast', () =>
       queue.publishMessageReady(roomCode, {
-        id: msgId, sender, senderLang, original: text, translations, isAudio: true, timestamp: Date.now(),
+        id: msgId, sender, senderLang, senderSocketId, original: text, translations, isAudio: true, timestamp: Date.now(),
       }),
     );
 
