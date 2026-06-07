@@ -322,6 +322,10 @@ io.on('connection', (socket) => {
 async function start() {
   console.log('\n🌐 LiveTranslate — starting...\n');
 
+  // Verify all external services are reachable before accepting traffic
+  const { runHealthChecks } = require('./startup/healthCheck');
+  await runHealthChecks();
+
   // Connect to ScyllaDB
   await db.connect();
 
