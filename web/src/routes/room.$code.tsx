@@ -27,6 +27,7 @@ function RoomScreen() {
   const [showLangPicker, setShowLangPicker] = useState(false)
   const [myLanguage, setMyLanguage] = useState(initialLang)
   const [roomLost, setRoomLost] = useState(false)
+  const [countdown, setCountdown] = useState(4)
   const [isRecording, setIsRecording] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -172,6 +173,19 @@ function RoomScreen() {
 
   useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
 
+  // Auto-redirect when room is lost
+  useEffect(() => {
+    if (!roomLost) return
+    setCountdown(4)
+    const interval = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) { clearInterval(interval); navigate({ to: '/' }); return 0 }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [roomLost, navigate])
+
   const sendText = useCallback(() => {
     const text = inputText.trim()
     if (!text || !isConnected) return
@@ -221,20 +235,33 @@ function RoomScreen() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  if (roomLost) {
+    return (
+      <div className="h-screen bg-lt-bg flex flex-col items-center justify-center gap-6 px-6 text-center">
+        <div className="w-20 h-20 rounded-3xl bg-lt-danger/20 border border-lt-danger flex items-center justify-center">
+          <span className="text-4xl">🚪</span>
+        </div>
+        <div className="flex flex-col gap-2">
+          <h2 className="text-white text-2xl font-bold">This room no longer exists</h2>
+          <p className="text-lt-muted text-base">
+            The room <span className="text-white font-mono font-bold">{code}</span> was closed or the server restarted.
+          </p>
+        </div>
+        <p className="text-lt-muted text-sm">
+          Redirecting to home in <span className="text-white font-bold">{countdown}</span>s…
+        </p>
+        <button
+          onClick={() => navigate({ to: '/' })}
+          className="bg-lt-primary rounded-2xl px-8 py-3 text-white font-bold hover:bg-lt-primary-dark transition-colors"
+        >
+          Go home now
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="h-screen bg-lt-bg flex flex-col">
-      {/* Room lost banner */}
-      {roomLost && (
-        <div className="bg-lt-danger/20 border-b border-lt-danger px-4 py-3 flex items-center justify-between shrink-0">
-          <p className="text-white text-sm">Room ended — the server restarted and this room no longer exists.</p>
-          <button
-            onClick={() => navigate({ to: '/' })}
-            className="text-lt-danger font-semibold text-sm ml-4 shrink-0 hover:opacity-70 transition-opacity"
-          >
-            New room →
-          </button>
-        </div>
-      )}
       {/* Header */}
       <div className="flex items-center px-4 py-3 border-b border-lt-border gap-3 shrink-0">
         <button onClick={() => navigate({ to: '/' })} className="p-1 text-lt-muted text-xl hover:text-white transition-colors">
@@ -246,8 +273,8 @@ function RoomScreen() {
             <button onClick={copyCode} className="text-lt-accent text-xs font-mono font-bold hover:opacity-70 transition-opacity">
               {code} {copied ? '✓' : '📋'}
             </button>
-            <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-lt-accent' : 'bg-lt-danger'}`} />
-            <span className="text-lt-muted text-xs">{isConnected ? 'Live' : 'Reconnecting…'}</span>
+            <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-lt-accent' : 'bg-yellow-500'}`} />
+            <span className="text-lt-muted text-xs">{isConnected ? 'Live' : 'Connecting…'}</span>
           </div>
         </div>
         <LanguageBadge code={myLanguage} onClick={() => setShowLangPicker(true)} />
