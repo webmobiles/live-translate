@@ -67,17 +67,18 @@ async function checkInngest() {
 }
 
 async function checkOpenAI() {
-  if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not set');
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw new Error('OPENAI_API_KEY is not set in .env');
 
   const res = await withTimeout(
     fetch('https://api.openai.com/v1/models', {
-      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+      headers: { Authorization: `Bearer ${key}` },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     }),
     'OpenAI API',
   );
 
-  if (res.status === 401) throw new Error('Invalid API key');
+  if (res.status === 401) throw new Error('Invalid API key — regenerate at platform.openai.com/api-keys');
   if (!res.ok)            throw new Error(`HTTP ${res.status}`);
   return { ok: true };
 }
