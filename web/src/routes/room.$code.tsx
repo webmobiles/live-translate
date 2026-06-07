@@ -26,6 +26,11 @@ function RoomScreen() {
   const [isConnected, setIsConnected] = useState(false)
   const [showLangPicker, setShowLangPicker] = useState(false)
   const [myLanguage, setMyLanguage] = useState(initialLang)
+
+  const updateLanguage = useCallback((lang: string) => {
+    setMyLanguage(lang)
+    socketRef.current.emit('room:update-language', { language: lang })
+  }, [])
   const [isRecording, setIsRecording] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -266,7 +271,7 @@ function RoomScreen() {
       <LanguageSelector
         visible={showLangPicker}
         selected={myLanguage}
-        onSelect={setMyLanguage}
+        onSelect={updateLanguage}
         onClose={() => setShowLangPicker(false)}
       />
     </div>
@@ -275,8 +280,10 @@ function RoomScreen() {
 
 function MessageBubble({ message }: { message: Message }) {
   const { isMine, sender, senderLang, translated, original, isTranslating, isAudio, timestamp } = message
+  const [showOriginal, setShowOriginal] = useState(false)
   const senderInfo = getLang(senderLang)
   const time = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const hasTranslation = translated !== original
 
   if (isTranslating) {
     return (
@@ -296,15 +303,22 @@ function MessageBubble({ message }: { message: Message }) {
           <span className="text-lt-muted text-xs font-medium">{sender}</span>
         </div>
       )}
-      <div className={`max-w-[78%] px-4 py-3 rounded-2xl ${
-        isMine ? 'bg-lt-primary rounded-br-sm' : 'bg-lt-card rounded-bl-sm border border-lt-border'
-      }`}>
+      <div
+        onClick={() => hasTranslation && setShowOriginal(v => !v)}
+        className={`max-w-[78%] px-4 py-3 rounded-2xl transition-opacity ${
+          isMine ? 'bg-lt-primary rounded-br-sm' : 'bg-lt-card rounded-bl-sm border border-lt-border'
+        } ${hasTranslation ? 'cursor-pointer' : ''}`}
+      >
         {isAudio && (
           <p className={`text-xs mb-1 ${isMine ? 'text-white/60' : 'text-lt-muted'}`}>🎤 Voice</p>
         )}
-        <p className="text-white text-base leading-relaxed">{translated}</p>
-        {!isMine && translated !== original && (
-          <p className="text-lt-muted text-xs mt-1.5 italic">{original}</p>
+        <p className="text-white text-base leading-relaxed">
+          {showOriginal ? original : translated}
+        </p>
+        {hasTranslation && (
+          <p className={`text-xs mt-1.5 ${isMine ? 'text-white/50' : 'text-lt-muted'}`}>
+            {showOriginal ? '↩ show translation' : `${senderInfo.flag} tap to see original`}
+          </p>
         )}
       </div>
       <span className="text-lt-muted text-xs mt-1 mx-1">{time}</span>

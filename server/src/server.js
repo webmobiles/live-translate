@@ -111,6 +111,18 @@ io.on('connection', (socket) => {
     cb?.({ ok: true, room: roomManager.getPublic(code.toUpperCase()) });
   });
 
+  // Update language preference
+  socket.on('room:update-language', ({ language } = {}, cb) => {
+    const { roomCode, participant } = socket.data;
+    if (!roomCode || !participant || !language) { cb?.({ ok: false }); return; }
+    roomManager.updateParticipantLanguage(roomCode, socket.id, language);
+    socket.data.participant = { ...participant, language };
+    io.to(`room:${roomCode}`).emit('room:participants-updated', {
+      participants: roomManager.getParticipants(roomCode),
+    });
+    cb?.({ ok: true });
+  });
+
   // Text message → translate → broadcast
   socket.on('message:text', async ({ text } = {}) => {
     const { roomCode, participant } = socket.data;

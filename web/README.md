@@ -1,3 +1,16 @@
+Here's what was built:
+
+File	What it does
+src/lib/socket.ts	Socket.io client (mirrors mobile, uses VITE_SERVER_URL env var)
+src/lib/languages.ts	Language list (copied from mobile)
+src/types/index.ts	Shared types (Message, Participant, Room)
+src/components/LanguageSelector.tsx	Bottom-sheet language picker + badge
+src/routes/index.tsx	Home screen — Create Room / Join Room buttons
+src/routes/create.tsx	Create room form (room name, nickname, language)
+src/routes/join.tsx	Join room form (6-char code, nickname, language)
+src/routes/room.$code.tsx	Full room — participants bar, messages, text + voice input
+
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

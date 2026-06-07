@@ -38,6 +38,13 @@ const roomManager = {
     return participant;
   },
 
+  updateParticipantLanguage(code, socketId, language) {
+    const room = this.get(code);
+    if (!room) return;
+    const p = room.participants.get(socketId);
+    if (p) { p.language = language; room.lastActivityAt = Date.now(); }
+  },
+
   removeParticipant(code, socketId) {
     const room = this.get(code);
     if (!room) return;
