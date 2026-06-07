@@ -491,7 +491,10 @@ function MessageBubble({ message }: { message: Message }) {
   const { isMine, sender, senderLang, translated, original, isTranslating, isAudio, timestamp, deliveryStatus } = message
   const [showOriginal, setShowOriginal] = useState(false)
   const senderInfo = getLang(senderLang)
-  const time = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const messageDate = new Date(timestamp)
+  const time = Number.isNaN(messageDate.getTime())
+    ? ''
+    : messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const hasTranslation = translated !== original
 
   if (isTranslating) {

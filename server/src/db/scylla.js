@@ -24,6 +24,10 @@ function getClient() {
   return client;
 }
 
+function toNumber(value) {
+  return typeof value?.toNumber === 'function' ? value.toNumber() : value;
+}
+
 // ── Rooms ──────────────────────────────────────────────────────────────────
 
 async function createRoom({ code, name }) {
@@ -69,7 +73,7 @@ async function getRoomByCode(code) {
     id:        row.id.toString(),
     code:      row.code,
     name:      row.name,
-    createdAt: row.created_at,
+    createdAt: toNumber(row.created_at),
   };
 }
 
@@ -113,7 +117,7 @@ async function getRecentMessages(roomId, limit = 100) {
       original:     row.original,
       translations: row.translations || {},
       isAudio:      row.is_audio,
-      timestamp:    row.timestamp,
+      timestamp:    toNumber(row.timestamp),
     }))
     .reverse(); // oldest first for chat rendering
 }
