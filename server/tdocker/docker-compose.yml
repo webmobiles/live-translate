@@ -8,10 +8,10 @@
 #    inngest       → AI workflow orchestrator (http://localhost:8288)
 #
 #  Start:
-#    docker compose -f docker/docker-compose.yml up -d
+#    docker compose -f tdocker/docker-compose.yml up -d
 #
 #  Stop:
-#    docker compose -f docker/docker-compose.yml down
+#    docker compose -f tdocker/docker-compose.yml down
 #
 #  Wipe all data:
 #    docker compose -f docker/docker-compose.yml down -v
