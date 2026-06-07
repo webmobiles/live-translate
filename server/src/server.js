@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('path');
+const { randomUUID } = require('crypto');
 
 require('dotenv').config({
   path: path.join(__dirname, '..', '.env'),
@@ -37,7 +38,12 @@ app.get('/health', (_req, res) =>
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function makeMsgId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  return randomUUID();
+}
+
+function isUuid(value) {
+  return typeof value === 'string'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 // Emit a socket event to every client in a room on THIS server instance.
@@ -237,7 +243,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const msgId        = clientMsgId || makeMsgId();
+    const msgId        = isUuid(clientMsgId) ? clientMsgId : makeMsgId();
     const participants = roomManager.getParticipants(roomCode);
 
     try {

@@ -239,7 +239,7 @@ function RoomScreen() {
   const sendText = useCallback(() => {
     const text = inputText.trim()
     if (!text || !isConnected) return
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const id = crypto.randomUUID()
     setMessages(prev => [...prev, {
       id,
       original: text,
