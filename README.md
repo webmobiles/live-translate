@@ -30,7 +30,18 @@ npm run dev
 
 Server runs on `http://localhost:4000`
 
-### 2. Mobile
+### 2. Web
+
+```bash
+cd web
+npm install
+cp .env.example .env          # set VITE_SERVER_URL=http://localhost:4000
+npm run dev
+```
+
+Web app runs on `http://localhost:5173`
+
+### 3. Mobile
 
 ```bash
 cd mobile
@@ -67,6 +78,15 @@ EN · ES · FR · DE · IT · PT · ZH · JA · KO · AR · RU · HI · TR · NL
 
 ```
 live-translate/
+├── web/
+│   ├── src/
+│   │   ├── routes/
+│   │   │   ├── __root.tsx            # Root layout
+│   │   │   └── index.tsx             # Home page
+│   │   ├── components/ui/            # shadcn components
+│   │   ├── lib/utils.ts
+│   │   └── main.tsx                  # Router + QueryClient providers
+│   └── package.json
 ├── server/
 │   ├── src/
 │   │   ├── server.js             # Express + Socket.io
