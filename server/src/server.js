@@ -41,6 +41,14 @@ function emitToRoom(roomCode, event, payload) {
   io.to(`room:${roomCode}`).emit(event, payload);
 }
 
+async function publishMessageError(roomCode, msgId) {
+  try {
+    await queue.publishSocketEvent('message:error', { roomCode, msgId });
+  } catch {
+    emitToRoom(roomCode, 'message:error', { id: msgId });
+  }
+}
+
 // ── Redpanda consumer — broadcast to local Socket.io clients ──────────────
 // Every Socket.io server instance runs this consumer.
 // When any server publishes an event, ALL instances receive it and forward
@@ -126,11 +134,15 @@ io.on('connection', (socket) => {
         return;
       }
 
+      const existingParticipant = socket.data.roomCode === room.code
+        ? socket.data.participant
+        : null;
+
       const participant = roomManager.addParticipant(room.code, {
         socketId: socket.id,
-        nickname: nickname || 'Guest',
-        language: language || 'en',
-        isHost:   false,
+        nickname: nickname || existingParticipant?.nickname || 'Guest',
+        language: language || existingParticipant?.language || 'en',
+        isHost:   existingParticipant?.isHost || false,
       });
 
       socket.join(`room:${room.code}`);
@@ -138,8 +150,11 @@ io.on('connection', (socket) => {
       socket.data.roomId      = room.id;
       socket.data.participant = participant;
 
-      // Notify other participants
-      socket.to(`room:${room.code}`).emit('room:participant-joined', { participant });
+      // Notify other participants only for a new member. Existing sockets can
+      // rejoin to refresh state after navigation, reload, or reconnect.
+      if (!existingParticipant) {
+        socket.to(`room:${room.code}`).emit('room:participant-joined', { participant });
+      }
       io.to(`room:${room.code}`).emit('room:participants-updated', {
         participants: roomManager.getParticipants(room.code),
       });
@@ -193,19 +208,24 @@ io.on('connection', (socket) => {
     const msgId        = makeMsgId();
     const participants = roomManager.getParticipants(roomCode);
 
-    // 1. Immediately notify all servers to show the "translating" spinner
-    await queue.publishTranslating(roomCode, msgId);
+    try {
+      // 1. Immediately notify all servers to show the "translating" spinner
+      await queue.publishTranslating(roomCode, msgId);
 
-    // 2. Trigger Inngest workflow (translate → save → broadcast)
-    await workflows.triggerTranslate({
-      msgId,
-      roomCode,
-      roomId,
-      text:        text.trim(),
-      senderLang:  participant.language,
-      sender:      participant.nickname,
-      participants,
-    });
+      // 2. Trigger Inngest workflow (translate → save → broadcast)
+      await workflows.triggerTranslate({
+        msgId,
+        roomCode,
+        roomId,
+        text:        text.trim(),
+        senderLang:  participant.language,
+        sender:      participant.nickname,
+        participants,
+      });
+    } catch (err) {
+      console.error('[message:text]', err.message);
+      await publishMessageError(roomCode, msgId);
+    }
   });
 
   // ── Audio message → Redpanda + Inngest ──────────────────────────────────
@@ -216,20 +236,25 @@ io.on('connection', (socket) => {
     const msgId        = makeMsgId();
     const participants = roomManager.getParticipants(roomCode);
 
-    // 1. Show spinner on all servers immediately
-    await queue.publishTranslating(roomCode, msgId);
+    try {
+      // 1. Show spinner on all servers immediately
+      await queue.publishTranslating(roomCode, msgId);
 
-    // 2. Trigger Inngest workflow (transcribe → translate → save → broadcast)
-    await workflows.triggerTranscribe({
-      msgId,
-      roomCode,
-      roomId,
-      audioBase64,
-      mimeType,
-      senderLang: participant.language,
-      sender:     participant.nickname,
-      participants,
-    });
+      // 2. Trigger Inngest workflow (transcribe → translate → save → broadcast)
+      await workflows.triggerTranscribe({
+        msgId,
+        roomCode,
+        roomId,
+        audioBase64,
+        mimeType,
+        senderLang: participant.language,
+        sender:     participant.nickname,
+        participants,
+      });
+    } catch (err) {
+      console.error('[message:audio]', err.message);
+      await publishMessageError(roomCode, msgId);
+    }
   });
 
   // ── Disconnect ───────────────────────────────────────────────────────────

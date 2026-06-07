@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { getSocket } from '@/lib/socket'
+import { connectSocket } from '@/lib/socket'
 import { getLang } from '@/lib/languages'
 import { LanguageSelector, LanguageBadge } from '@/components/LanguageSelector'
 import type { Message, Participant } from '@/types'
@@ -42,8 +42,10 @@ function RoomScreen() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
-  const socketRef = useRef(getSocket())
+  const socketRef = useRef(connectSocket())
   const mySocketId = useRef('')
+  const hasSyncedRoom = useRef(false)
+  const wasDisconnected = useRef(false)
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -62,7 +64,7 @@ function RoomScreen() {
     const socket = socketRef.current
     mySocketId.current = socket.id ?? ''
 
-    const rejoin = () => {
+    const syncRoom = (mode: 'initial' | 'reconnect') => {
       mySocketId.current = socket.id ?? ''
       socket.emit(
         'room:join',
@@ -71,7 +73,11 @@ function RoomScreen() {
           if (res.ok) {
             setRoomLost(false)
             setIsConnected(true)
-            addSystemMsg('Reconnected to room')
+            if (mode === 'reconnect' && wasDisconnected.current) {
+              addSystemMsg('Reconnected to room')
+            }
+            wasDisconnected.current = false
+            hasSyncedRoom.current = true
           } else {
             // Room is gone (server restarted). If host, recreate it.
             if (isHost) {
@@ -82,6 +88,7 @@ function RoomScreen() {
                   if (cr.ok) {
                     setRoomLost(false)
                     setIsConnected(true)
+                    hasSyncedRoom.current = true
                     addSystemMsg('Room recreated after server restart — share the code again if needed')
                   } else {
                     setRoomLost(true)
@@ -99,16 +106,12 @@ function RoomScreen() {
     }
 
     const onConnect = () => {
-      // First connection is handled by create/join flow before navigating here.
-      // Subsequent connects (reconnects) need to rejoin the room.
-      if (mySocketId.current) {
-        rejoin()
-      } else {
-        mySocketId.current = socket.id ?? ''
-        setIsConnected(true)
-      }
+      syncRoom(hasSyncedRoom.current ? 'reconnect' : 'initial')
     }
-    const onDisconnect = () => setIsConnected(false)
+    const onDisconnect = () => {
+      setIsConnected(false)
+      wasDisconnected.current = true
+    }
     const onParticipantsUpdated = ({ participants: p }: { participants: Participant[] }) => setParticipants(p)
     const onParticipantJoined = ({ participant }: { participant: Participant }) => {
       addSystemMsg(`${participant.nickname} joined (${participant.language.toUpperCase()})`)
@@ -124,8 +127,8 @@ function RoomScreen() {
       setMessages(prev => {
         if (prev.some(m => m.id === id)) return prev
         return [...prev, {
-          id, original: '…', translated: '…', sender: '', senderLang: myLanguage,
-          targetLang: myLanguage, isMine: false, timestamp: Date.now(), isTranslating: true,
+          id, original: '…', translated: '…', sender: '', senderLang: myLanguageRef.current,
+          targetLang: myLanguageRef.current, isMine: false, timestamp: Date.now(), isTranslating: true,
         }]
       })
     }
@@ -156,7 +159,12 @@ function RoomScreen() {
     socket.on('message:error', onMessageError)
     socket.on('room:history', onHistory)
 
-    setIsConnected(socket.connected)
+    if (socket.connected) {
+      syncRoom(hasSyncedRoom.current ? 'reconnect' : 'initial')
+    } else {
+      setIsConnected(false)
+      socket.connect()
+    }
 
     return () => {
       socket.off('connect', onConnect)
@@ -169,7 +177,7 @@ function RoomScreen() {
       socket.off('message:error', onMessageError)
       socket.off('room:history', onHistory)
     }
-  }, [addSystemMsg, scrollToBottom, myLanguage])
+  }, [addSystemMsg, code, isHost, nickname, roomName, scrollToBottom])
 
   useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
 
