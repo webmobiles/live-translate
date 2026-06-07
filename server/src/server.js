@@ -81,9 +81,10 @@ async function startKafkaConsumer() {
       const room = roomManager.get(roomCode);
       if (!room) return;
 
-      const others = room.participants.filter(p => p.socketId !== message.senderSocketId);
+      const participants = roomManager.getParticipants(roomCode);
+      const others = participants.filter(p => p.socketId !== message.senderSocketId);
 
-      room.participants.forEach((participant) => {
+      participants.forEach((participant) => {
         const translated = message.translations[participant.language]
           ?? message.translations[message.senderLang]
           ?? message.original;
