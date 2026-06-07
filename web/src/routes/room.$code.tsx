@@ -447,21 +447,52 @@ function RoomScreen() {
   )
 }
 
+// ── WhatsApp-style delivery icons ─────────────────────────────────────────
+
+function IconClock() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="inline-block opacity-60">
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+      <polyline points="12 6 12 12 16 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+    </svg>
+  )
+}
+
+function IconSingleCheck({ color = 'currentColor' }: { color?: string }) {
+  return (
+    <svg width="16" height="12" viewBox="0 0 16 12" fill="none" className="inline-block">
+      <polyline points="1,6 5,10 14,1" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+function IconDoubleCheck({ color = 'currentColor' }: { color?: string }) {
+  return (
+    <svg width="20" height="12" viewBox="0 0 20 12" fill="none" className="inline-block">
+      <polyline points="1,6 5,10 14,1" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <polyline points="6,6 10,10 19,1" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+function DeliveryIcon({ status }: { status?: Message['deliveryStatus'] }) {
+  if (!status) return null
+  if (status === 'sending')   return <IconClock />
+  if (status === 'queued')    return <IconSingleCheck color="#9ca3af" />
+  if (status === 'delivered') return <IconDoubleCheck color="#9ca3af" />
+  if (status === 'read')      return <IconDoubleCheck color="#34d399" />
+  if (status === 'failed')    return <span className="text-lt-danger text-xs">!</span>
+  return null
+}
+
+// ── Message bubble ─────────────────────────────────────────────────────────
+
 function MessageBubble({ message }: { message: Message }) {
   const { isMine, sender, senderLang, translated, original, isTranslating, isAudio, timestamp, deliveryStatus } = message
   const [showOriginal, setShowOriginal] = useState(false)
   const senderInfo = getLang(senderLang)
   const time = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const hasTranslation = translated !== original
-  const statusText = deliveryStatus === 'sending'
-    ? 'Sending...'
-    : deliveryStatus === 'queued'
-      ? 'Queued'
-      : deliveryStatus === 'sent'
-        ? 'Sent'
-        : deliveryStatus === 'failed'
-          ? 'Failed to send'
-          : ''
 
   if (isTranslating) {
     return (
@@ -499,9 +530,11 @@ function MessageBubble({ message }: { message: Message }) {
           </p>
         )}
       </div>
-      <span className={`text-xs mt-1 mx-1 ${deliveryStatus === 'failed' ? 'text-lt-danger' : 'text-lt-muted'}`}>
-        {statusText ? `${time} · ${statusText}` : time}
-      </span>
+      {/* Timestamp + delivery icon (only shown on my messages) */}
+      <div className={`flex items-center gap-1 mt-1 mx-1 ${deliveryStatus === 'failed' ? 'text-lt-danger' : 'text-lt-muted'}`}>
+        <span className="text-xs">{time}</span>
+        {isMine && <DeliveryIcon status={deliveryStatus} />}
+      </div>
     </div>
   )
 }

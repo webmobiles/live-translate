@@ -41,6 +41,10 @@ function emitToRoom(roomCode, event, payload) {
   io.to(`room:${roomCode}`).emit(event, payload);
 }
 
+// ── Read-receipt tracking (in-memory, single server) ──────────────────────
+// msgId → { senderSocketId, needed: number, readers: Set<socketId> }
+const pendingReads = new Map();
+
 async function publishMessageError(roomCode, msgId) {
   try {
     await queue.publishSocketEvent('message:error', { roomCode, msgId });
@@ -66,6 +70,8 @@ async function startKafkaConsumer() {
       const room = roomManager.get(roomCode);
       if (!room) return;
 
+      const others = room.participants.filter(p => p.socketId !== message.senderSocketId);
+
       room.participants.forEach((participant) => {
         const translated = message.translations[participant.language]
           ?? message.translations[message.senderLang]
@@ -83,6 +89,24 @@ async function startKafkaConsumer() {
           timestamp:  message.timestamp,
         });
       });
+
+      // Read-receipt tracking: register how many non-sender participants must
+      // read before we flip the message to "read" (green double-check).
+      // Only register on the server instance where the sender is connected.
+      if (message.senderSocketId && io.sockets.sockets.has(message.senderSocketId)) {
+        if (others.length === 0) {
+          // Sender is alone — jump straight to delivered (no one to read it)
+          io.to(message.senderSocketId).emit('message:delivered', { id: message.id });
+        } else {
+          pendingReads.set(message.id, {
+            senderSocketId: message.senderSocketId,
+            needed: others.length,
+            readers: new Set(),
+          });
+          // Clean up stale entries after 24 h to avoid memory leaks
+          setTimeout(() => pendingReads.delete(message.id), 24 * 60 * 60 * 1000);
+        }
+      }
     }
 
     if (type === 'message:error') {
@@ -261,6 +285,20 @@ io.on('connection', (socket) => {
     } catch (err) {
       console.error('[message:audio]', err.message);
       await publishMessageError(roomCode, msgId);
+    }
+  });
+
+  // ── Read receipts ────────────────────────────────────────────────────────
+  socket.on('message:read', ({ msgIds } = {}) => {
+    if (!Array.isArray(msgIds)) return;
+    for (const msgId of msgIds) {
+      const pending = pendingReads.get(msgId);
+      if (!pending || pending.readers.has(socket.id)) continue;
+      pending.readers.add(socket.id);
+      if (pending.readers.size >= pending.needed) {
+        io.to(pending.senderSocketId).emit('message:read', { id: msgId });
+        pendingReads.delete(msgId);
+      }
     }
   });
 
