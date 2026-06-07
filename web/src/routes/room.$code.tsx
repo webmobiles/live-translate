@@ -17,7 +17,7 @@ export const Route = createFileRoute('/room/$code')({
 
 function RoomScreen() {
   const { code } = Route.useParams()
-  const { nickname, language: initialLang, roomName } = Route.useSearch()
+  const { nickname, language: initialLang, roomName, isHost } = Route.useSearch()
   const navigate = useNavigate()
 
   const [messages, setMessages] = useState<Message[]>([])
@@ -26,13 +26,17 @@ function RoomScreen() {
   const [isConnected, setIsConnected] = useState(false)
   const [showLangPicker, setShowLangPicker] = useState(false)
   const [myLanguage, setMyLanguage] = useState(initialLang)
+  const [roomLost, setRoomLost] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const myLanguageRef = useRef(initialLang)
 
   const updateLanguage = useCallback((lang: string) => {
+    myLanguageRef.current = lang
     setMyLanguage(lang)
     socketRef.current.emit('room:update-language', { language: lang })
   }, [])
-  const [isRecording, setIsRecording] = useState(false)
-  const [copied, setCopied] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -57,7 +61,52 @@ function RoomScreen() {
     const socket = socketRef.current
     mySocketId.current = socket.id ?? ''
 
-    const onConnect = () => { setIsConnected(true); mySocketId.current = socket.id ?? '' }
+    const rejoin = () => {
+      mySocketId.current = socket.id ?? ''
+      socket.emit(
+        'room:join',
+        { code, nickname, language: myLanguageRef.current },
+        (res: { ok: boolean; room?: { code: string; name: string }; error?: string }) => {
+          if (res.ok) {
+            setRoomLost(false)
+            setIsConnected(true)
+            addSystemMsg('Reconnected to room')
+          } else {
+            // Room is gone (server restarted). If host, recreate it.
+            if (isHost) {
+              socket.emit(
+                'room:create',
+                { name: roomName || undefined, nickname, language: myLanguageRef.current },
+                (cr: { ok: boolean; code?: string; error?: string }) => {
+                  if (cr.ok) {
+                    setRoomLost(false)
+                    setIsConnected(true)
+                    addSystemMsg('Room recreated after server restart — share the code again if needed')
+                  } else {
+                    setRoomLost(true)
+                    setIsConnected(false)
+                  }
+                },
+              )
+            } else {
+              setRoomLost(true)
+              setIsConnected(false)
+            }
+          }
+        },
+      )
+    }
+
+    const onConnect = () => {
+      // First connection is handled by create/join flow before navigating here.
+      // Subsequent connects (reconnects) need to rejoin the room.
+      if (mySocketId.current) {
+        rejoin()
+      } else {
+        mySocketId.current = socket.id ?? ''
+        setIsConnected(true)
+      }
+    }
     const onDisconnect = () => setIsConnected(false)
     const onParticipantsUpdated = ({ participants: p }: { participants: Participant[] }) => setParticipants(p)
     const onParticipantJoined = ({ participant }: { participant: Participant }) => {
@@ -166,6 +215,18 @@ function RoomScreen() {
 
   return (
     <div className="h-screen bg-lt-bg flex flex-col">
+      {/* Room lost banner */}
+      {roomLost && (
+        <div className="bg-lt-danger/20 border-b border-lt-danger px-4 py-3 flex items-center justify-between shrink-0">
+          <p className="text-white text-sm">Room ended — the server restarted and this room no longer exists.</p>
+          <button
+            onClick={() => navigate({ to: '/' })}
+            className="text-lt-danger font-semibold text-sm ml-4 shrink-0 hover:opacity-70 transition-opacity"
+          >
+            New room →
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center px-4 py-3 border-b border-lt-border gap-3 shrink-0">
         <button onClick={() => navigate({ to: '/' })} className="p-1 text-lt-muted text-xl hover:text-white transition-colors">

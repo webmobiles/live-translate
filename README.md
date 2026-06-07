@@ -1,3 +1,4 @@
+
 # LiveTranslate
 
 Real-time AI translation app with room-based chat — inspired by akkadu.ai.
@@ -16,6 +17,20 @@ Translation Gateway (provider pattern)
 │  ✅ now │  stub   │  stub  │   future     │
 └─────────┴─────────┴────────┴──────────────┘
 ```
+
+## Flow
+User sends voice message
+       ↓
+Socket.io receives it
+       ↓
+Publishes to Redpanda  →  fast delivery to other Socket.io servers
+       ↓
+Also triggers Inngest  →  handles the AI processing workflow
+Inngest workflow:
+  step 1: transcribe audio (Whisper) — retry 3x if fails
+  step 2: translate to N languages   — retry 3x if fails  
+  step 3: save to ScyllaDB           — retry 3x if fails
+  step 4: emit final message         — retry 3x if fails
 
 ## Quick Start
 
