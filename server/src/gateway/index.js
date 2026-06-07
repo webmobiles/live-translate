@@ -9,8 +9,18 @@ const PROVIDERS = {
   mock: require('./providers/mock'),
 };
 
-function getProvider() {
+function envFlag(name) {
+  return ['1', 'true', 'yes', 'on'].includes((process.env[name] || '').trim().toLowerCase());
+}
+
+function getProviderName() {
   const name = process.env.TRANSLATION_PROVIDER || 'openai';
+  if (name === 'mock' && envFlag('FORCE_AI_TRANSLATION')) return 'openai';
+  return name;
+}
+
+function getProvider() {
+  const name = getProviderName();
   const provider = PROVIDERS[name];
   if (!provider) throw new Error(`Unknown translation provider: "${name}". Valid: openai, azure, google, mock`);
   return provider;

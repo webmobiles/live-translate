@@ -245,6 +245,8 @@ Set `TRANSLATION_PROVIDER` in server `.env`:
 | `azure` | 🔧 Stub | Add credentials to enable |
 | `google` | 🔧 Stub | Add credentials to enable |
 
+Set `FORCE_AI_TRANSLATION=true` to use OpenAI even when `TRANSLATION_PROVIDER=mock`.
+
 ## Supported Languages
 
 EN · ES · FR · DE · IT · PT · ZH · JA · KO · AR · RU · HI · TR · NL · PL · SV

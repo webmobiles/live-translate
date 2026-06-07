@@ -85,9 +85,13 @@ async function checkOpenAI() {
 
 // ── Runner ─────────────────────────────────────────────────────────────────
 
+function envFlag(name) {
+  return ['1', 'true', 'yes', 'on'].includes((process.env[name] || '').trim().toLowerCase());
+}
+
 function checksForProvider() {
   const provider = process.env.TRANSLATION_PROVIDER || 'openai';
-  const requiresOpenAI = provider === 'openai';
+  const requiresOpenAI = provider === 'openai' || (provider === 'mock' && envFlag('FORCE_AI_TRANSLATION'));
 
   return [
     { name: 'ScyllaDB', fn: checkScylla, required: true },
