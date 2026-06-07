@@ -1,38 +1,21 @@
 'use strict';
 
-const { inngest }               = require('./client');
-const { translate, transcribe } = require('../gateway');
-const scylla                    = require('../db/scylla');
-const kafka                     = require('../kafka');
+const { inngest }  = require('./client');
+const db           = require('../facades/db');
+const queue        = require('../facades/queue');
+const ai           = require('../facades/ai');
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 async function buildTranslations(text, senderLang, targetLangs) {
   const unique = [...new Set(targetLangs.filter(l => l !== senderLang))];
   const entries = await Promise.all(
-    unique.map(async lang => [lang, await translate(text, senderLang, lang)]),
+    unique.map(async lang => [lang, await ai.translate(text, senderLang, lang)]),
   );
-  // Always keep the original language too (sender reads their own text)
   return Object.fromEntries([[senderLang, text], ...entries]);
 }
 
-async function broadcastMessage({ roomCode, msgId, sender, senderLang, original, translations, isAudio }) {
-  await kafka.publish('message:incoming', {
-    roomCode,
-    message: {
-      id:           msgId,
-      sender,
-      senderLang,
-      original,
-      translations,
-      isAudio:      isAudio || false,
-      timestamp:    Date.now(),
-    },
-  });
-}
-
 // ── Function 1: translate text message ────────────────────────────────────
-// Inngest v4 API: trigger goes inside the first config object
 
 const translateMessage = inngest.createFunction(
   {
@@ -48,12 +31,14 @@ const translateMessage = inngest.createFunction(
       buildTranslations(text, senderLang, targetLangs),
     );
 
-    await step.run('save-to-scylladb', () =>
-      scylla.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, isAudio: false }),
+    await step.run('save-to-db', () =>
+      db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, isAudio: false }),
     );
 
     await step.run('broadcast', () =>
-      broadcastMessage({ roomCode, msgId, sender, senderLang, original: text, translations }),
+      queue.publishMessageReady(roomCode, {
+        id: msgId, sender, senderLang, original: text, translations, isAudio: false, timestamp: Date.now(),
+      }),
     );
 
     return { ok: true, msgId };
@@ -73,7 +58,7 @@ const transcribeAndTranslate = inngest.createFunction(
     const targetLangs = participants.map(p => p.language);
 
     const text = await step.run('transcribe-audio', async () => {
-      const result = await transcribe(audioBase64, mimeType, senderLang);
+      const result = await ai.transcribe(audioBase64, mimeType, senderLang);
       if (!result?.trim()) throw new Error('Empty transcription');
       return result.trim();
     });
@@ -82,12 +67,14 @@ const transcribeAndTranslate = inngest.createFunction(
       buildTranslations(text, senderLang, targetLangs),
     );
 
-    await step.run('save-to-scylladb', () =>
-      scylla.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, isAudio: true }),
+    await step.run('save-to-db', () =>
+      db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, isAudio: true }),
     );
 
     await step.run('broadcast', () =>
-      broadcastMessage({ roomCode, msgId, sender, senderLang, original: text, translations, isAudio: true }),
+      queue.publishMessageReady(roomCode, {
+        id: msgId, sender, senderLang, original: text, translations, isAudio: true, timestamp: Date.now(),
+      }),
     );
 
     return { ok: true, msgId, text };

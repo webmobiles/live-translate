@@ -6,14 +6,10 @@ const express    = require('express');
 const http       = require('http');
 const { Server } = require('socket.io');
 const cors       = require('cors');
-const { serve }  = require('inngest/express');
-
-const { roomManager }              = require('./rooms/manager');
-const scylla                       = require('./db/scylla');
-const kafka                        = require('./kafka');
-const { inngest }                  = require('./inngest/client');
-const { translateMessage,
-        transcribeAndTranslate }   = require('./inngest/functions');
+const { roomManager } = require('./rooms/manager');
+const db              = require('./facades/db');
+const queue           = require('./facades/queue');
+const workflows       = require('./facades/workflows');
 
 const app = express();
 app.use(cors());
@@ -27,10 +23,7 @@ const io = new Server(httpServer, {
 
 // ── Inngest HTTP handler ───────────────────────────────────────────────────
 // Inngest calls this endpoint to trigger and progress workflow steps.
-app.use(
-  '/api/inngest',
-  serve({ client: inngest, functions: [translateMessage, transcribeAndTranslate] }),
-);
+app.use('/api/inngest', workflows.httpHandler());
 
 app.get('/health', (_req, res) =>
   res.json({ status: 'ok', uptime: process.uptime() }),
@@ -53,7 +46,7 @@ function emitToRoom(roomCode, event, payload) {
 // When any server publishes an event, ALL instances receive it and forward
 // to their locally connected clients.
 async function startKafkaConsumer() {
-  await kafka.startConsuming(async (data) => {
+  await queue.startConsuming(async (data) => {
     const { type, roomCode, message } = data;
 
     if (type === 'message:translating') {
@@ -153,7 +146,7 @@ io.on('connection', (socket) => {
 
       // Load chat history from ScyllaDB and send to the joining user
       try {
-        const history = await scylla.getRecentMessages(room.id, 100);
+        const history = await db.getRecentMessages(room.id, 100);
         if (history.length > 0) {
           const formatted = history.map(msg => ({
             id:         msg.id,
@@ -201,20 +194,17 @@ io.on('connection', (socket) => {
     const participants = roomManager.getParticipants(roomCode);
 
     // 1. Immediately notify all servers to show the "translating" spinner
-    await kafka.publish('message:translating', { roomCode, msgId });
+    await queue.publishTranslating(roomCode, msgId);
 
     // 2. Trigger Inngest workflow (translate → save → broadcast)
-    await inngest.send({
-      name: 'message/translate',
-      data: {
-        msgId,
-        roomCode,
-        roomId,
-        text:       text.trim(),
-        senderLang: participant.language,
-        sender:     participant.nickname,
-        participants,
-      },
+    await workflows.triggerTranslate({
+      msgId,
+      roomCode,
+      roomId,
+      text:        text.trim(),
+      senderLang:  participant.language,
+      sender:      participant.nickname,
+      participants,
     });
   });
 
@@ -227,21 +217,18 @@ io.on('connection', (socket) => {
     const participants = roomManager.getParticipants(roomCode);
 
     // 1. Show spinner on all servers immediately
-    await kafka.publish('message:translating', { roomCode, msgId });
+    await queue.publishTranslating(roomCode, msgId);
 
     // 2. Trigger Inngest workflow (transcribe → translate → save → broadcast)
-    await inngest.send({
-      name: 'message/transcribe',
-      data: {
-        msgId,
-        roomCode,
-        roomId,
-        audioBase64,
-        mimeType,
-        senderLang: participant.language,
-        sender:     participant.nickname,
-        participants,
-      },
+    await workflows.triggerTranscribe({
+      msgId,
+      roomCode,
+      roomId,
+      audioBase64,
+      mimeType,
+      senderLang: participant.language,
+      sender:     participant.nickname,
+      participants,
     });
   });
 
@@ -266,10 +253,10 @@ async function start() {
   console.log('\n🌐 LiveTranslate — starting...\n');
 
   // Connect to ScyllaDB
-  await scylla.connect();
+  await db.connect();
 
   // Connect to Redpanda and start consuming broadcast events
-  await kafka.connect();
+  await queue.connect();
   await startKafkaConsumer();
 
   const PORT = process.env.PORT || 4000;
