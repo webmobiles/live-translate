@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "LiveTranslate",
+    "slug": "live-translate",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "livetranslate",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A0F"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.livetranslate.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "LiveTranslate uses your microphone to record voice messages for live translation."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0A0F"
+      },
+      "package": "com.livetranslate.app",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-av",
+      "expo-asset"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
