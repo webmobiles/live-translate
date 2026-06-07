@@ -68,7 +68,7 @@ npm run dev
 
 In a second terminal start the Inngest dev runner:
 ```bash
-npx inngest-cli@latest dev -u http://localhost:4000/api/inngest
+INNGEST_DEV=1 npx inngest-cli@latest dev -u http://localhost:4000/api/inngest
 ```
 
 Server runs on `http://localhost:4000`
@@ -241,6 +241,7 @@ Set `TRANSLATION_PROVIDER` in server `.env`:
 | Value | Status | Notes |
 |---|---|---|
 | `openai` | ✅ Active | GPT-4o-mini + Whisper STT |
+| `mock` | ✅ Local dev | No external API calls; prefixes text with the target language |
 | `azure` | 🔧 Stub | Add credentials to enable |
 | `google` | 🔧 Stub | Add credentials to enable |
 

@@ -27,6 +27,7 @@ docker compose -f docker/docker-compose.yml ps
 REDPANDA_BROKERS=localhost:19092
 SCYLLA_HOSTS=localhost
 SCYLLA_KEYSPACE=live_translate
+INNGEST_DEV=1
 INNGEST_EVENT_KEY=local
 INNGEST_SIGNING_KEY=local
 ```

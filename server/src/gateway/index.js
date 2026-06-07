@@ -6,12 +6,13 @@ const PROVIDERS = {
   openai: require('./providers/openai'),
   azure: require('./providers/azure'),
   google: require('./providers/google'),
+  mock: require('./providers/mock'),
 };
 
 function getProvider() {
   const name = process.env.TRANSLATION_PROVIDER || 'openai';
   const provider = PROVIDERS[name];
-  if (!provider) throw new Error(`Unknown translation provider: "${name}". Valid: openai, azure, google`);
+  if (!provider) throw new Error(`Unknown translation provider: "${name}". Valid: openai, azure, google, mock`);
   return provider;
 }
 

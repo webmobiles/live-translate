@@ -85,16 +85,22 @@ async function checkOpenAI() {
 
 // ── Runner ─────────────────────────────────────────────────────────────────
 
-const CHECKS = [
-  { name: 'ScyllaDB',  fn: checkScylla,   required: true  },
-  { name: 'Redpanda',  fn: checkRedpanda, required: true  },
-  { name: 'Inngest',   fn: checkInngest,  required: true  },
-  { name: 'OpenAI',    fn: checkOpenAI,   required: true  },
-];
+function checksForProvider() {
+  const provider = process.env.TRANSLATION_PROVIDER || 'openai';
+  const requiresOpenAI = provider === 'openai';
+
+  return [
+    { name: 'ScyllaDB', fn: checkScylla, required: true },
+    { name: 'Redpanda', fn: checkRedpanda, required: true },
+    { name: 'Inngest', fn: checkInngest, required: true },
+    ...(requiresOpenAI ? [{ name: 'OpenAI', fn: checkOpenAI, required: true }] : []),
+  ];
+}
 
 async function runHealthChecks() {
   console.log('\n🔍 Running startup health checks…\n');
 
+  const CHECKS = checksForProvider();
   const results = await Promise.allSettled(CHECKS.map(c => c.fn()));
 
   let anyFailed = false;
