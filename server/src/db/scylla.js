@@ -99,7 +99,6 @@ async function getRecentMessages(roomId, limit = 100) {
   const result = await getClient().execute(
     `SELECT * FROM messages
      WHERE room_id = ?
-     ORDER BY timestamp DESC, id DESC
      LIMIT ?`,
     [roomId, limit],
     { prepare: true },
