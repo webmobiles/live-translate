@@ -7,10 +7,35 @@ const ai           = require('../facades/ai');
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+const TRANSLATION_RETRIES = 2;
+const TRANSLATION_RETRY_DELAY_MS = 500;
+
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function translateWithFallback(text, senderLang, targetLang) {
+  for (let attempt = 0; attempt <= TRANSLATION_RETRIES; attempt += 1) {
+    try {
+      return await ai.translate(text, senderLang, targetLang);
+    } catch (err) {
+      const isLastAttempt = attempt === TRANSLATION_RETRIES;
+      console.warn(
+        `[translate] ${senderLang}->${targetLang} failed`
+        + ` (${attempt + 1}/${TRANSLATION_RETRIES + 1}): ${err.message}`,
+      );
+      if (isLastAttempt) return `${text} (not translated)`;
+      await wait(TRANSLATION_RETRY_DELAY_MS);
+    }
+  }
+
+  return `${text} (not translated)`;
+}
+
 async function buildTranslations(text, senderLang, targetLangs) {
   const unique = [...new Set(targetLangs.filter(l => l !== senderLang))];
   const entries = await Promise.all(
-    unique.map(async lang => [lang, await ai.translate(text, senderLang, lang)]),
+    unique.map(async lang => [lang, await translateWithFallback(text, senderLang, lang)]),
   );
   return Object.fromEntries([[senderLang, text], ...entries]);
 }
