@@ -139,6 +139,12 @@ function RoomScreen() {
       setMessages(prev => prev.filter(m => m.id !== id))
     }
 
+    // Load chat history sent by server on join
+    const onHistory = ({ messages: history }: { messages: Message[] }) => {
+      setMessages(history)
+      setTimeout(scrollToBottom, 100)
+    }
+
     socket.on('connect', onConnect)
     socket.on('disconnect', onDisconnect)
     socket.on('room:participants-updated', onParticipantsUpdated)
@@ -147,6 +153,7 @@ function RoomScreen() {
     socket.on('message:translating', onMessageTranslating)
     socket.on('message:incoming', onMessageIncoming)
     socket.on('message:error', onMessageError)
+    socket.on('room:history', onHistory)
 
     setIsConnected(socket.connected)
 
@@ -159,6 +166,7 @@ function RoomScreen() {
       socket.off('message:translating', onMessageTranslating)
       socket.off('message:incoming', onMessageIncoming)
       socket.off('message:error', onMessageError)
+      socket.off('room:history', onHistory)
     }
   }, [addSystemMsg, scrollToBottom, myLanguage])
 

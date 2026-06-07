@@ -2,12 +2,18 @@
 
 require('dotenv').config();
 
-const express = require('express');
-const http = require('http');
+const express    = require('express');
+const http       = require('http');
 const { Server } = require('socket.io');
-const cors = require('cors');
-const { roomManager } = require('./rooms/manager');
-const { translate, transcribe } = require('./gateway');
+const cors       = require('cors');
+const { serve }  = require('inngest/express');
+
+const { roomManager }              = require('./rooms/manager');
+const scylla                       = require('./db/scylla');
+const kafka                        = require('./kafka');
+const { inngest }                  = require('./inngest/client');
+const { translateMessage,
+        transcribeAndTranslate }   = require('./inngest/functions');
 
 const app = express();
 app.use(cors());
@@ -19,66 +25,97 @@ const io = new Server(httpServer, {
   maxHttpBufferSize: 1e8,
 });
 
-app.get('/health', (_req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
+// ── Inngest HTTP handler ───────────────────────────────────────────────────
+// Inngest calls this endpoint to trigger and progress workflow steps.
+app.use(
+  '/api/inngest',
+  serve({ client: inngest, functions: [translateMessage, transcribeAndTranslate] }),
+);
+
+app.get('/health', (_req, res) =>
+  res.json({ status: 'ok', uptime: process.uptime() }),
+);
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-async function broadcastTranslations(io, roomCode, msgId, text, senderSocketId, senderLang) {
-  const participants = roomManager.getParticipants(roomCode);
+function makeMsgId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
 
-  const targetLangs = [...new Set(
-    participants
-      .filter(p => p.socketId !== senderSocketId)
-      .map(p => p.language),
-  )];
+// Emit a socket event to every client in a room on THIS server instance.
+// All server instances do this when they receive the broadcast from Redpanda.
+function emitToRoom(roomCode, event, payload) {
+  io.to(`room:${roomCode}`).emit(event, payload);
+}
 
-  const translations = {};
-  await Promise.all(
-    targetLangs.map(async (lang) => {
-      try {
-        translations[lang] = await translate(text, senderLang, lang);
-      } catch (err) {
-        console.error(`[translate] ${senderLang}→${lang} failed:`, err.message);
-        translations[lang] = text;
-      }
-    }),
-  );
+// ── Redpanda consumer — broadcast to local Socket.io clients ──────────────
+// Every Socket.io server instance runs this consumer.
+// When any server publishes an event, ALL instances receive it and forward
+// to their locally connected clients.
+async function startKafkaConsumer() {
+  await kafka.startConsuming(async (data) => {
+    const { type, roomCode, message } = data;
 
-  const sender = participants.find(p => p.socketId === senderSocketId);
+    if (type === 'message:translating') {
+      emitToRoom(roomCode, 'message:translating', { id: data.msgId });
+    }
 
-  participants.forEach(p => {
-    io.to(p.socketId).emit('message:incoming', {
-      id: msgId,
-      original: text,
-      translated: p.socketId === senderSocketId ? text : (translations[p.language] || text),
-      sender: sender?.nickname ?? 'Unknown',
-      senderLang,
-      targetLang: p.language,
-      isMine: p.socketId === senderSocketId,
-      timestamp: Date.now(),
-    });
+    if (type === 'message:incoming') {
+      // Each client receives only the translation for their language
+      const room = roomManager.get(roomCode);
+      if (!room) return;
+
+      room.participants.forEach((participant) => {
+        const translated = message.translations[participant.language]
+          ?? message.translations[message.senderLang]
+          ?? message.original;
+
+        io.to(participant.socketId).emit('message:incoming', {
+          id:         message.id,
+          original:   message.original,
+          translated,
+          sender:     message.sender,
+          senderLang: message.senderLang,
+          targetLang: participant.language,
+          isMine:     false, // will be corrected below for the sender
+          isAudio:    message.isAudio,
+          timestamp:  message.timestamp,
+        });
+      });
+    }
+
+    if (type === 'message:error') {
+      emitToRoom(roomCode, 'message:error', { id: data.msgId });
+    }
+
+    if (type === 'room:participants-updated') {
+      emitToRoom(roomCode, 'room:participants-updated', { participants: data.participants });
+    }
   });
 }
 
-// ── Socket handlers ────────────────────────────────────────────────────────
+// ── Socket.io handlers ─────────────────────────────────────────────────────
 
 io.on('connection', (socket) => {
   console.log(`[socket] + ${socket.id}`);
 
-  // Create room
-  socket.on('room:create', ({ name, nickname, language } = {}, cb) => {
+  // ── Create room ──────────────────────────────────────────────────────────
+  socket.on('room:create', async ({ name, nickname, language } = {}, cb) => {
     try {
-      const room = roomManager.create({ name, hostSocketId: socket.id });
+      const room = await roomManager.create({ name, hostSocketId: socket.id });
       const participant = roomManager.addParticipant(room.code, {
         socketId: socket.id,
         nickname: nickname || 'Host',
         language: language || 'en',
         isHost: true,
       });
+
       socket.join(`room:${room.code}`);
-      socket.data.roomCode = room.code;
+      socket.data.roomCode    = room.code;
+      socket.data.roomId      = room.id;
       socket.data.participant = participant;
-      console.log(`[room] created ${room.code} by ${nickname}`);
+
+      console.log(`[room] created ${room.code} (uuid: ${room.id}) by ${nickname}`);
       cb?.({ ok: true, code: room.code, room: roomManager.getPublic(room.code) });
     } catch (err) {
       console.error('[room:create]', err.message);
@@ -86,32 +123,64 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Join room
-  socket.on('room:join', ({ code, nickname, language } = {}, cb) => {
-    const room = roomManager.get(code);
-    if (!room) {
-      cb?.({ ok: false, error: 'Room not found. Check the code and try again.' });
-      return;
-    }
-    const participant = roomManager.addParticipant(code.toUpperCase(), {
-      socketId: socket.id,
-      nickname: nickname || 'Guest',
-      language: language || 'en',
-      isHost: false,
-    });
-    socket.join(`room:${code.toUpperCase()}`);
-    socket.data.roomCode = code.toUpperCase();
-    socket.data.participant = participant;
+  // ── Join room ────────────────────────────────────────────────────────────
+  socket.on('room:join', async ({ code, nickname, language } = {}, cb) => {
+    try {
+      // Restore from ScyllaDB if server restarted
+      const room = await roomManager.getOrRestore(code);
+      if (!room) {
+        cb?.({ ok: false, error: 'Room not found. Check the code and try again.' });
+        return;
+      }
 
-    socket.to(`room:${code.toUpperCase()}`).emit('room:participant-joined', { participant });
-    io.to(`room:${code.toUpperCase()}`).emit('room:participants-updated', {
-      participants: roomManager.getParticipants(code.toUpperCase()),
-    });
-    console.log(`[room] ${nickname} joined ${code.toUpperCase()}`);
-    cb?.({ ok: true, room: roomManager.getPublic(code.toUpperCase()) });
+      const participant = roomManager.addParticipant(room.code, {
+        socketId: socket.id,
+        nickname: nickname || 'Guest',
+        language: language || 'en',
+        isHost:   false,
+      });
+
+      socket.join(`room:${room.code}`);
+      socket.data.roomCode    = room.code;
+      socket.data.roomId      = room.id;
+      socket.data.participant = participant;
+
+      // Notify other participants
+      socket.to(`room:${room.code}`).emit('room:participant-joined', { participant });
+      io.to(`room:${room.code}`).emit('room:participants-updated', {
+        participants: roomManager.getParticipants(room.code),
+      });
+
+      // Load chat history from ScyllaDB and send to the joining user
+      try {
+        const history = await scylla.getRecentMessages(room.id, 100);
+        if (history.length > 0) {
+          const formatted = history.map(msg => ({
+            id:         msg.id,
+            original:   msg.original,
+            translated: msg.translations[language] ?? msg.translations[msg.senderLang] ?? msg.original,
+            sender:     msg.sender,
+            senderLang: msg.senderLang,
+            targetLang: language || 'en',
+            isMine:     false,
+            isAudio:    msg.isAudio,
+            timestamp:  msg.timestamp,
+          }));
+          socket.emit('room:history', { messages: formatted });
+        }
+      } catch (err) {
+        console.error('[room:join] failed to load history:', err.message);
+      }
+
+      console.log(`[room] ${nickname} joined ${room.code}`);
+      cb?.({ ok: true, room: roomManager.getPublic(room.code) });
+    } catch (err) {
+      console.error('[room:join]', err.message);
+      cb?.({ ok: false, error: err.message });
+    }
   });
 
-  // Update language preference
+  // ── Update language ──────────────────────────────────────────────────────
   socket.on('room:update-language', ({ language } = {}, cb) => {
     const { roomCode, participant } = socket.data;
     if (!roomCode || !participant || !language) { cb?.({ ok: false }); return; }
@@ -123,43 +192,60 @@ io.on('connection', (socket) => {
     cb?.({ ok: true });
   });
 
-  // Text message → translate → broadcast
+  // ── Text message → Redpanda + Inngest ────────────────────────────────────
   socket.on('message:text', async ({ text } = {}) => {
-    const { roomCode, participant } = socket.data;
+    const { roomCode, roomId, participant } = socket.data;
     if (!roomCode || !participant || !text?.trim()) return;
 
-    const msgId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    io.to(`room:${roomCode}`).emit('message:translating', { id: msgId });
+    const msgId        = makeMsgId();
+    const participants = roomManager.getParticipants(roomCode);
 
-    try {
-      await broadcastTranslations(io, roomCode, msgId, text.trim(), socket.id, participant.language);
-    } catch (err) {
-      console.error('[message:text]', err.message);
-    }
+    // 1. Immediately notify all servers to show the "translating" spinner
+    await kafka.publish('message:translating', { roomCode, msgId });
+
+    // 2. Trigger Inngest workflow (translate → save → broadcast)
+    await inngest.send({
+      name: 'message/translate',
+      data: {
+        msgId,
+        roomCode,
+        roomId,
+        text:       text.trim(),
+        senderLang: participant.language,
+        sender:     participant.nickname,
+        participants,
+      },
+    });
   });
 
-  // Audio → Whisper STT → translate → broadcast
+  // ── Audio message → Redpanda + Inngest ──────────────────────────────────
   socket.on('message:audio', async ({ audioBase64, mimeType } = {}) => {
-    const { roomCode, participant } = socket.data;
+    const { roomCode, roomId, participant } = socket.data;
     if (!roomCode || !participant || !audioBase64) return;
 
-    const msgId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    io.to(`room:${roomCode}`).emit('message:translating', { id: msgId });
+    const msgId        = makeMsgId();
+    const participants = roomManager.getParticipants(roomCode);
 
-    try {
-      const text = await transcribe(audioBase64, mimeType, participant.language);
-      if (!text?.trim()) {
-        socket.emit('message:error', { id: msgId, error: 'Could not transcribe audio' });
-        return;
-      }
-      await broadcastTranslations(io, roomCode, msgId, text.trim(), socket.id, participant.language);
-    } catch (err) {
-      console.error('[message:audio]', err.message);
-      socket.emit('message:error', { id: msgId, error: 'Audio processing failed' });
-    }
+    // 1. Show spinner on all servers immediately
+    await kafka.publish('message:translating', { roomCode, msgId });
+
+    // 2. Trigger Inngest workflow (transcribe → translate → save → broadcast)
+    await inngest.send({
+      name: 'message/transcribe',
+      data: {
+        msgId,
+        roomCode,
+        roomId,
+        audioBase64,
+        mimeType,
+        senderLang: participant.language,
+        sender:     participant.nickname,
+        participants,
+      },
+    });
   });
 
-  // Disconnect
+  // ── Disconnect ───────────────────────────────────────────────────────────
   socket.on('disconnect', () => {
     const { roomCode, participant } = socket.data;
     if (roomCode && participant) {
@@ -174,10 +260,26 @@ io.on('connection', (socket) => {
   });
 });
 
-// Stale room cleanup every 30 min
-setInterval(() => roomManager.cleanStale(2 * 60 * 60 * 1000), 30 * 60 * 1000);
+// ── Startup ────────────────────────────────────────────────────────────────
 
-const PORT = process.env.PORT || 4000;
-httpServer.listen(PORT, () => {
-  console.log(`\n🌐 LiveTranslate server → http://localhost:${PORT}\n`);
+async function start() {
+  console.log('\n🌐 LiveTranslate — starting...\n');
+
+  // Connect to ScyllaDB
+  await scylla.connect();
+
+  // Connect to Redpanda and start consuming broadcast events
+  await kafka.connect();
+  await startKafkaConsumer();
+
+  const PORT = process.env.PORT || 4000;
+  httpServer.listen(PORT, () => {
+    console.log(`\n✅ Server ready → http://localhost:${PORT}`);
+    console.log(`   Inngest handler → http://localhost:${PORT}/api/inngest\n`);
+  });
+}
+
+start().catch(err => {
+  console.error('Failed to start:', err);
+  process.exit(1);
 });

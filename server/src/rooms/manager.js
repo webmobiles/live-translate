@@ -1,6 +1,10 @@
 'use strict';
 
-const rooms = new Map();
+const scylla = require('../db/scylla');
+
+// In-memory store — tracks currently connected participants only.
+// Rooms and messages are persisted in ScyllaDB.
+const rooms = new Map(); // code → { id, code, name, createdAt, participants: Map }
 
 function generateCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -12,19 +16,48 @@ function generateCode() {
 }
 
 const roomManager = {
-  create({ name, hostSocketId }) {
+
+  // Create a new room — persisted to ScyllaDB immediately
+  async create({ name, hostSocketId }) {
     const code = generateCode();
+    const roomName = name || `Room ${code}`;
+
+    const dbRoom = await scylla.createRoom({ code, name: roomName });
+
     rooms.set(code, {
+      id:          dbRoom.id,
       code,
-      name: name || `Room ${code}`,
-      hostSocketId,
+      name:        roomName,
+      createdAt:   dbRoom.createdAt,
       participants: new Map(),
-      createdAt: Date.now(),
-      lastActivityAt: Date.now(),
     });
+
+    console.log(`[room] created ${code} (id: ${dbRoom.id})`);
     return rooms.get(code);
   },
 
+  // Get room from memory, or reload from ScyllaDB if server restarted
+  async getOrRestore(code) {
+    const upper = code?.toUpperCase();
+    if (rooms.has(upper)) return rooms.get(upper);
+
+    // Server may have restarted — try ScyllaDB
+    const dbRoom = await scylla.getRoomByCode(upper);
+    if (!dbRoom) return null;
+
+    rooms.set(upper, {
+      id:           dbRoom.id,
+      code:         upper,
+      name:         dbRoom.name,
+      createdAt:    dbRoom.createdAt,
+      participants: new Map(),
+    });
+
+    console.log(`[room] restored ${upper} from ScyllaDB`);
+    return rooms.get(upper);
+  },
+
+  // Sync get — only memory (use getOrRestore when handling join)
   get(code) {
     return rooms.get(code?.toUpperCase()) || null;
   },
@@ -34,22 +67,21 @@ const roomManager = {
     if (!room) throw new Error('Room not found');
     const participant = { socketId, nickname, language, isHost, joinedAt: Date.now() };
     room.participants.set(socketId, participant);
-    room.lastActivityAt = Date.now();
     return participant;
-  },
-
-  updateParticipantLanguage(code, socketId, language) {
-    const room = this.get(code);
-    if (!room) return;
-    const p = room.participants.get(socketId);
-    if (p) { p.language = language; room.lastActivityAt = Date.now(); }
   },
 
   removeParticipant(code, socketId) {
     const room = this.get(code);
     if (!room) return;
     room.participants.delete(socketId);
-    if (room.participants.size === 0) rooms.delete(code);
+    // Keep the room in memory even if empty — history is in ScyllaDB
+  },
+
+  updateParticipantLanguage(code, socketId, language) {
+    const room = this.get(code);
+    if (!room) return;
+    const p = room.participants.get(socketId);
+    if (p) p.language = language;
   },
 
   getParticipants(code) {
@@ -61,21 +93,12 @@ const roomManager = {
     const room = this.get(code);
     if (!room) return null;
     return {
-      code: room.code,
-      name: room.name,
+      id:           room.id,
+      code:         room.code,
+      name:         room.name,
       participants: this.getParticipants(code),
-      createdAt: room.createdAt,
+      createdAt:    room.createdAt,
     };
-  },
-
-  cleanStale(maxAgeMs) {
-    const now = Date.now();
-    for (const [code, room] of rooms.entries()) {
-      if (now - room.lastActivityAt > maxAgeMs) {
-        rooms.delete(code);
-        console.log(`[rooms] cleaned stale room: ${code}`);
-      }
-    }
   },
 };
 

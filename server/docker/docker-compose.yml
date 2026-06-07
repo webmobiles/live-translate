@@ -94,11 +94,7 @@ services:
   scylla:
     image: scylladb/scylla:6.2
     container_name: live-translate-scylla
-    command:
-      - --smp 1                  # use 1 CPU core (increase in production)
-      - --memory 512M            # RAM limit for dev
-      - --overprovisioned 1      # relaxed settings for dev environment
-      - --developer-mode 1       # skip performance checks on dev machine
+    command: --smp=1 --memory=512M --overprovisioned=1 --developer-mode=1
     ports:
       - "9042:9042"     # CQL native transport — use this in your .env
       - "9160:9160"     # Thrift (legacy, rarely needed)
@@ -128,34 +124,10 @@ services:
     command:
       - -c
       - |
-        cqlsh scylla -e "
-          CREATE KEYSPACE IF NOT EXISTS live_translate
-            WITH replication = {
-              'class': 'SimpleStrategy',
-              'replication_factor': 1
-            };
-
-          USE live_translate;
-
-          CREATE TABLE IF NOT EXISTS rooms (
-            code        text PRIMARY KEY,
-            name        text,
-            created_at  bigint
-          );
-
-          CREATE TABLE IF NOT EXISTS messages (
-            room_code    text,
-            timestamp    bigint,
-            id           text,
-            sender       text,
-            sender_lang  text,
-            original     text,
-            translations map<text, text>,
-            is_audio     boolean,
-            PRIMARY KEY (room_code, timestamp, id)
-          ) WITH CLUSTERING ORDER BY (timestamp DESC, id ASC)
-            AND default_time_to_live = 0;
-        "
+        cqlsh scylla -e "CREATE KEYSPACE IF NOT EXISTS live_translate WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};"
+        cqlsh scylla -e "CREATE TABLE IF NOT EXISTS live_translate.rooms (id uuid PRIMARY KEY, code text, name text, created_at bigint);"
+        cqlsh scylla -e "CREATE TABLE IF NOT EXISTS live_translate.rooms_by_code (code text PRIMARY KEY, room_id uuid);"
+        cqlsh scylla -e "CREATE TABLE IF NOT EXISTS live_translate.messages (room_id uuid, timestamp bigint, id uuid, sender text, sender_lang text, original text, translations map<text, text>, is_audio boolean, PRIMARY KEY (room_id, timestamp, id)) WITH CLUSTERING ORDER BY (timestamp DESC, id ASC);"
         echo '[scylla-init] keyspace and tables ready'
 
   # ── Inngest ───────────────────────────────────────────────────────────────
