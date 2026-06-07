@@ -1,6 +1,11 @@
 'use strict';
 
-require('dotenv').config();
+const path = require('path');
+
+require('dotenv').config({
+  path: path.join(__dirname, '..', '.env'),
+  override: process.env.NODE_ENV !== 'production',
+});
 
 const express    = require('express');
 const http       = require('http');
