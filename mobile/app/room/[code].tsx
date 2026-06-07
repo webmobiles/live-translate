@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { getSocket } from '@/lib/socket';
 import { ParticipantList } from '@/components/ParticipantList';
 import { MessageBubble } from '@/components/MessageBubble';
