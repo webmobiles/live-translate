@@ -7,10 +7,30 @@ interface Props {
   message: Message;
 }
 
+function formatMessageTime(timestamp: number) {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const elapsedMs = Date.now() - date.getTime();
+  if (elapsedMs < 0) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const minutesAgo = Math.floor(elapsedMs / 60000);
+  if (minutesAgo < 1) return 'now';
+  if (minutesAgo < 60) return `${minutesAgo} min ago`;
+
+  const hoursAgo = Math.floor(elapsedMs / 3600000);
+  if (hoursAgo < 24) return `${hoursAgo}h ago`;
+
+  const daysAgo = Math.floor(elapsedMs / 86400000);
+  if (daysAgo < 7) return daysAgo === 1 ? '1 day ago' : `${daysAgo} days ago`;
+
+  return date.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
 export function MessageBubble({ message }: Props) {
   const { isMine, sender, senderLang, translated, original, isTranslating, isAudio, timestamp } = message;
   const senderInfo = getLang(senderLang);
-  const time = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const time = formatMessageTime(timestamp);
 
   if (isTranslating) {
     return (

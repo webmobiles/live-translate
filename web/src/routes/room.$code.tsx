@@ -485,16 +485,33 @@ function DeliveryIcon({ status }: { status?: Message['deliveryStatus'] }) {
   return null
 }
 
+function formatMessageTime(timestamp: number) {
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const elapsedMs = Date.now() - date.getTime()
+  if (elapsedMs < 0) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+
+  const minutesAgo = Math.floor(elapsedMs / 60000)
+  if (minutesAgo < 1) return 'now'
+  if (minutesAgo < 60) return `${minutesAgo} min ago`
+
+  const hoursAgo = Math.floor(elapsedMs / 3600000)
+  if (hoursAgo < 24) return `${hoursAgo}h ago`
+
+  const daysAgo = Math.floor(elapsedMs / 86400000)
+  if (daysAgo < 7) return daysAgo === 1 ? '1 day ago' : `${daysAgo} days ago`
+
+  return date.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
 // ── Message bubble ─────────────────────────────────────────────────────────
 
 function MessageBubble({ message }: { message: Message }) {
   const { isMine, sender, senderLang, translated, original, isTranslating, isAudio, timestamp, deliveryStatus } = message
   const [showOriginal, setShowOriginal] = useState(false)
   const senderInfo = getLang(senderLang)
-  const messageDate = new Date(timestamp)
-  const time = Number.isNaN(messageDate.getTime())
-    ? ''
-    : messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const time = formatMessageTime(timestamp)
   const hasTranslation = translated !== original
 
   if (isTranslating) {
