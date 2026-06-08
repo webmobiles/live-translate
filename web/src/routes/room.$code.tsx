@@ -10,7 +10,7 @@ export const Route = createFileRoute('/room/$code')({
     nickname: String(s.nickname ?? ''),
     language: String(s.language ?? 'en'),
     roomName: String(s.roomName ?? ''),
-    isHost: Boolean(s.isHost),
+    isHost: s.isHost === true || s.isHost === 'true',
   }),
   component: RoomScreen,
 })
@@ -27,6 +27,7 @@ function RoomScreen() {
   const [showLangPicker, setShowLangPicker] = useState(false)
   const [myLanguage, setMyLanguage] = useState(initialLang)
   const [roomLost, setRoomLost] = useState(false)
+  const [connectionError, setConnectionError] = useState('')
   const [countdown, setCountdown] = useState(4)
   const [isRecording, setIsRecording] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -66,10 +67,17 @@ function RoomScreen() {
 
     const syncRoom = (mode: 'initial' | 'reconnect') => {
       mySocketId.current = socket.id ?? ''
-      socket.emit(
+      setConnectionError('')
+      socket.timeout(8000).emit(
         'room:join',
         { code, nickname, language: myLanguageRef.current },
-        (res: { ok: boolean; room?: { code: string; name: string }; error?: string }) => {
+        (err: Error | null, res?: { ok: boolean; room?: { code: string; name: string }; error?: string }) => {
+          if (err || !res) {
+            setIsConnected(false)
+            setConnectionError('Could not reach the server.')
+            return
+          }
+
           if (res.ok) {
             setRoomLost(false)
             setIsConnected(true)
@@ -81,15 +89,34 @@ function RoomScreen() {
           } else {
             // Room is gone (server restarted). If host, recreate it.
             if (isHost) {
-              socket.emit(
+              socket.timeout(8000).emit(
                 'room:create',
                 { name: roomName || undefined, nickname, language: myLanguageRef.current },
-                (cr: { ok: boolean; code?: string; error?: string }) => {
+                (createErr: Error | null, cr?: { ok: boolean; code?: string; room?: { name: string }; error?: string }) => {
+                  if (createErr || !cr) {
+                    setIsConnected(false)
+                    setConnectionError('Could not recreate the room.')
+                    return
+                  }
+
                   if (cr.ok) {
                     setRoomLost(false)
                     setIsConnected(true)
                     hasSyncedRoom.current = true
                     addSystemMsg('Room recreated after server restart — share the code again if needed')
+                    if (cr.code && cr.code !== code) {
+                      navigate({
+                        to: '/room/$code',
+                        params: { code: cr.code },
+                        search: {
+                          nickname,
+                          language: myLanguageRef.current,
+                          roomName: cr.room?.name ?? (roomName || `Room ${cr.code}`),
+                          isHost: true,
+                        },
+                        replace: true,
+                      })
+                    }
                   } else {
                     setRoomLost(true)
                     setIsConnected(false)
@@ -111,6 +138,10 @@ function RoomScreen() {
     const onDisconnect = () => {
       setIsConnected(false)
       wasDisconnected.current = true
+    }
+    const onConnectError = () => {
+      setIsConnected(false)
+      setConnectionError('Could not reach the server.')
     }
     const onParticipantsUpdated = ({ participants: p }: { participants: Participant[] }) => setParticipants(p)
     const onParticipantJoined = ({ participant }: { participant: Participant }) => {
@@ -177,6 +208,7 @@ function RoomScreen() {
 
     socket.on('connect', onConnect)
     socket.on('disconnect', onDisconnect)
+    socket.on('connect_error', onConnectError)
     socket.on('room:participants-updated', onParticipantsUpdated)
     socket.on('room:participant-joined', onParticipantJoined)
     socket.on('room:participant-left', onParticipantLeft)
@@ -208,6 +240,7 @@ function RoomScreen() {
     return () => {
       socket.off('connect', onConnect)
       socket.off('disconnect', onDisconnect)
+      socket.off('connect_error', onConnectError)
       socket.off('room:participants-updated', onParticipantsUpdated)
       socket.off('room:participant-joined', onParticipantJoined)
       socket.off('room:participant-left', onParticipantLeft)
@@ -219,7 +252,7 @@ function RoomScreen() {
       socket.off('room:history', onHistory)
       window.removeEventListener('focus', markHistoryRead)
     }
-  }, [addSystemMsg, code, isHost, nickname, roomName, scrollToBottom])
+  }, [addSystemMsg, code, isHost, navigate, nickname, roomName, scrollToBottom])
 
   useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
 
@@ -347,7 +380,9 @@ function RoomScreen() {
               {code} {copied ? '✓' : '📋'}
             </button>
             <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-lt-accent' : 'bg-yellow-500'}`} />
-            <span className="text-lt-muted text-xs">{isConnected ? 'Live' : 'Connecting…'}</span>
+            <span className="text-lt-muted text-xs">
+              {isConnected ? 'Live' : connectionError || 'Connecting…'}
+            </span>
           </div>
         </div>
         <LanguageBadge code={myLanguage} onClick={() => setShowLangPicker(true)} />
