@@ -14,7 +14,7 @@ Node.js Backend (Express + Socket.io)
 Redpanda (Kafka)            Inngest (workflows)
 pub/sub between servers     AI step orchestration
      ↓                          ↓
-          Database provider (ScyllaDB or TiKV via TiDB)
+          Database provider (ScyllaDB, TiKV via TiDB, or SurrealDB)
 ```
 
 ## Message Flow
@@ -174,7 +174,8 @@ live-translate/
 │       │   └── ai.js                 # AI provider façade
 │       ├── db/
 │       │   ├── scylla.js             # ScyllaDB / cassandra-driver
-│       │   └── tikv.js               # TiKV through TiDB SQL / mysql2
+│       │   ├── tikv.js               # TiKV through TiDB SQL / mysql2
+│       │   └── surreal.js            # SurrealDB / surrealdb SDK
 │       ├── kafka/
 │       │   └── index.js              # Redpanda / kafkajs
 │       ├── inngest/
@@ -256,6 +257,7 @@ Set `DB_PROVIDER` in server `.env`:
 |---|---|---|
 | `scylla` | ✅ Default | Uses ScyllaDB/Cassandra CQL on `SCYLLA_HOSTS` |
 | `tikv` | ✅ TiKV via TiDB | Uses TiDB's MySQL-compatible SQL layer backed by TiKV |
+| `surreal` | ✅ SurrealDB | Uses SurrealDB over HTTP/WebSocket RPC |
 
 For TiKV mode, run a TiDB cluster and configure:
 
@@ -273,6 +275,24 @@ For local Docker TiKV/TiDB:
 ```bash
 cd server
 docker compose -f tdocker/docker-compose.yml --profile tikv up -d pd tikv tidb
+```
+
+For local Docker SurrealDB:
+
+```bash
+cd server
+docker compose -f tdocker/docker-compose.yml --profile surreal up -d surrealdb
+```
+
+Then configure:
+
+```env
+DB_PROVIDER=surreal
+SURREALDB_URL=http://localhost:8000/rpc
+SURREALDB_NAMESPACE=live_translate
+SURREALDB_DATABASE=live_translate
+SURREALDB_USERNAME=root
+SURREALDB_PASSWORD=root
 ```
 
 ## Supported Languages

@@ -6,6 +6,7 @@
 #    redpanda-console → Redpanda web UI  (http://localhost:8080)
 #    scylla        → Distributed database (permanent chat history)
 #    tidb/tikv/pd  → Optional TiKV-backed database profile
+#    surrealdb     → Optional SurrealDB database profile
 #    inngest       → AI workflow orchestrator (http://localhost:8288)
 #
 #  Start:
@@ -27,6 +28,7 @@ volumes:
   scylla-data:
   pd-data:
   tikv-data:
+  surrealdb-data:
 
 services:
 
@@ -192,6 +194,27 @@ services:
     ports:
       - "14000:4000"   # TiDB SQL/MySQL protocol; 4000 is used by the Node server
       - "10080:10080"  # TiDB status
+    networks:
+      - live-translate
+
+  # ── SurrealDB ────────────────────────────────────────────────────────────
+  # Start with:
+  #   docker compose -f tdocker/docker-compose.yml --profile surreal up -d surrealdb
+  surrealdb:
+    image: surrealdb/surrealdb:latest
+    container_name: live-translate-surrealdb
+    profiles: ["surreal"]
+    command:
+      - start
+      - --user
+      - root
+      - --pass
+      - root
+      - rocksdb:/data/live-translate.db
+    ports:
+      - "8000:8000"
+    volumes:
+      - surrealdb-data:/data
     networks:
       - live-translate
 

@@ -20,6 +20,7 @@ docker compose -f tdocker/docker-compose.yml ps
 | Redpanda Console | http://localhost:8080 | Visual UI — inspect topics & messages |
 | ScyllaDB | `localhost:9042` | Database CQL port (use in .env) |
 | TiDB/TiKV | `localhost:14000` | Optional TiKV-backed SQL port |
+| SurrealDB | http://localhost:8000 | Optional document/graph database |
 | Inngest Dev UI | http://localhost:8288 | Workflow dashboard — see every AI job |
 
 ## Optional TiKV/TiDB
@@ -37,6 +38,23 @@ TIKV_SQL_PORT=14000
 TIKV_SQL_USER=root
 TIKV_SQL_PASSWORD=
 TIKV_SQL_DATABASE=live_translate
+```
+
+## Optional SurrealDB
+
+```bash
+docker compose -f tdocker/docker-compose.yml --profile surreal up -d surrealdb
+```
+
+Then set:
+
+```
+DB_PROVIDER=surreal
+SURREALDB_URL=http://localhost:8000/rpc
+SURREALDB_NAMESPACE=live_translate
+SURREALDB_DATABASE=live_translate
+SURREALDB_USERNAME=root
+SURREALDB_PASSWORD=root
 ```
 
 ## Add to your server .env

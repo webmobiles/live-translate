@@ -54,6 +54,32 @@ async function checkTikv() {
   }
 }
 
+async function checkSurreal() {
+  const { Surreal } = require('surrealdb');
+  const db = new Surreal();
+
+  const url = process.env.SURREALDB_URL || 'http://localhost:8000/rpc';
+  const username = process.env.SURREALDB_USERNAME || 'root';
+  const password = process.env.SURREALDB_PASSWORD || 'root';
+
+  const options = {
+    namespace: process.env.SURREALDB_NAMESPACE || 'live_translate',
+    database: process.env.SURREALDB_DATABASE || 'live_translate',
+  };
+
+  if (username || password) {
+    options.authentication = { username, password };
+  }
+
+  try {
+    await withTimeout(db.connect(url, options), 'SurrealDB connect');
+    await withTimeout(db.query('RETURN true;').json().collect(), 'SurrealDB query');
+    return { ok: true };
+  } finally {
+    await db.close().catch(() => {});
+  }
+}
+
 async function checkRedpanda() {
   const { Kafka } = require('kafkajs');
   const brokers   = (process.env.REDPANDA_BROKERS || 'localhost:19092').split(',');
@@ -113,9 +139,10 @@ function checksForProvider() {
   const dbChecks = {
     scylla: { name: 'ScyllaDB', fn: checkScylla, required: true },
     tikv: { name: 'TiKV/TiDB', fn: checkTikv, required: true },
+    surreal: { name: 'SurrealDB', fn: checkSurreal, required: true },
   };
   const dbCheck = dbChecks[dbProvider];
-  if (!dbCheck) throw new Error(`Unknown DB_PROVIDER: "${dbProvider}". Valid: scylla, tikv`);
+  if (!dbCheck) throw new Error(`Unknown DB_PROVIDER: "${dbProvider}". Valid: scylla, tikv, surreal`);
   const requiresOpenAI = translationProvider === 'openai'
     || (translationProvider === 'mock' && envFlag('FORCE_AI_TRANSLATION'));
 
