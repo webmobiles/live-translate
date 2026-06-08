@@ -5,6 +5,7 @@
 #    redpanda      → Kafka-compatible message broker (pub/sub between servers)
 #    redpanda-console → Redpanda web UI  (http://localhost:8080)
 #    scylla        → Distributed database (permanent chat history)
+#    tidb/tikv/pd  → Optional TiKV-backed database profile
 #    inngest       → AI workflow orchestrator (http://localhost:8288)
 #
 #  Start:
@@ -24,6 +25,8 @@ networks:
 volumes:
   redpanda-data:
   scylla-data:
+  pd-data:
+  tikv-data:
 
 services:
 
@@ -128,6 +131,69 @@ services:
         cqlsh scylla -e "CREATE TABLE IF NOT EXISTS live_translate.rooms_by_code (code text PRIMARY KEY, room_id uuid);"
         cqlsh scylla -e "CREATE TABLE IF NOT EXISTS live_translate.messages (room_id uuid, timestamp bigint, id uuid, sender text, sender_lang text, original text, translations map<text, text>, is_audio boolean, PRIMARY KEY (room_id, timestamp, id)) WITH CLUSTERING ORDER BY (timestamp DESC, id ASC);"
         echo '[scylla-init] keyspace and tables ready'
+
+  # ── TiKV via TiDB SQL layer ──────────────────────────────────────────────
+  # Start with:
+  #   docker compose -f tdocker/docker-compose.yml --profile tikv up -d pd tikv tidb
+  pd:
+    image: pingcap/pd:v8.5.0
+    container_name: live-translate-pd
+    profiles: ["tikv"]
+    command:
+      - --name=pd
+      - --data-dir=/data/pd
+      - --client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://pd:2379
+      - --peer-urls=http://0.0.0.0:2380
+      - --advertise-peer-urls=http://pd:2380
+      - --initial-cluster=pd=http://pd:2380
+      - --log-file=
+    ports:
+      - "2379:2379"
+    volumes:
+      - pd-data:/data/pd
+    networks:
+      - live-translate
+
+  tikv:
+    image: pingcap/tikv:v8.5.0
+    container_name: live-translate-tikv
+    profiles: ["tikv"]
+    depends_on:
+      - pd
+    command:
+      - --addr=0.0.0.0:20160
+      - --advertise-addr=tikv:20160
+      - --status-addr=0.0.0.0:20180
+      - --pd=pd:2379
+      - --data-dir=/data/tikv
+      - --log-file=
+    ports:
+      - "20160:20160"
+      - "20180:20180"
+    volumes:
+      - tikv-data:/data/tikv
+    networks:
+      - live-translate
+
+  tidb:
+    image: pingcap/tidb:v8.5.0
+    container_name: live-translate-tidb
+    profiles: ["tikv"]
+    depends_on:
+      - pd
+      - tikv
+    command:
+      - --store=tikv
+      - --path=pd:2379
+      - --host=0.0.0.0
+      - --advertise-address=tidb
+      - --log-file=
+    ports:
+      - "14000:4000"   # TiDB SQL/MySQL protocol; 4000 is used by the Node server
+      - "10080:10080"  # TiDB status
+    networks:
+      - live-translate
 
   # ── Inngest ───────────────────────────────────────────────────────────────
   inngest:

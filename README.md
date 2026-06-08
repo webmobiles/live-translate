@@ -14,7 +14,7 @@ Node.js Backend (Express + Socket.io)
 Redpanda (Kafka)            Inngest (workflows)
 pub/sub between servers     AI step orchestration
      ↓                          ↓
-          ScyllaDB (permanent chat history)
+          Database provider (ScyllaDB or TiKV via TiDB)
 ```
 
 ## Message Flow
@@ -28,7 +28,7 @@ Redpanda ──────────────────→ all Socket.io
        ↓
 Inngest workflow:
   step 1: translate to N languages   — retry 3x if fails
-  step 2: save to ScyllaDB           — retry 3x if fails
+  step 2: save to database           — retry 3x if fails
   step 3: broadcast via Redpanda     — retry 3x if fails
        ↓
 All Socket.io servers emit final message to their clients
@@ -36,7 +36,7 @@ All Socket.io servers emit final message to their clients
 User sends voice message → same flow but:
   step 1: transcribe audio (Whisper) — retry 3x if fails
   step 2: translate to N languages   — retry 3x if fails
-  step 3: save to ScyllaDB           — retry 3x if fails
+  step 3: save to database           — retry 3x if fails
   step 4: broadcast via Redpanda     — retry 3x if fails
 ```
 
@@ -114,7 +114,7 @@ If any library changes its API or you want to swap a technology, **you only chan
 
 | Want to change | Only touch |
 |---|---|
-| ScyllaDB → Postgres | `facades/db.js` + `db/scylla.js` |
+| ScyllaDB → TiKV/TiDB | `facades/db.js` + `db/` |
 | Redpanda → NATS | `facades/queue.js` + `kafka/index.js` |
 | Inngest → Temporal | `facades/workflows.js` + `inngest/functions.js` |
 | OpenAI → Anthropic | `facades/ai.js` + `gateway/providers/` |
@@ -173,7 +173,8 @@ live-translate/
 │       │   ├── workflows.js          # Inngest workflow façade
 │       │   └── ai.js                 # AI provider façade
 │       ├── db/
-│       │   └── scylla.js             # ScyllaDB / cassandra-driver
+│       │   ├── scylla.js             # ScyllaDB / cassandra-driver
+│       │   └── tikv.js               # TiKV through TiDB SQL / mysql2
 │       ├── kafka/
 │       │   └── index.js              # Redpanda / kafkajs
 │       ├── inngest/
@@ -246,6 +247,33 @@ Set `TRANSLATION_PROVIDER` in server `.env`:
 | `google` | 🔧 Stub | Add credentials to enable |
 
 Set `FORCE_AI_TRANSLATION=true` to use OpenAI even when `TRANSLATION_PROVIDER=mock`.
+
+## Database Providers
+
+Set `DB_PROVIDER` in server `.env`:
+
+| Value | Status | Notes |
+|---|---|---|
+| `scylla` | ✅ Default | Uses ScyllaDB/Cassandra CQL on `SCYLLA_HOSTS` |
+| `tikv` | ✅ TiKV via TiDB | Uses TiDB's MySQL-compatible SQL layer backed by TiKV |
+
+For TiKV mode, run a TiDB cluster and configure:
+
+```env
+DB_PROVIDER=tikv
+TIKV_SQL_HOST=localhost
+TIKV_SQL_PORT=14000
+TIKV_SQL_USER=root
+TIKV_SQL_PASSWORD=
+TIKV_SQL_DATABASE=live_translate
+```
+
+For local Docker TiKV/TiDB:
+
+```bash
+cd server
+docker compose -f tdocker/docker-compose.yml --profile tikv up -d pd tikv tidb
+```
 
 ## Supported Languages
 

@@ -4,37 +4,46 @@
  * Database Façade
  *
  * Single point of access for all database operations.
- * Business code never imports cassandra-driver or scylla directly —
- * only this file does. If ScyllaDB is replaced by Postgres or MongoDB
- * tomorrow, only this file and src/db/scylla.js change.
+ * Business code never imports database-specific drivers directly.
+ * Switch providers with DB_PROVIDER=scylla|tikv.
  */
 
-const scylla = require('../db/scylla');
+const PROVIDERS = {
+  scylla: require('../db/scylla'),
+  tikv: require('../db/tikv'),
+};
+
+function getProvider() {
+  const name = (process.env.DB_PROVIDER || 'scylla').trim().toLowerCase();
+  const provider = PROVIDERS[name];
+  if (!provider) throw new Error(`Unknown DB_PROVIDER: "${name}". Valid: scylla, tikv`);
+  return provider;
+}
 
 // ── Lifecycle ──────────────────────────────────────────────────────────────
 
 async function connect() {
-  return scylla.connect();
+  return getProvider().connect();
 }
 
 // ── Rooms ──────────────────────────────────────────────────────────────────
 
 async function createRoom({ code, name }) {
-  return scylla.createRoom({ code, name });
+  return getProvider().createRoom({ code, name });
 }
 
 async function getRoomByCode(code) {
-  return scylla.getRoomByCode(code);
+  return getProvider().getRoomByCode(code);
 }
 
 // ── Messages ───────────────────────────────────────────────────────────────
 
 async function saveMessage(payload) {
-  return scylla.saveMessage(payload);
+  return getProvider().saveMessage(payload);
 }
 
 async function getRecentMessages(roomId, limit = 100) {
-  return scylla.getRecentMessages(roomId, limit);
+  return getProvider().getRecentMessages(roomId, limit);
 }
 
 module.exports = { connect, createRoom, getRoomByCode, saveMessage, getRecentMessages };

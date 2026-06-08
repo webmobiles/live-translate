@@ -36,6 +36,24 @@ async function checkScylla() {
   }
 }
 
+async function checkTikv() {
+  const mysql = require('mysql2/promise');
+
+  const connection = await mysql.createConnection({
+    host: process.env.TIKV_SQL_HOST || process.env.TIDB_HOST || 'localhost',
+    port: Number.parseInt(process.env.TIKV_SQL_PORT || process.env.TIDB_PORT || '4000', 10),
+    user: process.env.TIKV_SQL_USER || process.env.TIDB_USER || 'root',
+    password: process.env.TIKV_SQL_PASSWORD || process.env.TIDB_PASSWORD || '',
+  });
+
+  try {
+    await withTimeout(connection.ping(), 'TiKV/TiDB ping');
+    return { ok: true };
+  } finally {
+    await connection.end().catch(() => {});
+  }
+}
+
 async function checkRedpanda() {
   const { Kafka } = require('kafkajs');
   const brokers   = (process.env.REDPANDA_BROKERS || 'localhost:19092').split(',');
@@ -90,11 +108,19 @@ function envFlag(name) {
 }
 
 function checksForProvider() {
-  const provider = process.env.TRANSLATION_PROVIDER || 'openai';
-  const requiresOpenAI = provider === 'openai' || (provider === 'mock' && envFlag('FORCE_AI_TRANSLATION'));
+  const translationProvider = process.env.TRANSLATION_PROVIDER || 'openai';
+  const dbProvider = (process.env.DB_PROVIDER || 'scylla').trim().toLowerCase();
+  const dbChecks = {
+    scylla: { name: 'ScyllaDB', fn: checkScylla, required: true },
+    tikv: { name: 'TiKV/TiDB', fn: checkTikv, required: true },
+  };
+  const dbCheck = dbChecks[dbProvider];
+  if (!dbCheck) throw new Error(`Unknown DB_PROVIDER: "${dbProvider}". Valid: scylla, tikv`);
+  const requiresOpenAI = translationProvider === 'openai'
+    || (translationProvider === 'mock' && envFlag('FORCE_AI_TRANSLATION'));
 
   return [
-    { name: 'ScyllaDB', fn: checkScylla, required: true },
+    dbCheck,
     { name: 'Redpanda', fn: checkRedpanda, required: true },
     { name: 'Inngest', fn: checkInngest, required: true },
     ...(requiresOpenAI ? [{ name: 'OpenAI', fn: checkOpenAI, required: true }] : []),
