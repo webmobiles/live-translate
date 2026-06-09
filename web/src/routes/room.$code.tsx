@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { Mic, Send, Square } from 'lucide-react'
 import { connectSocket } from '@/lib/socket'
 import { getLang } from '@/lib/languages'
 import { LanguageSelector, LanguageBadge } from '@/components/LanguageSelector'
@@ -521,26 +522,34 @@ function RoomScreen() {
           rows={1}
           disabled={!isConnected || !roomConfig.input.text}
         />
-        {inputText.trim().length > 0 ? (
+        {roomConfig.input.voice && (
           <button
-            onClick={sendText}
-            disabled={!isConnected || !roomConfig.input.text}
-            className="bg-lt-primary rounded-full w-12 h-12 flex items-center justify-center hover:bg-lt-primary-dark transition-colors disabled:opacity-50 shrink-0"
-          >
-            <span className="text-white text-xl">↑</span>
-          </button>
-        ) : (
-          <button
+            type="button"
             onMouseDown={startRecording}
             onMouseUp={stopAndSend}
+            onMouseLeave={stopAndSend}
             onTouchStart={startRecording}
             onTouchEnd={stopAndSend}
             disabled={!isConnected || !roomConfig.input.voice}
+            title={isRecording ? 'Stop recording' : 'Hold to record'}
+            aria-label={isRecording ? 'Stop recording' : 'Hold to record'}
             className={`rounded-full w-12 h-12 flex items-center justify-center transition-all disabled:opacity-50 shrink-0 ${
               isRecording ? 'bg-lt-danger scale-110' : 'bg-lt-primary hover:bg-lt-primary-dark'
             }`}
           >
-            <span className="text-xl">{isRecording ? '⏹' : '🎤'}</span>
+            {isRecording ? <Square size={20} className="text-white" fill="currentColor" /> : <Mic size={22} className="text-white" />}
+          </button>
+        )}
+        {roomConfig.input.text && (
+          <button
+            type="button"
+            onClick={sendText}
+            disabled={!isConnected || !inputText.trim()}
+            title="Send message"
+            aria-label="Send message"
+            className="bg-lt-primary rounded-full w-12 h-12 flex items-center justify-center hover:bg-lt-primary-dark transition-colors disabled:opacity-40 shrink-0"
+          >
+            <Send size={20} className="text-white" />
           </button>
         )}
       </div>
