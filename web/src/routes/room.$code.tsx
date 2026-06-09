@@ -49,6 +49,7 @@ function RoomScreen() {
   }, [])
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const textInputRef = useRef<HTMLTextAreaElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const socketRef = useRef(connectSocket())
@@ -268,6 +269,12 @@ function RoomScreen() {
   }, [addSystemMsg, code, isHost, navigate, nickname, roomName, scrollToBottom])
 
   useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
+
+  useEffect(() => {
+    if (!isConnected || !roomConfig.input.text) return
+    const focusTimer = window.setTimeout(() => textInputRef.current?.focus(), 0)
+    return () => window.clearTimeout(focusTimer)
+  }, [isConnected, roomConfig.input.text])
 
   // Auto-redirect when room is lost
   useEffect(() => {
@@ -514,13 +521,14 @@ function RoomScreen() {
       {/* Input Bar */}
       <div className="flex items-end px-4 py-3 border-t border-lt-border gap-3 shrink-0">
         <textarea
+          ref={textInputRef}
           className="flex-1 bg-lt-card border border-lt-border rounded-2xl px-4 py-3 text-white text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors resize-none max-h-28"
           placeholder={`Message in ${myLanguage.toUpperCase()}…`}
           value={inputText}
           onChange={e => setInputText(e.target.value)}
           onKeyDown={handleKeyDown}
           rows={1}
-          disabled={!isConnected || !roomConfig.input.text}
+          disabled={!roomConfig.input.text}
         />
         {roomConfig.input.voice && (
           <button
