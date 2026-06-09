@@ -15,13 +15,30 @@ export interface Message {
   targetLang: string;
   isMine: boolean;
   isAudio?: boolean;
+  translatedAudio?: {
+    audioBase64: string;
+    mimeType: string;
+  } | null;
   timestamp: number;
   isTranslating?: boolean;
+}
+
+export interface RoomConfig {
+  input: {
+    text: boolean;
+    voice: boolean;
+  };
+  voicePipeline: 'stt-text-translate' | 'direct-voice-translation';
+  output: {
+    translatedText: boolean;
+    translatedAudio: boolean;
+  };
 }
 
 export interface Room {
   code: string;
   name: string;
+  config?: RoomConfig;
   participants: Participant[];
   createdAt: number;
 }

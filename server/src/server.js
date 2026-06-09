@@ -13,6 +13,7 @@ const http       = require('http');
 const { Server } = require('socket.io');
 const cors       = require('cors');
 const { roomManager } = require('./rooms/manager');
+const { normalizeRoomConfig } = require('./rooms/config');
 const db              = require('./facades/db');
 const queue           = require('./facades/queue');
 const workflows       = require('./facades/workflows');
@@ -89,6 +90,9 @@ async function startKafkaConsumer() {
         const translated = message.translations[participant.language]
           ?? message.translations[message.senderLang]
           ?? message.original;
+        const translatedAudio = message.audioOutputs?.[participant.language]
+          ?? message.audioOutputs?.[message.senderLang]
+          ?? null;
 
         io.to(participant.socketId).emit('message:incoming', {
           id:         message.id,
@@ -99,6 +103,7 @@ async function startKafkaConsumer() {
           targetLang: participant.language,
           isMine:     participant.socketId === message.senderSocketId,
           isAudio:    message.isAudio,
+          translatedAudio,
           timestamp:  message.timestamp,
         });
       });
@@ -138,9 +143,9 @@ io.on('connection', (socket) => {
   console.log(`[socket] + ${socket.id}`);
 
   // ── Create room ──────────────────────────────────────────────────────────
-  socket.on('room:create', async ({ name, nickname, language } = {}, cb) => {
+  socket.on('room:create', async ({ name, nickname, language, config } = {}, cb) => {
     try {
-      const room = await roomManager.create({ name, hostSocketId: socket.id });
+      const room = await roomManager.create({ name, config: normalizeRoomConfig(config), hostSocketId: socket.id });
       const participant = roomManager.addParticipant(room.code, {
         socketId: socket.id,
         nickname: nickname || 'Host',
@@ -209,6 +214,7 @@ io.on('connection', (socket) => {
             targetLang: language || 'en',
             isMine:     false,
             isAudio:    msg.isAudio,
+            translatedAudio: null,
             timestamp:  msg.timestamp,
           }));
           socket.emit('room:history', { messages: formatted });
@@ -237,6 +243,23 @@ io.on('connection', (socket) => {
     cb?.({ ok: true });
   });
 
+  // ── Update room media config ─────────────────────────────────────────────
+  socket.on('room:update-config', async ({ config } = {}, cb) => {
+    const { roomCode, participant } = socket.data;
+    if (!roomCode || !participant?.isHost) {
+      cb?.({ ok: false, error: 'Only the host can update room settings.' });
+      return;
+    }
+
+    try {
+      const roomConfig = await roomManager.updateConfig(roomCode, config);
+      io.to(`room:${roomCode}`).emit('room:config-updated', { config: roomConfig });
+      cb?.({ ok: true, config: roomConfig });
+    } catch (err) {
+      cb?.({ ok: false, error: err.message });
+    }
+  });
+
   // ── Text message → Redpanda + Inngest ────────────────────────────────────
   socket.on('message:text', async ({ text, clientMsgId } = {}, cb) => {
     const { roomCode, roomId, participant } = socket.data;
@@ -247,6 +270,12 @@ io.on('connection', (socket) => {
 
     const msgId        = isUuid(clientMsgId) ? clientMsgId : makeMsgId();
     const participants = roomManager.getParticipants(roomCode);
+    const roomConfig   = roomManager.get(roomCode)?.config;
+
+    if (roomConfig && !roomConfig.input.text) {
+      cb?.({ ok: false, error: 'Text input is disabled for this room.' });
+      return;
+    }
 
     try {
       // 1. Immediately notify all servers to show the "translating" spinner
@@ -262,6 +291,7 @@ io.on('connection', (socket) => {
         sender:         participant.nickname,
         senderSocketId: socket.id,
         participants,
+        roomConfig,
       });
       cb?.({ ok: true, id: msgId });
     } catch (err) {
@@ -278,6 +308,9 @@ io.on('connection', (socket) => {
 
     const msgId        = makeMsgId();
     const participants = roomManager.getParticipants(roomCode);
+    const roomConfig   = roomManager.get(roomCode)?.config;
+
+    if (roomConfig && !roomConfig.input.voice) return;
 
     try {
       // 1. Show spinner on all servers immediately
@@ -294,6 +327,7 @@ io.on('connection', (socket) => {
         sender:         participant.nickname,
         senderSocketId: socket.id,
         participants,
+        roomConfig,
       });
     } catch (err) {
       console.error('[message:audio]', err.message);

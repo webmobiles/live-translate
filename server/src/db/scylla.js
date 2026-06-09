@@ -2,6 +2,7 @@
 
 const cassandra = require('cassandra-driver');
 const { v4: uuidv4 } = require('uuid');
+const { normalizeRoomConfig } = require('../rooms/config');
 
 const HOSTS   = (process.env.SCYLLA_HOSTS  || 'localhost').split(',');
 const KEYSPACE = process.env.SCYLLA_KEYSPACE || 'live_translate';
@@ -16,6 +17,7 @@ async function connect() {
     pooling: { coreConnectionsPerHost: { local: 2, remote: 1 } },
   });
   await client.connect();
+  await ensureSchema();
   console.log('[scylla] connected');
 }
 
@@ -28,17 +30,26 @@ function toNumber(value) {
   return typeof value?.toNumber === 'function' ? value.toNumber() : value;
 }
 
+async function ensureSchema() {
+  try {
+    await client.execute('ALTER TABLE rooms ADD config text');
+  } catch (err) {
+    if (!/already exists|Invalid column name/i.test(err.message)) throw err;
+  }
+}
+
 // ── Rooms ──────────────────────────────────────────────────────────────────
 
-async function createRoom({ code, name }) {
+async function createRoom({ code, name, config }) {
   const id = uuidv4();
   const now = Date.now();
   const db = getClient();
+  const roomConfig = normalizeRoomConfig(config);
 
   await Promise.all([
     db.execute(
-      'INSERT INTO rooms (id, code, name, created_at) VALUES (?, ?, ?, ?)',
-      [id, code, name, now],
+      'INSERT INTO rooms (id, code, name, created_at, config) VALUES (?, ?, ?, ?, ?)',
+      [id, code, name, now, JSON.stringify(roomConfig)],
       { prepare: true },
     ),
     db.execute(
@@ -48,7 +59,7 @@ async function createRoom({ code, name }) {
     ),
   ]);
 
-  return { id, code, name, createdAt: now };
+  return { id, code, name, config: roomConfig, createdAt: now };
 }
 
 async function getRoomByCode(code) {
@@ -73,8 +84,19 @@ async function getRoomByCode(code) {
     id:        row.id.toString(),
     code:      row.code,
     name:      row.name,
+    config:    normalizeRoomConfig(row.config ? JSON.parse(row.config) : undefined),
     createdAt: toNumber(row.created_at),
   };
+}
+
+async function updateRoomConfig(roomId, config) {
+  const roomConfig = normalizeRoomConfig(config);
+  await getClient().execute(
+    'UPDATE rooms SET config = ? WHERE id = ?',
+    [JSON.stringify(roomConfig), roomId],
+    { prepare: true },
+  );
+  return roomConfig;
 }
 
 // ── Messages ───────────────────────────────────────────────────────────────
@@ -122,4 +144,4 @@ async function getRecentMessages(roomId, limit = 100) {
     .reverse(); // oldest first for chat rendering
 }
 
-module.exports = { connect, createRoom, getRoomByCode, saveMessage, getRecentMessages };
+module.exports = { connect, createRoom, getRoomByCode, updateRoomConfig, saveMessage, getRecentMessages };

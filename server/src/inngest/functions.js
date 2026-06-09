@@ -3,7 +3,11 @@
 const { inngest }  = require('./client');
 const db           = require('../facades/db');
 const queue        = require('../facades/queue');
-const ai           = require('../facades/ai');
+const translation  = require('../facades/translation');
+const stt          = require('../facades/stt');
+const tts          = require('../facades/tts');
+const voiceTranslation = require('../facades/voiceTranslation');
+const { normalizeRoomConfig } = require('../rooms/config');
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -17,7 +21,7 @@ function wait(ms) {
 async function translateWithFallback(text, senderLang, targetLang) {
   for (let attempt = 0; attempt <= TRANSLATION_RETRIES; attempt += 1) {
     try {
-      return await ai.translate(text, senderLang, targetLang);
+      return await translation.translate(text, senderLang, targetLang);
     } catch (err) {
       const isLastAttempt = attempt === TRANSLATION_RETRIES;
       console.warn(
@@ -40,6 +44,26 @@ async function buildTranslations(text, senderLang, targetLangs) {
   return Object.fromEntries([[senderLang, text], ...entries]);
 }
 
+async function buildAudioOutputs(translations, targetLangs, roomConfig) {
+  if (!roomConfig.output.translatedAudio) return {};
+
+  const unique = [...new Set(targetLangs)];
+  const entries = await Promise.all(
+    unique.map(async lang => {
+      const text = translations[lang];
+      if (!text) return [lang, null];
+      try {
+        return [lang, await tts.synthesize(text, lang)];
+      } catch (err) {
+        console.warn(`[tts] ${lang} failed: ${err.message}`);
+        return [lang, null];
+      }
+    }),
+  );
+
+  return Object.fromEntries(entries.filter(([, audio]) => audio));
+}
+
 // ── Function 1: translate text message ────────────────────────────────────
 
 const translateMessage = inngest.createFunction(
@@ -50,10 +74,15 @@ const translateMessage = inngest.createFunction(
   },
   async ({ event, step }) => {
     const { msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, participants } = event.data;
+    const roomConfig = normalizeRoomConfig(event.data.roomConfig);
     const targetLangs = participants.map(p => p.language);
 
     const translations = await step.run('translate-text', () =>
       buildTranslations(text, senderLang, targetLangs),
+    );
+
+    const audioOutputs = await step.run('generate-audio-output', () =>
+      buildAudioOutputs(translations, targetLangs, roomConfig),
     );
 
     await step.run('save-to-db', () =>
@@ -62,7 +91,7 @@ const translateMessage = inngest.createFunction(
 
     await step.run('broadcast', () =>
       queue.publishMessageReady(roomCode, {
-        id: msgId, sender, senderLang, senderSocketId, original: text, translations, isAudio: false, timestamp: Date.now(),
+        id: msgId, sender, senderLang, senderSocketId, original: text, translations, audioOutputs, isAudio: false, timestamp: Date.now(),
       }),
     );
 
@@ -80,10 +109,33 @@ const transcribeAndTranslate = inngest.createFunction(
   },
   async ({ event, step }) => {
     const { msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, participants } = event.data;
+    const roomConfig = normalizeRoomConfig(event.data.roomConfig);
     const targetLangs = participants.map(p => p.language);
 
+    if (roomConfig.voicePipeline === 'direct-voice-translation') {
+      const direct = await step.run('translate-voice-direct', () =>
+        voiceTranslation.translateVoice(audioBase64, mimeType, senderLang, targetLangs, roomConfig),
+      );
+
+      const text = direct.text?.trim() || '[voice message]';
+      const translations = direct.translations || Object.fromEntries([[senderLang, text]]);
+      const audioOutputs = direct.audioOutputs || {};
+
+      await step.run('save-to-db', () =>
+        db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, isAudio: true }),
+      );
+
+      await step.run('broadcast', () =>
+        queue.publishMessageReady(roomCode, {
+          id: msgId, sender, senderLang, senderSocketId, original: text, translations, audioOutputs, isAudio: true, timestamp: Date.now(),
+        }),
+      );
+
+      return { ok: true, msgId, text };
+    }
+
     const text = await step.run('transcribe-audio', async () => {
-      const result = await ai.transcribe(audioBase64, mimeType, senderLang);
+      const result = await stt.transcribe(audioBase64, mimeType, senderLang);
       if (!result?.trim()) throw new Error('Empty transcription');
       return result.trim();
     });
@@ -92,13 +144,17 @@ const transcribeAndTranslate = inngest.createFunction(
       buildTranslations(text, senderLang, targetLangs),
     );
 
+    const audioOutputs = await step.run('generate-audio-output', () =>
+      buildAudioOutputs(translations, targetLangs, roomConfig),
+    );
+
     await step.run('save-to-db', () =>
       db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, isAudio: true }),
     );
 
     await step.run('broadcast', () =>
       queue.publishMessageReady(roomCode, {
-        id: msgId, sender, senderLang, senderSocketId, original: text, translations, isAudio: true, timestamp: Date.now(),
+        id: msgId, sender, senderLang, senderSocketId, original: text, translations, audioOutputs, isAudio: true, timestamp: Date.now(),
       }),
     );
 

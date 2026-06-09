@@ -10,6 +10,7 @@
 
 const mysql = require('mysql2/promise');
 const { v4: uuidv4 } = require('uuid');
+const { normalizeRoomConfig } = require('../rooms/config');
 
 let pool = null;
 
@@ -75,9 +76,16 @@ async function ensureSchema() {
       id CHAR(36) PRIMARY KEY,
       code VARCHAR(16) NOT NULL UNIQUE,
       name VARCHAR(255) NOT NULL,
+      config JSON NOT NULL,
       created_at BIGINT NOT NULL
     )
   `);
+
+  try {
+    await db.execute('ALTER TABLE rooms ADD COLUMN config JSON NULL');
+  } catch (err) {
+    if (!/Duplicate column/i.test(err.message)) throw err;
+  }
 
   await db.execute(`
     CREATE TABLE IF NOT EXISTS messages (
@@ -95,21 +103,22 @@ async function ensureSchema() {
   `);
 }
 
-async function createRoom({ code, name }) {
+async function createRoom({ code, name, config }) {
   const id = uuidv4();
   const now = Date.now();
+  const roomConfig = normalizeRoomConfig(config);
 
   await getPool().execute(
-    'INSERT INTO rooms (id, code, name, created_at) VALUES (?, ?, ?, ?)',
-    [id, code, name, now],
+    'INSERT INTO rooms (id, code, name, config, created_at) VALUES (?, ?, ?, ?, ?)',
+    [id, code, name, JSON.stringify(roomConfig), now],
   );
 
-  return { id, code, name, createdAt: now };
+  return { id, code, name, config: roomConfig, createdAt: now };
 }
 
 async function getRoomByCode(code) {
   const [rows] = await getPool().execute(
-    'SELECT id, code, name, created_at FROM rooms WHERE code = ? LIMIT 1',
+    'SELECT id, code, name, config, created_at FROM rooms WHERE code = ? LIMIT 1',
     [code],
   );
 
@@ -120,8 +129,18 @@ async function getRoomByCode(code) {
     id: row.id,
     code: row.code,
     name: row.name,
+    config: normalizeRoomConfig(typeof row.config === 'string' ? JSON.parse(row.config) : row.config),
     createdAt: Number(row.created_at),
   };
+}
+
+async function updateRoomConfig(roomId, config) {
+  const roomConfig = normalizeRoomConfig(config);
+  await getPool().execute(
+    'UPDATE rooms SET config = ? WHERE id = ?',
+    [JSON.stringify(roomConfig), roomId],
+  );
+  return roomConfig;
 }
 
 async function saveMessage({ roomId, msgId, sender, senderLang, original, translations, isAudio }) {
@@ -169,4 +188,4 @@ async function getRecentMessages(roomId, limit = 100) {
     .reverse();
 }
 
-module.exports = { connect, createRoom, getRoomByCode, saveMessage, getRecentMessages };
+module.exports = { connect, createRoom, getRoomByCode, updateRoomConfig, saveMessage, getRecentMessages };

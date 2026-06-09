@@ -133,7 +133,7 @@ services:
       - -c
       - |
         cqlsh scylla -e "CREATE KEYSPACE IF NOT EXISTS live_translate WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};"
-        cqlsh scylla -e "CREATE TABLE IF NOT EXISTS live_translate.rooms (id uuid PRIMARY KEY, code text, name text, created_at bigint);"
+        cqlsh scylla -e "CREATE TABLE IF NOT EXISTS live_translate.rooms (id uuid PRIMARY KEY, code text, name text, config text, created_at bigint);"
         cqlsh scylla -e "CREATE TABLE IF NOT EXISTS live_translate.rooms_by_code (code text PRIMARY KEY, room_id uuid);"
         cqlsh scylla -e "CREATE TABLE IF NOT EXISTS live_translate.messages (room_id uuid, timestamp bigint, id uuid, sender text, sender_lang text, original text, translations map<text, text>, is_audio boolean, PRIMARY KEY (room_id, timestamp, id)) WITH CLUSTERING ORDER BY (timestamp DESC, id ASC);"
         echo '[scylla-init] keyspace and tables ready'

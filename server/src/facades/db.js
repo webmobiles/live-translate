@@ -37,6 +37,10 @@ async function getRoomByCode(code) {
   return getProvider().getRoomByCode(code);
 }
 
+async function updateRoomConfig(roomId, config) {
+  return getProvider().updateRoomConfig(roomId, config);
+}
+
 // ── Messages ───────────────────────────────────────────────────────────────
 
 async function saveMessage(payload) {
@@ -47,4 +51,4 @@ async function getRecentMessages(roomId, limit = 100) {
   return getProvider().getRecentMessages(roomId, limit);
 }
 
-module.exports = { connect, createRoom, getRoomByCode, saveMessage, getRecentMessages };
+module.exports = { connect, createRoom, getRoomByCode, updateRoomConfig, saveMessage, getRecentMessages };

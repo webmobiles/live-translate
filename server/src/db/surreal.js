@@ -2,6 +2,7 @@
 
 const { Surreal } = require('surrealdb');
 const { v4: uuidv4 } = require('uuid');
+const { normalizeRoomConfig } = require('../rooms/config');
 
 let client = null;
 
@@ -63,15 +64,17 @@ async function ensureSchema() {
   await query('DEFINE INDEX IF NOT EXISTS messages_room_time ON TABLE messages FIELDS room_id, timestamp;');
 }
 
-async function createRoom({ code, name }) {
+async function createRoom({ code, name, config }) {
   const id = uuidv4();
   const now = Date.now();
+  const roomConfig = normalizeRoomConfig(config);
   const rows = await query(
     `CREATE type::thing("rooms", $id)
      SET code = $code,
          name = $name,
+         config = $config,
          created_at = $createdAt;`,
-    { id, code, name, createdAt: now },
+    { id, code, name, config: roomConfig, createdAt: now },
   );
 
   const row = normalizeRow(rows[0]);
@@ -79,6 +82,7 @@ async function createRoom({ code, name }) {
     id,
     code: row?.code || code,
     name: row?.name || name,
+    config: normalizeRoomConfig(row?.config),
     createdAt: Number(row?.created_at || now),
   };
 }
@@ -95,8 +99,18 @@ async function getRoomByCode(code) {
     id: row.id,
     code: row.code,
     name: row.name,
+    config: normalizeRoomConfig(row.config),
     createdAt: Number(row.created_at),
   };
+}
+
+async function updateRoomConfig(roomId, config) {
+  const roomConfig = normalizeRoomConfig(config);
+  await query(
+    'UPDATE type::thing("rooms", $id) SET config = $config;',
+    { id: roomId, config: roomConfig },
+  );
+  return roomConfig;
 }
 
 async function saveMessage({ roomId, msgId, sender, senderLang, original, translations, isAudio }) {
@@ -149,4 +163,4 @@ async function getRecentMessages(roomId, limit = 100) {
     .reverse();
 }
 
-module.exports = { connect, createRoom, getRoomByCode, saveMessage, getRecentMessages };
+module.exports = { connect, createRoom, getRoomByCode, updateRoomConfig, saveMessage, getRecentMessages };

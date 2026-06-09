@@ -105,7 +105,7 @@ The server uses the **Façade pattern** to isolate all external library calls be
 ```
 server.js          → imports only → facades/db, facades/queue, facades/workflows
 rooms/manager.js   → imports only → facades/db
-inngest/functions  → imports only → facades/db, facades/queue, facades/ai
+inngest/functions  → imports only → facades/db, facades/queue, facades/translation, facades/stt
 ```
 
 ### Why this matters
@@ -117,7 +117,8 @@ If any library changes its API or you want to swap a technology, **you only chan
 | ScyllaDB → TiKV/TiDB | `facades/db.js` + `db/` |
 | Redpanda → NATS | `facades/queue.js` + `kafka/index.js` |
 | Inngest → Temporal | `facades/workflows.js` + `inngest/functions.js` |
-| OpenAI → Anthropic | `facades/ai.js` + `gateway/providers/` |
+| OpenAI translation → Anthropic | `facades/translation.js` + `gateway/translation/` |
+| OpenAI STT → Vosk/faster-whisper | `facades/stt.js` + `gateway/stt/` |
 
 Nothing in `server.js` or `rooms/manager.js` changes at all.
 
@@ -138,8 +139,9 @@ src/db/scylla.js              cassandra-driver implementation
 src/kafka/index.js            kafkajs implementation
 src/inngest/client.js         Inngest client singleton
 src/inngest/functions.js      Inngest workflow functions
-src/gateway/index.js          AI provider router
-src/gateway/providers/        openai.js, azure.js, google.js
+src/gateway/index.js          Backward-compatible AI router
+src/gateway/translation/      Text translation providers
+src/gateway/stt/              Speech-to-text providers
 ```
 
 ---
@@ -171,7 +173,8 @@ live-translate/
 │       │   ├── db.js                 # Database façade
 │       │   ├── queue.js              # Message queue façade
 │       │   ├── workflows.js          # Inngest workflow façade
-│       │   └── ai.js                 # AI provider façade
+│       │   ├── translation.js        # Translation provider façade
+│       │   └── stt.js                # Speech-to-text provider façade
 │       ├── db/
 │       │   ├── scylla.js             # ScyllaDB / cassandra-driver
 │       │   ├── tikv.js               # TiKV through TiDB SQL / mysql2
@@ -184,11 +187,10 @@ live-translate/
 │       ├── rooms/
 │       │   └── manager.js            # In-memory participant state
 │       └── gateway/
-│           ├── index.js              # Provider router
-│           └── providers/
-│               ├── openai.js         # GPT-4o-mini + Whisper ✅
-│               ├── azure.js          # Stub
-│               └── google.js         # Stub
+│           ├── index.js              # Backward-compatible AI router
+│           ├── translation/          # Text translation gateway
+│           ├── stt/                  # Speech-to-text gateway
+│           └── providers/            # Legacy/shared providers
 │
 └── mobile/
     ├── app/
@@ -242,12 +244,88 @@ Set `TRANSLATION_PROVIDER` in server `.env`:
 
 | Value | Status | Notes |
 |---|---|---|
-| `openai` | ✅ Active | GPT-4o-mini + Whisper STT |
+| `openai` | ✅ Active | GPT-4o-mini text translation |
 | `mock` | ✅ Local dev | No external API calls; prefixes text with the target language |
 | `azure` | 🔧 Stub | Add credentials to enable |
 | `google` | 🔧 Stub | Add credentials to enable |
 
 Set `FORCE_AI_TRANSLATION=true` to use OpenAI even when `TRANSLATION_PROVIDER=mock`.
+
+## Speech-To-Text Providers
+
+Set `STT_PROVIDER` in server `.env`:
+
+| Value | Status | Notes |
+|---|---|---|
+| `openai` | ✅ Active | Uses OpenAI Whisper API |
+| `mock` | ✅ Local dev | Returns `Mock transcription` |
+| `faster-whisper` | ⚙️ Local command | Runs `FASTER_WHISPER_COMMAND`; install/configure it on the host |
+| `vosk` | ⚙️ Local command | Runs `VOSK_COMMAND`; install/configure it on the host |
+
+Local command providers receive the audio as a temporary file. Override args with placeholders:
+
+```env
+STT_PROVIDER=faster-whisper
+FASTER_WHISPER_COMMAND=faster-whisper
+FASTER_WHISPER_MODEL=small
+# FASTER_WHISPER_ARGS={file} --model {model} --language {language}
+
+STT_PROVIDER=vosk
+VOSK_COMMAND=vosk-transcribe
+VOSK_MODEL_PATH=./models/vosk-fr
+# VOSK_ARGS={file} --model {model} --language {language}
+```
+
+## Room Media Modes
+
+Rooms store media config when created and hosts can update it inside the room:
+
+```js
+{
+  input: { text: true, voice: true },
+  voicePipeline: 'stt-text-translate',
+  output: { translatedText: true, translatedAudio: false }
+}
+```
+
+Audio messages can use either `stt-text-translate` or `direct-voice-translation`. The direct path is a separate gateway because realtime speech translation is not the same as batch transcription.
+
+## Text-To-Speech Providers
+
+Set `TTS_PROVIDER` in server `.env`:
+
+| Value | Status | Notes |
+|---|---|---|
+| `none` | ✅ Default | No translated audio output |
+| `mock` | ✅ Local dev | Emits text/plain base64 payloads |
+| `openai` | ✅ Active | Uses OpenAI speech generation |
+| `local` | ⚙️ Local command | Runs `LOCAL_TTS_COMMAND`; command prints base64 audio |
+
+```env
+TTS_PROVIDER=openai
+TTS_OPENAI_MODEL=gpt-4o-mini-tts
+TTS_OPENAI_VOICE=coral
+TTS_RESPONSE_FORMAT=mp3
+```
+
+For local TTS:
+
+```env
+TTS_PROVIDER=local
+LOCAL_TTS_COMMAND=my-tts-command
+# LOCAL_TTS_ARGS=--text {text} --language {language} --voice {voice}
+LOCAL_TTS_MIME_TYPE=audio/wav
+```
+
+## Direct Voice Translation Providers
+
+Set `VOICE_TRANSLATION_PROVIDER` in server `.env`:
+
+| Value | Status | Notes |
+|---|---|---|
+| `none` | ✅ Default | Direct voice translation disabled |
+| `mock` | ✅ Local dev | Returns mock translated text |
+| `openai-realtime` | 🚧 Streaming path needed | Requires a Realtime session, not the current batch Inngest workflow |
 
 ## Database Providers
 

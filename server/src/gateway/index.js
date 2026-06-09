@@ -1,39 +1,13 @@
 'use strict';
 
-require('dotenv').config();
+const translation = require('./translation');
+const stt = require('./stt');
+const tts = require('./tts');
+const voiceTranslation = require('./voiceTranslation');
 
-const PROVIDERS = {
-  openai: require('./providers/openai'),
-  azure: require('./providers/azure'),
-  google: require('./providers/google'),
-  mock: require('./providers/mock'),
+module.exports = {
+  translate: translation.translate,
+  transcribe: stt.transcribe,
+  synthesize: tts.synthesize,
+  translateVoice: voiceTranslation.translateVoice,
 };
-
-function envFlag(name) {
-  return ['1', 'true', 'yes', 'on'].includes((process.env[name] || '').trim().toLowerCase());
-}
-
-function getProviderName() {
-  const name = process.env.TRANSLATION_PROVIDER || 'openai';
-  if (name === 'mock' && envFlag('FORCE_AI_TRANSLATION')) return 'openai';
-  return name;
-}
-
-function getProvider() {
-  const name = getProviderName();
-  const provider = PROVIDERS[name];
-  if (!provider) throw new Error(`Unknown translation provider: "${name}". Valid: openai, azure, google, mock`);
-  return provider;
-}
-
-async function translate(text, sourceLang, targetLang) {
-  if (!text?.trim()) return text;
-  if (sourceLang === targetLang) return text;
-  return getProvider().translate(text, sourceLang, targetLang);
-}
-
-async function transcribe(audioBase64, mimeType, language) {
-  return getProvider().transcribe(audioBase64, mimeType, language);
-}
-
-module.exports = { translate, transcribe };

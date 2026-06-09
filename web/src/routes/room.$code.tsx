@@ -3,7 +3,13 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { connectSocket } from '@/lib/socket'
 import { getLang } from '@/lib/languages'
 import { LanguageSelector, LanguageBadge } from '@/components/LanguageSelector'
-import type { Message, Participant } from '@/types'
+import type { Message, Participant, RoomConfig } from '@/types'
+
+const DEFAULT_ROOM_CONFIG: RoomConfig = {
+  input: { text: true, voice: true },
+  voicePipeline: 'stt-text-translate',
+  output: { translatedText: true, translatedAudio: false },
+}
 
 export const Route = createFileRoute('/room/$code')({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -28,6 +34,7 @@ function RoomScreen() {
   const [myLanguage, setMyLanguage] = useState(initialLang)
   const [roomLost, setRoomLost] = useState(false)
   const [connectionError, setConnectionError] = useState('')
+  const [roomConfig, setRoomConfig] = useState<RoomConfig>(DEFAULT_ROOM_CONFIG)
   const [countdown, setCountdown] = useState(4)
   const [isRecording, setIsRecording] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -71,7 +78,7 @@ function RoomScreen() {
       socket.timeout(8000).emit(
         'room:join',
         { code, nickname, language: myLanguageRef.current },
-        (err: Error | null, res?: { ok: boolean; room?: { code: string; name: string }; error?: string }) => {
+        (err: Error | null, res?: { ok: boolean; room?: { code: string; name: string; config?: RoomConfig }; error?: string }) => {
           if (err || !res) {
             setIsConnected(false)
             setConnectionError('Could not reach the server.')
@@ -79,6 +86,7 @@ function RoomScreen() {
           }
 
           if (res.ok) {
+            setRoomConfig(res.room?.config ?? DEFAULT_ROOM_CONFIG)
             setRoomLost(false)
             setIsConnected(true)
             if (mode === 'reconnect' && wasDisconnected.current) {
@@ -92,7 +100,7 @@ function RoomScreen() {
               socket.timeout(8000).emit(
                 'room:create',
                 { name: roomName || undefined, nickname, language: myLanguageRef.current },
-                (createErr: Error | null, cr?: { ok: boolean; code?: string; room?: { name: string }; error?: string }) => {
+                (createErr: Error | null, cr?: { ok: boolean; code?: string; room?: { name: string; config?: RoomConfig }; error?: string }) => {
                   if (createErr || !cr) {
                     setIsConnected(false)
                     setConnectionError('Could not recreate the room.')
@@ -100,6 +108,7 @@ function RoomScreen() {
                   }
 
                   if (cr.ok) {
+                    setRoomConfig(cr.room?.config ?? DEFAULT_ROOM_CONFIG)
                     setRoomLost(false)
                     setIsConnected(true)
                     hasSyncedRoom.current = true
@@ -144,6 +153,7 @@ function RoomScreen() {
       setConnectionError('Could not reach the server.')
     }
     const onParticipantsUpdated = ({ participants: p }: { participants: Participant[] }) => setParticipants(p)
+    const onConfigUpdated = ({ config }: { config: RoomConfig }) => setRoomConfig(config)
     const onParticipantJoined = ({ participant }: { participant: Participant }) => {
       addSystemMsg(`${participant.nickname} joined (${participant.language.toUpperCase()})`)
     }
@@ -210,6 +220,7 @@ function RoomScreen() {
     socket.on('disconnect', onDisconnect)
     socket.on('connect_error', onConnectError)
     socket.on('room:participants-updated', onParticipantsUpdated)
+    socket.on('room:config-updated', onConfigUpdated)
     socket.on('room:participant-joined', onParticipantJoined)
     socket.on('room:participant-left', onParticipantLeft)
     socket.on('message:translating', onMessageTranslating)
@@ -242,6 +253,7 @@ function RoomScreen() {
       socket.off('disconnect', onDisconnect)
       socket.off('connect_error', onConnectError)
       socket.off('room:participants-updated', onParticipantsUpdated)
+      socket.off('room:config-updated', onConfigUpdated)
       socket.off('room:participant-joined', onParticipantJoined)
       socket.off('room:participant-left', onParticipantLeft)
       socket.off('message:translating', onMessageTranslating)
@@ -271,7 +283,7 @@ function RoomScreen() {
 
   const sendText = useCallback(() => {
     const text = inputText.trim()
-    if (!text || !isConnected) return
+    if (!text || !isConnected || !roomConfig.input.text) return
     const id = crypto.randomUUID()
     setMessages(prev => [...prev, {
       id,
@@ -297,13 +309,14 @@ function RoomScreen() {
       },
     )
     setInputText('')
-  }, [inputText, isConnected, nickname])
+  }, [inputText, isConnected, nickname, roomConfig.input.text])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText() }
   }
 
   const startRecording = useCallback(async () => {
+    if (!roomConfig.input.voice) return
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const mr = new MediaRecorder(stream)
@@ -315,7 +328,7 @@ function RoomScreen() {
     } catch {
       alert('Microphone access is required for voice messages.')
     }
-  }, [])
+  }, [roomConfig.input.voice])
 
   const stopAndSend = useCallback(() => {
     const mr = mediaRecorderRef.current
@@ -339,6 +352,21 @@ function RoomScreen() {
     navigator.clipboard.writeText(code)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const updateRoomConfig = (next: RoomConfig) => {
+    setRoomConfig(next)
+    socketRef.current.timeout(8000).emit(
+      'room:update-config',
+      { config: next },
+      (err: Error | null, res?: { ok: boolean; config?: RoomConfig }) => {
+        if (err || !res?.ok) {
+          setRoomConfig(roomConfig)
+          return
+        }
+        setRoomConfig(res.config ?? next)
+      },
+    )
   }
 
   if (roomLost) {
@@ -411,6 +439,51 @@ function RoomScreen() {
         </div>
       )}
 
+      {isHost && (
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 px-3 py-2.5 border-b border-lt-border bg-lt-bg shrink-0">
+          <label className="flex items-center gap-2 text-lt-muted text-xs">
+            <input
+              type="checkbox"
+              checked={roomConfig.input.text}
+              onChange={e => updateRoomConfig({ ...roomConfig, input: { ...roomConfig.input, text: e.target.checked } })}
+            />
+            <span>Text</span>
+          </label>
+          <label className="flex items-center gap-2 text-lt-muted text-xs">
+            <input
+              type="checkbox"
+              checked={roomConfig.input.voice}
+              onChange={e => updateRoomConfig({ ...roomConfig, input: { ...roomConfig.input, voice: e.target.checked } })}
+            />
+            <span>Voice</span>
+          </label>
+          <select
+            className="col-span-2 sm:col-span-1 bg-lt-card border border-lt-border rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-lt-primary"
+            value={roomConfig.voicePipeline}
+            onChange={e => updateRoomConfig({ ...roomConfig, voicePipeline: e.target.value as RoomConfig['voicePipeline'] })}
+          >
+            <option value="stt-text-translate">STT</option>
+            <option value="direct-voice-translation">Direct voice</option>
+          </select>
+          <label className="flex items-center gap-2 text-lt-muted text-xs">
+            <input
+              type="checkbox"
+              checked={roomConfig.output.translatedText}
+              onChange={e => updateRoomConfig({ ...roomConfig, output: { ...roomConfig.output, translatedText: e.target.checked } })}
+            />
+            <span>Text out</span>
+          </label>
+          <label className="flex items-center gap-2 text-lt-muted text-xs">
+            <input
+              type="checkbox"
+              checked={roomConfig.output.translatedAudio}
+              onChange={e => updateRoomConfig({ ...roomConfig, output: { ...roomConfig.output, translatedAudio: e.target.checked } })}
+            />
+            <span>Audio out</span>
+          </label>
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 flex flex-col">
         {messages.length === 0 ? (
@@ -446,12 +519,12 @@ function RoomScreen() {
           onChange={e => setInputText(e.target.value)}
           onKeyDown={handleKeyDown}
           rows={1}
-          disabled={!isConnected}
+          disabled={!isConnected || !roomConfig.input.text}
         />
         {inputText.trim().length > 0 ? (
           <button
             onClick={sendText}
-            disabled={!isConnected}
+            disabled={!isConnected || !roomConfig.input.text}
             className="bg-lt-primary rounded-full w-12 h-12 flex items-center justify-center hover:bg-lt-primary-dark transition-colors disabled:opacity-50 shrink-0"
           >
             <span className="text-white text-xl">↑</span>
@@ -462,7 +535,7 @@ function RoomScreen() {
             onMouseUp={stopAndSend}
             onTouchStart={startRecording}
             onTouchEnd={stopAndSend}
-            disabled={!isConnected}
+            disabled={!isConnected || !roomConfig.input.voice}
             className={`rounded-full w-12 h-12 flex items-center justify-center transition-all disabled:opacity-50 shrink-0 ${
               isRecording ? 'bg-lt-danger scale-110' : 'bg-lt-primary hover:bg-lt-primary-dark'
             }`}
@@ -543,7 +616,7 @@ function formatMessageTime(timestamp: number) {
 // ── Message bubble ─────────────────────────────────────────────────────────
 
 function MessageBubble({ message }: { message: Message }) {
-  const { isMine, sender, senderLang, translated, original, isTranslating, isAudio, timestamp, deliveryStatus } = message
+  const { isMine, sender, senderLang, translated, original, isTranslating, isAudio, translatedAudio, timestamp, deliveryStatus } = message
   const [showOriginal, setShowOriginal] = useState(false)
   const senderInfo = getLang(senderLang)
   const time = formatMessageTime(timestamp)
@@ -579,6 +652,13 @@ function MessageBubble({ message }: { message: Message }) {
         <p className="text-white text-base leading-relaxed">
           {showOriginal ? original : translated}
         </p>
+        {translatedAudio && (
+          <audio
+            className="mt-2 w-full max-w-64"
+            controls
+            src={`data:${translatedAudio.mimeType};base64,${translatedAudio.audioBase64}`}
+          />
+        )}
         {hasTranslation && (
           <p className={`text-xs mt-1.5 ${isMine ? 'text-white/50' : 'text-lt-muted'}`}>
             {showOriginal ? '↩ show translation' : `${senderInfo.flag} tap to see original`}

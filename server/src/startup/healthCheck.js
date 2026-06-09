@@ -140,6 +140,9 @@ function envFlag(name) {
 
 function checksForProvider() {
   const translationProvider = process.env.TRANSLATION_PROVIDER || 'openai';
+  const sttProvider = process.env.STT_PROVIDER || 'openai';
+  const ttsProvider = process.env.TTS_PROVIDER || 'none';
+  const voiceTranslationProvider = process.env.VOICE_TRANSLATION_PROVIDER || 'none';
   const dbProvider = (process.env.DB_PROVIDER || 'scylla').trim().toLowerCase();
   const dbChecks = {
     scylla: { name: 'ScyllaDB', fn: checkScylla, required: true },
@@ -149,7 +152,10 @@ function checksForProvider() {
   const dbCheck = dbChecks[dbProvider];
   if (!dbCheck) throw new Error(`Unknown DB_PROVIDER: "${dbProvider}". Valid: scylla, tikv, surreal`);
   const requiresOpenAI = translationProvider === 'openai'
-    || (translationProvider === 'mock' && envFlag('FORCE_AI_TRANSLATION'));
+    || (translationProvider === 'mock' && envFlag('FORCE_AI_TRANSLATION'))
+    || sttProvider === 'openai'
+    || ttsProvider === 'openai'
+    || voiceTranslationProvider === 'openai-realtime';
 
   return [
     dbCheck,

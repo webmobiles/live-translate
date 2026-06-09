@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../facades/db');
+const { normalizeRoomConfig } = require('./config');
 
 // In-memory participant state — who is currently connected.
 // Rooms and messages are persisted via the db façade.
@@ -17,16 +18,18 @@ function generateCode() {
 
 const roomManager = {
 
-  async create({ name }) {
+  async create({ name, config }) {
     const code     = generateCode();
     const roomName = name || `Room ${code}`;
-    const dbRoom   = await db.createRoom({ code, name: roomName });
+    const roomConfig = normalizeRoomConfig(config);
+    const dbRoom   = await db.createRoom({ code, name: roomName, config: roomConfig });
 
     rooms.set(code, {
       id:           dbRoom.id,
       code,
       name:         roomName,
       createdAt:    dbRoom.createdAt,
+      config:       dbRoom.config || roomConfig,
       participants: new Map(),
     });
 
@@ -47,6 +50,7 @@ const roomManager = {
       code:         upper,
       name:         dbRoom.name,
       createdAt:    dbRoom.createdAt,
+      config:       normalizeRoomConfig(dbRoom.config),
       participants: new Map(),
     });
 
@@ -78,6 +82,14 @@ const roomManager = {
     if (p) p.language = language;
   },
 
+  async updateConfig(code, config) {
+    const room = this.get(code);
+    if (!room) throw new Error('Room not found');
+    const normalized = normalizeRoomConfig(config);
+    room.config = await db.updateRoomConfig(room.id, normalized);
+    return room.config;
+  },
+
   getParticipants(code) {
     return Array.from(this.get(code)?.participants.values() ?? []);
   },
@@ -85,7 +97,14 @@ const roomManager = {
   getPublic(code) {
     const room = this.get(code);
     if (!room) return null;
-    return { id: room.id, code: room.code, name: room.name, participants: this.getParticipants(code), createdAt: room.createdAt };
+    return {
+      id: room.id,
+      code: room.code,
+      name: room.name,
+      config: room.config,
+      participants: this.getParticipants(code),
+      createdAt: room.createdAt,
+    };
   },
 };
 

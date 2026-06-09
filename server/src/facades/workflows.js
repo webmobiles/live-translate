@@ -17,10 +17,10 @@ const { serve }                              = require('inngest/express');
  * Trigger the text translation workflow.
  * Steps inside: translate → save to DB → broadcast to clients.
  */
-async function triggerTranslate({ msgId, roomCode, roomId, text, senderLang, sender, participants }) {
+async function triggerTranslate({ msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, participants, roomConfig }) {
   return inngest.send({
     name: 'message/translate',
-    data: { msgId, roomCode, roomId, text, senderLang, sender, participants },
+    data: { msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, participants, roomConfig },
   });
 }
 
@@ -28,10 +28,10 @@ async function triggerTranslate({ msgId, roomCode, roomId, text, senderLang, sen
  * Trigger the voice transcription + translation workflow.
  * Steps inside: transcribe audio → translate → save to DB → broadcast.
  */
-async function triggerTranscribe({ msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, participants }) {
+async function triggerTranscribe({ msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, participants, roomConfig }) {
   return inngest.send({
     name: 'message/transcribe',
-    data: { msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, participants },
+    data: { msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, participants, roomConfig },
   });
 }
 
