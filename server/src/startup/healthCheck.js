@@ -127,6 +127,11 @@ async function checkOpenAI() {
   return { ok: true };
 }
 
+async function checkRealtime() {
+  const realtime = require('../facades/realtime');
+  return realtime.checkRealtimeProvider();
+}
+
 // ── Runner ─────────────────────────────────────────────────────────────────
 
 function envFlag(name) {
@@ -149,6 +154,7 @@ function checksForProvider() {
   return [
     dbCheck,
     { name: 'Redpanda', fn: checkRedpanda, required: true },
+    { name: 'Realtime', fn: checkRealtime, required: true },
     { name: 'Inngest', fn: checkInngest, required: true },
     ...(requiresOpenAI ? [{ name: 'OpenAI', fn: checkOpenAI, required: true }] : []),
   ];

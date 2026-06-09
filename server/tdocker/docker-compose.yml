@@ -7,6 +7,8 @@
 #    scylla        → Distributed database (permanent chat history)
 #    tidb/tikv/pd  → Optional TiKV-backed database profile
 #    surrealdb     → Optional SurrealDB database profile
+#    dragonfly     → Optional Redis-compatible Socket.IO adapter
+#    valkey        → Optional Redis-compatible Socket.IO adapter
 #    inngest       → AI workflow orchestrator (http://localhost:8288)
 #
 #  Start:
@@ -29,6 +31,8 @@ volumes:
   pd-data:
   tikv-data:
   surrealdb-data:
+  dragonfly-data:
+  valkey-data:
 
 services:
 
@@ -215,6 +219,40 @@ services:
       - "8000:8000"
     volumes:
       - surrealdb-data:/data
+    networks:
+      - live-translate
+
+  # ── Realtime adapters: Dragonfly / Valkey ────────────────────────────────
+  # Dragonfly:
+  #   docker compose -f tdocker/docker-compose.yml --profile dragonfly up -d dragonfly
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: live-translate-dragonfly
+    profiles: ["dragonfly"]
+    command:
+      - --logtostderr
+      - --maxmemory=256mb
+    ports:
+      - "6379:6379"
+    volumes:
+      - dragonfly-data:/data
+    networks:
+      - live-translate
+
+  # Valkey:
+  #   docker compose -f tdocker/docker-compose.yml --profile valkey up -d valkey
+  valkey:
+    image: valkey/valkey:8
+    container_name: live-translate-valkey
+    profiles: ["valkey"]
+    command:
+      - valkey-server
+      - --appendonly
+      - "yes"
+    ports:
+      - "6380:6379"
+    volumes:
+      - valkey-data:/data
     networks:
       - live-translate
 

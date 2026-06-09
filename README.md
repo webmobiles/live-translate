@@ -295,6 +295,30 @@ SURREALDB_USERNAME=root
 SURREALDB_PASSWORD=root
 ```
 
+## Realtime Adapter
+
+For one Socket.IO server, keep:
+
+```env
+REALTIME_PROVIDER=none
+```
+
+For multiple Socket.IO servers, choose one Redis-compatible adapter:
+
+```env
+REALTIME_PROVIDER=dragonfly
+DRAGONFLY_URL=redis://localhost:6379
+```
+
+or:
+
+```env
+REALTIME_PROVIDER=valkey
+VALKEY_URL=redis://localhost:6380
+```
+
+Both Dragonfly and Valkey use the Socket.IO Redis adapter protocol.
+
 ## Supported Languages
 
 EN · ES · FR · DE · IT · PT · ZH · JA · KO · AR · RU · HI · TR · NL · PL · SV

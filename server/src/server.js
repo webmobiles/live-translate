@@ -16,6 +16,7 @@ const { roomManager } = require('./rooms/manager');
 const db              = require('./facades/db');
 const queue           = require('./facades/queue');
 const workflows       = require('./facades/workflows');
+const realtime        = require('./facades/realtime');
 
 const app = express();
 app.use(cors());
@@ -338,11 +339,12 @@ async function start() {
   const { runHealthChecks } = require('./startup/healthCheck');
   await runHealthChecks();
 
-  // Connect to ScyllaDB
+  // Connect to the selected database provider
   await db.connect();
 
   // Connect to Redpanda and start consuming broadcast events
   await queue.connect();
+  await realtime.configureSocketAdapter(io);
   await startKafkaConsumer();
 
   const PORT = process.env.PORT || 4000;

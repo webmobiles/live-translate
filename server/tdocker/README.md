@@ -21,7 +21,33 @@ docker compose -f tdocker/docker-compose.yml ps
 | ScyllaDB | `localhost:9042` | Database CQL port (use in .env) |
 | TiDB/TiKV | `localhost:14000` | Optional TiKV-backed SQL port |
 | SurrealDB | http://localhost:8000 | Optional document/graph database |
+| Dragonfly | `localhost:6379` | Optional Redis-compatible Socket.IO adapter |
+| Valkey | `localhost:6380` | Optional Redis-compatible Socket.IO adapter |
 | Inngest Dev UI | http://localhost:8288 | Workflow dashboard — see every AI job |
+
+## Optional Realtime Adapter
+
+Dragonfly:
+
+```bash
+docker compose -f tdocker/docker-compose.yml --profile dragonfly up -d dragonfly
+```
+
+```
+REALTIME_PROVIDER=dragonfly
+DRAGONFLY_URL=redis://localhost:6379
+```
+
+Valkey:
+
+```bash
+docker compose -f tdocker/docker-compose.yml --profile valkey up -d valkey
+```
+
+```
+REALTIME_PROVIDER=valkey
+VALKEY_URL=redis://localhost:6380
+```
 
 ## Optional TiKV/TiDB
 
@@ -61,6 +87,7 @@ SURREALDB_PASSWORD=root
 
 ```
 REDPANDA_BROKERS=localhost:19092
+REALTIME_PROVIDER=none
 DB_PROVIDER=scylla
 SCYLLA_HOSTS=localhost
 SCYLLA_KEYSPACE=live_translate
