@@ -2,7 +2,8 @@
 # ── Live Translate — local dev infrastructure ──────────────────────────────
 #
 #  Services:
-#    redpanda      → Kafka-compatible message broker (pub/sub between servers)
+#    nats          → Default message broker (pub/sub between servers)
+#    redpanda      → Optional Kafka-compatible message broker
 #    redpanda-console → Redpanda web UI  (http://localhost:8080)
 #    scylla        → Distributed database (permanent chat history)
 #    tidb/tikv/pd  → Optional TiKV-backed database profile
@@ -26,6 +27,7 @@ networks:
     driver: bridge
 
 volumes:
+  nats-data:
   redpanda-data:
   scylla-data:
   pd-data:
@@ -36,10 +38,34 @@ volumes:
 
 services:
 
+  # ── NATS ─────────────────────────────────────────────────────────────────
+  nats:
+    image: nats:2.10-alpine
+    container_name: live-translate-nats
+    command:
+      - -js
+      - -sd
+      - /data
+      - -m
+      - "8222"
+    ports:
+      - "4222:4222"   # NATS client port
+      - "8222:8222"   # Monitoring UI/API → http://localhost:8222
+    volumes:
+      - nats-data:/data
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ── Redpanda ─────────────────────────────────────────────────────────────
   redpanda:
     image: redpandadata/redpanda:latest
     container_name: live-translate-redpanda
+    profiles: ["redpanda"]
     command:
       - redpanda
       - start
@@ -72,6 +98,7 @@ services:
   redpanda-console:
     image: redpandadata/console:latest
     container_name: live-translate-redpanda-console
+    profiles: ["redpanda"]
     depends_on:
       redpanda:
         condition: service_healthy

@@ -11,7 +11,7 @@ Web App    (React + Vite + TanStack Router)
      ↓ Socket.io
 Node.js Backend (Express + Socket.io)
      ↓                          ↓
-Redpanda (Kafka)            Inngest (workflows)
+NATS / Redpanda             Inngest (workflows)
 pub/sub between servers     AI step orchestration
      ↓                          ↓
           Database provider (ScyllaDB, TiKV via TiDB, or SurrealDB)
@@ -24,12 +24,12 @@ User sends text message
        ↓
 Socket.io receives it
        ↓
-Redpanda ──────────────────→ all Socket.io servers show spinner
+NATS ──────────────────────→ all Socket.io servers show spinner
        ↓
 Inngest workflow:
   step 1: translate to N languages   — retry 3x if fails
   step 2: save to database           — retry 3x if fails
-  step 3: broadcast via Redpanda     — retry 3x if fails
+  step 3: broadcast via queue        — retry 3x if fails
        ↓
 All Socket.io servers emit final message to their clients
 
@@ -37,7 +37,7 @@ User sends voice message → same flow but:
   step 1: transcribe audio (Whisper) — retry 3x if fails
   step 2: translate to N languages   — retry 3x if fails
   step 3: save to database           — retry 3x if fails
-  step 4: broadcast via Redpanda     — retry 3x if fails
+  step 4: broadcast via queue        — retry 3x if fails
 ```
 
 ---
@@ -47,13 +47,13 @@ User sends voice message → same flow but:
 ### 1. Infrastructure (Docker)
 
 ```bash
-cd server
-docker compose -f docker/docker-compose.yml up -d
+cd server/tdocker
+docker compose up -d
 ```
 
 | Service | URL | What it is |
 |---|---|---|
-| Redpanda Console | http://localhost:8080 | Inspect Kafka topics |
+| NATS Monitoring | http://localhost:8222 | Inspect NATS server health |
 | Inngest Dev UI | http://localhost:8288 | Watch AI workflow steps |
 | ScyllaDB CQL | localhost:9042 | Database |
 
@@ -115,7 +115,7 @@ If any library changes its API or you want to swap a technology, **you only chan
 | Want to change | Only touch |
 |---|---|
 | ScyllaDB → TiKV/TiDB | `facades/db.js` + `db/` |
-| Redpanda → NATS | `facades/queue.js` + `kafka/index.js` |
+| NATS → Redpanda | `facades/queue.js` + `nats/` or `kafka/` |
 | Inngest → Temporal | `facades/workflows.js` + `inngest/functions.js` |
 | OpenAI translation → Anthropic | `facades/translation.js` + `gateway/translation/` |
 | OpenAI STT → Vosk/faster-whisper | `facades/stt.js` + `gateway/stt/` |
@@ -127,7 +127,7 @@ Nothing in `server.js` or `rooms/manager.js` changes at all.
 ```
 src/facades/
   db.js          "save message", "get room"    — hides cassandra-driver
-  queue.js       "publish translating"         — hides kafkajs, topic names
+  queue.js       "publish translating"         — hides NATS/kafkajs, subjects/topics
   workflows.js   "trigger translate workflow"  — hides Inngest events + serve()
   ai.js          "translate", "transcribe"     — hides OpenAI / Azure / Google
 ```
@@ -166,7 +166,7 @@ live-translate/
 │
 ├── server/
 │   ├── docker/
-│   │   └── docker-compose.yml        # Redpanda + ScyllaDB + Inngest
+│   │   └── docker-compose.yml        # NATS + ScyllaDB + Inngest
 │   └── src/
 │       ├── server.js                 # Express + Socket.io entry point
 │       ├── facades/
@@ -181,6 +181,8 @@ live-translate/
 │       │   └── surreal.js            # SurrealDB / surrealdb SDK
 │       ├── kafka/
 │       │   └── index.js              # Redpanda / kafkajs
+│       ├── nats/
+│       │   └── index.js              # NATS message bus
 │       ├── inngest/
 │       │   ├── client.js             # Inngest client
 │       │   └── functions.js          # translate + transcribe workflows

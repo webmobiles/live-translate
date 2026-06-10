@@ -49,7 +49,7 @@ function isUuid(value) {
 }
 
 // Emit a socket event to every client in a room on THIS server instance.
-// All server instances do this when they receive the broadcast from Redpanda.
+// All server instances do this when they receive the broadcast from the queue.
 function emitToRoom(roomCode, event, payload) {
   io.to(`room:${roomCode}`).emit(event, payload);
 }
@@ -66,11 +66,10 @@ async function publishMessageError(roomCode, msgId) {
   }
 }
 
-// ── Redpanda consumer — broadcast to local Socket.io clients ──────────────
-// Every Socket.io server instance runs this consumer.
-// When any server publishes an event, ALL instances receive it and forward
-// to their locally connected clients.
-async function startKafkaConsumer() {
+// ── Queue consumer — broadcast to local Socket.io clients ─────────────────
+// Every Socket.io server instance runs this consumer. When any server
+// publishes an event, ALL instances receive it and forward to local clients.
+async function startQueueConsumer() {
   await queue.startConsuming(async (data) => {
     const { type, roomCode, message } = data;
 
@@ -260,7 +259,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ── Text message → Redpanda + Inngest ────────────────────────────────────
+  // ── Text message → queue + Inngest ───────────────────────────────────────
   socket.on('message:text', async ({ text, clientMsgId } = {}, cb) => {
     const { roomCode, roomId, participant } = socket.data;
     if (!roomCode || !participant || !text?.trim()) {
@@ -301,7 +300,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ── Audio message → Redpanda + Inngest ──────────────────────────────────
+  // ── Audio message → queue + Inngest ──────────────────────────────────────
   socket.on('message:audio', async ({ audioBase64, mimeType } = {}) => {
     const { roomCode, roomId, participant } = socket.data;
     if (!roomCode || !participant || !audioBase64) return;
@@ -376,10 +375,10 @@ async function start() {
   // Connect to the selected database provider
   await db.connect();
 
-  // Connect to Redpanda and start consuming broadcast events
+  // Connect to the selected queue and start consuming broadcast events
   await queue.connect();
   await realtime.configureSocketAdapter(io);
-  await startKafkaConsumer();
+  await startQueueConsumer();
 
   const PORT = process.env.PORT || 4000;
   httpServer.listen(PORT, () => {

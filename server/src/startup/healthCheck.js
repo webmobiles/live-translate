@@ -6,7 +6,8 @@
  * Runs before the HTTP server starts listening.
  * Each check is independent — all run in parallel, results printed together.
  * If any REQUIRED service fails, the process exits so you know immediately
- * rather than getting cryptic errors later.
+ * rather than getting cryptic errors later. OpenAI is warning-only by default
+ * so local dev can still exercise runtime fallback behavior with a bad key.
  */
 
 const TIMEOUT_MS = 8_000;
@@ -96,6 +97,26 @@ async function checkRedpanda() {
   }
 }
 
+async function checkNats() {
+  const { connect } = require('nats');
+  const servers = (process.env.NATS_SERVERS || 'nats://localhost:4222')
+    .split(',')
+    .map(server => server.trim())
+    .filter(Boolean);
+
+  const nc = await withTimeout(
+    connect({ servers, name: 'live-translate-health-check' }),
+    'NATS connect',
+  );
+
+  try {
+    await withTimeout(nc.flush(), 'NATS flush');
+    return { ok: true };
+  } finally {
+    await nc.close().catch(() => {});
+  }
+}
+
 async function checkInngest() {
   const url = `${process.env.INNGEST_BASE_URL || 'http://localhost:8288'}/`;
 
@@ -144,25 +165,35 @@ function checksForProvider() {
   const ttsProvider = process.env.TTS_PROVIDER || 'none';
   const voiceTranslationProvider = process.env.VOICE_TRANSLATION_PROVIDER || 'none';
   const dbProvider = (process.env.DB_PROVIDER || 'scylla').trim().toLowerCase();
+  const queueProvider = (process.env.QUEUE_PROVIDER || 'nats').trim().toLowerCase();
   const dbChecks = {
     scylla: { name: 'ScyllaDB', fn: checkScylla, required: true },
     tikv: { name: 'TiKV/TiDB', fn: checkTikv, required: true },
     surreal: { name: 'SurrealDB', fn: checkSurreal, required: true },
   };
+  const queueChecks = {
+    nats: { name: 'NATS', fn: checkNats, required: true },
+    redpanda: { name: 'Redpanda', fn: checkRedpanda, required: true },
+    kafka: { name: 'Redpanda', fn: checkRedpanda, required: true },
+  };
   const dbCheck = dbChecks[dbProvider];
   if (!dbCheck) throw new Error(`Unknown DB_PROVIDER: "${dbProvider}". Valid: scylla, tikv, surreal`);
+  const queueCheck = queueChecks[queueProvider];
+  if (!queueCheck) throw new Error(`Unknown QUEUE_PROVIDER: "${queueProvider}". Valid: nats, redpanda`);
   const requiresOpenAI = translationProvider === 'openai'
     || (translationProvider === 'mock' && envFlag('FORCE_AI_TRANSLATION'))
     || sttProvider === 'openai'
     || ttsProvider === 'openai'
     || voiceTranslationProvider === 'openai-realtime';
 
+  const openAiRequired = envFlag('STARTUP_OPENAI_REQUIRED');
+
   return [
     dbCheck,
-    { name: 'Redpanda', fn: checkRedpanda, required: true },
+    queueCheck,
     { name: 'Realtime', fn: checkRealtime, required: true },
     { name: 'Inngest', fn: checkInngest, required: true },
-    ...(requiresOpenAI ? [{ name: 'OpenAI', fn: checkOpenAI, required: true }] : []),
+    ...(requiresOpenAI ? [{ name: 'OpenAI', fn: checkOpenAI, required: openAiRequired }] : []),
   ];
 }
 

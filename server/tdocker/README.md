@@ -1,44 +1,62 @@
 # Local Dev Infrastructure
 
-## Start everything
+## Start Default Stack
+
+Run these commands from this `server/tdocker` folder:
 
 ```bash
-docker compose -f tdocker/docker-compose.yml up -d
+docker compose up -d
+docker compose ps
 ```
 
-Wait ~30s for ScyllaDB to boot, then check all services are healthy:
-
-```bash
-docker compose -f tdocker/docker-compose.yml ps
-
-``default profile start:
- docker rm -f $(docker ps -aq --filter network=tdocker_live-translate)
-docker compose --profile tikv up -d --force-recreate
-
-```
+Default services include NATS, ScyllaDB, and Inngest.
 
 ## Services
 
 | Service | URL | What it is |
 |---|---|---|
-| Redpanda | `localhost:19092` | Kafka broker (use in .env) |
-| Redpanda Console | http://localhost:8080 | Visual UI — inspect topics & messages |
-| ScyllaDB | `localhost:9042` | Database CQL port (use in .env) |
+| NATS | `localhost:4222` | Default message broker |
+| NATS Monitoring | http://localhost:8222 | Health and server stats |
+| Redpanda | `localhost:19092` | Optional Kafka-compatible broker |
+| Redpanda Console | http://localhost:8080 | Optional UI for Kafka topics |
+| ScyllaDB | `localhost:9042` | Database CQL port |
 | TiDB/TiKV | `localhost:14000` | Optional TiKV-backed SQL port |
 | SurrealDB | http://localhost:8000 | Optional document/graph database |
 | Dragonfly | `localhost:6379` | Optional Redis-compatible Socket.IO adapter |
 | Valkey | `localhost:6380` | Optional Redis-compatible Socket.IO adapter |
-| Inngest Dev UI | http://localhost:8288 | Workflow dashboard — see every AI job |
+| Inngest Dev UI | http://localhost:8288 | Workflow dashboard |
+
+## Default NATS Queue
+
+```env
+QUEUE_PROVIDER=nats
+NATS_SERVERS=nats://localhost:4222
+```
+
+NATS starts in the default Docker Compose profile.
+
+## Optional Redpanda Queue
+
+```bash
+docker compose --profile redpanda up -d redpanda redpanda-console
+```
+
+Then set:
+
+```env
+QUEUE_PROVIDER=redpanda
+REDPANDA_BROKERS=localhost:19092
+```
 
 ## Optional Realtime Adapter
 
 Dragonfly:
 
 ```bash
-docker compose -f tdocker/docker-compose.yml --profile dragonfly up -d dragonfly
+docker compose --profile dragonfly up -d dragonfly
 ```
 
-```
+```env
 REALTIME_PROVIDER=dragonfly
 DRAGONFLY_URL=redis://localhost:6379
 ```
@@ -46,10 +64,10 @@ DRAGONFLY_URL=redis://localhost:6379
 Valkey:
 
 ```bash
-docker compose -f tdocker/docker-compose.yml --profile valkey up -d valkey
+docker compose --profile valkey up -d valkey
 ```
 
-```
+```env
 REALTIME_PROVIDER=valkey
 VALKEY_URL=redis://localhost:6380
 ```
@@ -57,12 +75,12 @@ VALKEY_URL=redis://localhost:6380
 ## Optional TiKV/TiDB
 
 ```bash
-docker compose -f tdocker/docker-compose.yml --profile tikv up -d pd tikv tidb
+docker compose --profile tikv up -d pd tikv tidb
 ```
 
 Then set:
 
-```
+```env
 DB_PROVIDER=tikv
 TIKV_SQL_HOST=localhost
 TIKV_SQL_PORT=14000
@@ -74,12 +92,12 @@ TIKV_SQL_DATABASE=live_translate
 ## Optional SurrealDB
 
 ```bash
-docker compose -f tdocker/docker-compose.yml --profile surreal up -d surrealdb
+docker compose --profile surreal up -d surrealdb
 ```
 
 Then set:
 
-```
+```env
 DB_PROVIDER=surreal
 SURREALDB_URL=http://localhost:8000/rpc
 SURREALDB_NAMESPACE=live_translate
@@ -88,27 +106,14 @@ SURREALDB_USERNAME=root
 SURREALDB_PASSWORD=root
 ```
 
-## Add to your server .env
-
-```
-REDPANDA_BROKERS=localhost:19092
-REALTIME_PROVIDER=none
-DB_PROVIDER=scylla
-SCYLLA_HOSTS=localhost
-SCYLLA_KEYSPACE=live_translate
-INNGEST_DEV=1
-INNGEST_EVENT_KEY=local
-INNGEST_SIGNING_KEY=local
-```
-
 ## Stop
 
 ```bash
-docker compose -f tdocker/docker-compose.yml down
+docker compose down
 ```
 
-## Wipe all data and start fresh
+## Wipe Data
 
 ```bash
-docker compose -f tdocker/docker-compose.yml down -v
+docker compose down -v
 ```
