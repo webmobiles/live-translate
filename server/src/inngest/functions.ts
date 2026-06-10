@@ -8,6 +8,7 @@ const stt          = require('../facades/stt');
 const tts          = require('../facades/tts');
 const voiceTranslation = require('../facades/voiceTranslation');
 const { normalizeRoomConfig } = require('../rooms/config');
+const { logger } = require('../observability/logger');
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -24,10 +25,14 @@ async function translateWithFallback(text, senderLang, targetLang) {
       return await translation.translate(text, senderLang, targetLang);
     } catch (err) {
       const isLastAttempt = attempt === TRANSLATION_RETRIES;
-      console.warn(
-        `[translate] ${senderLang}->${targetLang} failed`
-        + ` (${attempt + 1}/${TRANSLATION_RETRIES + 1}): ${err.message}`,
-      );
+      logger.warn({
+        event: 'translation.retry_failed',
+        senderLang,
+        targetLang,
+        attempt: attempt + 1,
+        maxAttempts: TRANSLATION_RETRIES + 1,
+        err,
+      }, 'Translation attempt failed');
       if (isLastAttempt) return `${text} (not translated)`;
       await wait(TRANSLATION_RETRY_DELAY_MS);
     }
@@ -55,7 +60,7 @@ async function buildAudioOutputs(translations: any, targetLangs: any[], roomConf
       try {
         return [lang, await tts.synthesize(text, lang)];
       } catch (err) {
-        console.warn(`[tts] ${lang} failed: ${err.message}`);
+        logger.warn({ event: 'tts.failed', language: lang, err }, 'TTS synthesis failed');
         return [lang, null];
       }
     }),

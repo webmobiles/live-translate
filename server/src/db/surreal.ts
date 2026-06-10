@@ -3,6 +3,7 @@
 const { Surreal } = require('surrealdb');
 const { v4: uuidv4 } = require('uuid');
 const { normalizeRoomConfig } = require('../rooms/config');
+const { logger } = require('../observability/logger');
 
 let client = null;
 
@@ -34,7 +35,7 @@ async function connect() {
 
   await client.connect(dbConfig.url, options);
   await ensureSchema();
-  console.log('[surrealdb] connected');
+  logger.info({ event: 'db.connected', provider: 'surrealdb', url: dbConfig.url, namespace: dbConfig.namespace, database: dbConfig.database }, 'SurrealDB connected');
 }
 
 function getClient() {

@@ -1,5 +1,15 @@
 # Local Dev Infrastructure
 
+
+
+## Lqst  Default Stack
+
+```bash
+docker compose down --remove-orphans
+docker compose --profile tikv up -d --force-recreate
+docker compose --profile observability up -d openobserve
+```
+
 ## Start Default Stack
 
 Run these commands from this `server/tdocker` folder:
@@ -25,6 +35,7 @@ Default services include NATS, ScyllaDB, and Inngest.
 | Dragonfly | `localhost:6379` | Optional Redis-compatible Socket.IO adapter |
 | Valkey | `localhost:6380` | Optional Redis-compatible Socket.IO adapter |
 | Inngest Dev UI | http://localhost:8288 | Workflow dashboard |
+| OpenObserve | http://localhost:5080 | Optional observability dashboard |
 
 ## Default NATS Queue
 
@@ -85,6 +96,39 @@ docker compose --profile valkey up -d valkey
 ```env
 REALTIME_PROVIDER=valkey
 VALKEY_URL=redis://localhost:6380
+```
+
+## Optional OpenObserve Observability
+
+```bash
+docker compose --profile observability up -d openobserve
+```
+
+Open http://localhost:5080 and log in with:
+
+```text
+root@example.com
+Complexpass#123
+```
+
+To push local server Pino logs directly into OpenObserve, set:
+
+```env
+OPENOBSERVE_LOGS_ENABLED=true
+OPENOBSERVE_URL=http://127.0.0.1:5080
+OPENOBSERVE_ORG=default
+OPENOBSERVE_LOG_STREAM=live_translate_server
+OPENOBSERVE_USER=root@example.com
+OPENOBSERVE_PASSWORD="Complexpass#123"
+```
+
+To enable OpenTelemetry traces and metrics, also set:
+
+```env
+OTEL_ENABLED=true
+OTEL_SERVICE_NAME=live-translate-server
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:5080/api/default
+OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic cm9vdEBleGFtcGxlLmNvbTpDb21wbGV4cGFzcyMxMjM="
 ```
 
 ## Optional TiKV/TiDB

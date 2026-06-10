@@ -1,6 +1,7 @@
 'use strict';
 
 const { connect: connectNats, StringCodec } = require('nats');
+const { logger } = require('../observability/logger');
 
 const SERVERS = (process.env.NATS_SERVERS || 'nats://localhost:4222')
   .split(',')
@@ -24,11 +25,11 @@ async function connect() {
 
   nc.closed()
     .then(err => {
-      if (err) console.error('[nats] connection closed with error:', err.message);
+      if (err) logger.error({ event: 'queue.nats_closed', err }, 'NATS connection closed with error');
     })
-    .catch(err => console.error('[nats] closed handler failed:', err.message));
+    .catch(err => logger.error({ event: 'queue.nats_close_handler_failed', err }, 'NATS close handler failed'));
 
-  console.log(`[nats] connected — ${SERVERS.join(', ')}`);
+  logger.info({ event: 'queue.connected', provider: 'nats', servers: SERVERS }, 'NATS connected');
 }
 
 async function publish(type, payload) {
@@ -41,7 +42,7 @@ async function startConsuming(handler) {
   if (!nc || nc.isClosed()) await connect();
 
   const sub = nc.subscribe(SUBJECT);
-  console.log(`[nats] subscribed — ${SUBJECT}`);
+  logger.info({ event: 'queue.subscribed', provider: 'nats', subject: SUBJECT }, 'NATS subscribed');
 
   (async () => {
     for await (const msg of sub) {
@@ -49,10 +50,10 @@ async function startConsuming(handler) {
         const data = JSON.parse(codec.decode(msg.data));
         await handler(data);
       } catch (err) {
-        console.error('[nats] failed to process message:', err.message);
+        logger.error({ event: 'queue.message_process_failed', provider: 'nats', subject: SUBJECT, err }, 'NATS message processing failed');
       }
     }
-  })().catch(err => console.error('[nats] subscriber failed:', err.message));
+  })().catch(err => logger.error({ event: 'queue.subscriber_failed', provider: 'nats', subject: SUBJECT, err }, 'NATS subscriber failed'));
 }
 
 module.exports = { connect, publish, startConsuming };

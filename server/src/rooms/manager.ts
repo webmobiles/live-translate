@@ -2,6 +2,7 @@
 
 const db = require('../facades/db');
 const { normalizeRoomConfig } = require('./config');
+const { logger } = require('../observability/logger');
 
 // In-memory participant state — who is currently connected.
 // Rooms and messages are persisted via the db façade.
@@ -33,7 +34,7 @@ const roomManager = {
       participants: new Map(),
     });
 
-    console.log(`[room] created ${code} (id: ${dbRoom.id})`);
+    logger.info({ event: 'room.persisted', roomCode: code, roomId: dbRoom.id }, 'Room persisted');
     return rooms.get(code);
   },
 
@@ -54,7 +55,7 @@ const roomManager = {
       participants: new Map(),
     });
 
-    console.log(`[room] restored ${upper} from DB`);
+    logger.info({ event: 'room.restored', roomCode: upper, roomId: dbRoom.id }, 'Room restored from database');
     return rooms.get(upper);
   },
 

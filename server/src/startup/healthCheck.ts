@@ -1,5 +1,7 @@
 'use strict';
 
+const { logger } = require('../observability/logger');
+
 /**
  * Startup health checks
  *
@@ -201,7 +203,7 @@ function checksForProvider() {
 }
 
 async function runHealthChecks() {
-  console.log('\n🔍 Running startup health checks…\n');
+  logger.info({ event: 'startup.healthcheck.started' }, 'Running startup health checks');
 
   const CHECKS = checksForProvider();
   const results = await Promise.allSettled(CHECKS.map(c => c.fn()));
@@ -211,18 +213,21 @@ async function runHealthChecks() {
   CHECKS.forEach((check, i) => {
     const result = results[i];
     if (result.status === 'fulfilled') {
-      console.log(`  ✅ ${check.name.padEnd(12)} OK`);
+      logger.info({ event: 'startup.healthcheck.ok', check: check.name, required: check.required }, 'Startup health check passed');
     } else {
-      const label = check.required ? '❌' : '⚠️ ';
-      console.log(`  ${label} ${check.name.padEnd(12)} ${formatError(result.reason)}`);
+      logger[check.required ? 'error' : 'warn']({
+        event: 'startup.healthcheck.failed',
+        check: check.name,
+        required: check.required,
+        errorMessage: formatError(result.reason),
+        err: result.reason,
+      }, 'Startup health check failed');
       if (check.required) anyFailed = true;
     }
   });
 
-  console.log('');
-
   if (anyFailed) {
-    console.error('🚨 One or more required services are not available. Fix the issues above and restart.\n');
+    logger.fatal({ event: 'startup.healthcheck.required_failed' }, 'One or more required services are not available');
     process.exit(1);
   }
 }

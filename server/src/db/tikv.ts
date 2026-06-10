@@ -11,6 +11,7 @@
 const mysql = require('mysql2/promise');
 const { v4: uuidv4 } = require('uuid');
 const { normalizeRoomConfig } = require('../rooms/config');
+const { logger } = require('../observability/logger');
 
 let pool = null;
 
@@ -60,7 +61,7 @@ async function connect() {
   });
 
   await ensureSchema();
-  console.log('[tikv] connected via TiDB SQL');
+  logger.info({ event: 'db.connected', provider: 'tikv', host: dbConfig.host, port: dbConfig.port, database: dbConfig.database }, 'TiKV connected via TiDB SQL');
 }
 
 function getPool() {

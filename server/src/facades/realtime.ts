@@ -9,6 +9,7 @@
 
 const { createAdapter } = require('@socket.io/redis-adapter');
 const { createClient } = require('redis');
+const { logger } = require('../observability/logger');
 
 const REDIS_COMPATIBLE_PROVIDERS = new Set(['dragonfly', 'valkey']);
 
@@ -32,7 +33,7 @@ async function configureSocketAdapter(io) {
   const provider = getProviderName();
 
   if (provider === 'none') {
-    console.log('[realtime] using local Socket.IO adapter');
+    logger.info({ event: 'realtime.adapter_configured', provider: 'none' }, 'Using local Socket.IO adapter');
     return;
   }
 
@@ -44,12 +45,12 @@ async function configureSocketAdapter(io) {
   const pubClient = createClient({ url });
   const subClient = pubClient.duplicate();
 
-  pubClient.on('error', err => console.error(`[realtime:${provider}] pub client`, err.message));
-  subClient.on('error', err => console.error(`[realtime:${provider}] sub client`, err.message));
+  pubClient.on('error', err => logger.error({ event: 'realtime.pub_client_error', provider, err }, 'Realtime pub client error'));
+  subClient.on('error', err => logger.error({ event: 'realtime.sub_client_error', provider, err }, 'Realtime sub client error'));
 
   await Promise.all([pubClient.connect(), subClient.connect()]);
   io.adapter(createAdapter(pubClient, subClient));
-  console.log(`[realtime] using ${provider} Socket.IO adapter (${url})`);
+  logger.info({ event: 'realtime.adapter_configured', provider, url }, 'Using shared Socket.IO adapter');
 }
 
 async function checkRealtimeProvider() {

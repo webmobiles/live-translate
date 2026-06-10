@@ -35,6 +35,7 @@ volumes:
   surrealdb-data:
   dragonfly-data:
   valkey-data:
+  openobserve-data:
 
 services:
 
@@ -292,5 +293,23 @@ services:
       - "8288:8288"     # Dev UI → http://localhost:8288
     extra_hosts:
       - "host.docker.internal:host-gateway"   # lets Inngest reach your local server
+    networks:
+      - live-translate
+
+  # ── OpenObserve ──────────────────────────────────────────────────────────
+  # Start with:
+  #   docker compose -f tdocker/docker-compose.yml --profile observability up -d openobserve
+  openobserve:
+    image: public.ecr.aws/zinclabs/openobserve:latest
+    container_name: live-translate-openobserve
+    profiles: ["observability"]
+    environment:
+      ZO_ROOT_USER_EMAIL: root@example.com
+      ZO_ROOT_USER_PASSWORD: Complexpass#123
+      ZO_DATA_DIR: /data
+    ports:
+      - "5080:5080"   # UI and ingestion API → http://localhost:5080
+    volumes:
+      - openobserve-data:/data
     networks:
       - live-translate

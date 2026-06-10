@@ -12,6 +12,7 @@ const express    = require('express');
 const http       = require('http');
 const { Server } = require('socket.io');
 const cors       = require('cors');
+const { logger } = require('./observability/logger');
 const { roomManager } = require('./rooms/manager');
 const { normalizeRoomConfig } = require('./rooms/config');
 const db              = require('./facades/db');
@@ -22,6 +23,19 @@ const realtime        = require('./facades/realtime');
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+app.use((req, res, next) => {
+  const startedAt = Date.now();
+  res.on('finish', () => {
+    logger.info({
+      event: 'http.request',
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      durationMs: Date.now() - startedAt,
+    }, 'HTTP request completed');
+  });
+  next();
+});
 
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
@@ -34,7 +48,11 @@ const io = new Server(httpServer, {
 app.use('/api/inngest', workflows.httpHandler());
 
 app.get('/health', (_req, res) =>
-  res.json({ status: 'ok', uptime: process.uptime() }),
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+  }),
 );
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -46,6 +64,26 @@ function makeMsgId() {
 function isUuid(value) {
   return typeof value === 'string'
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function startProcessMemoryLogger() {
+  const intervalMs = Number.parseInt(process.env.MEMORY_LOG_INTERVAL_MS || '30000', 10);
+  if (intervalMs <= 0) return;
+
+  const interval = setInterval(() => {
+    const memory = process.memoryUsage();
+    logger.info({
+      event: 'process.memory',
+      rssMb: Math.round(memory.rss / 1024 / 1024),
+      heapTotalMb: Math.round(memory.heapTotal / 1024 / 1024),
+      heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
+      externalMb: Math.round(memory.external / 1024 / 1024),
+      arrayBuffersMb: Math.round(memory.arrayBuffers / 1024 / 1024),
+      uptimeSec: Math.round(process.uptime()),
+    }, 'Process memory snapshot');
+  }, intervalMs);
+
+  interval.unref?.();
 }
 
 // Emit a socket event to every client in a room on THIS server instance.
@@ -139,7 +177,7 @@ async function startQueueConsumer() {
 // ── Socket.io handlers ─────────────────────────────────────────────────────
 
 io.on('connection', (socket) => {
-  console.log(`[socket] + ${socket.id}`);
+  logger.info({ event: 'socket.connected', socketId: socket.id }, 'Socket connected');
 
   // ── Create room ──────────────────────────────────────────────────────────
   socket.on('room:create', async ({ name, nickname, language, config }: any = {}, cb) => {
@@ -157,10 +195,17 @@ io.on('connection', (socket) => {
       socket.data.roomId      = room.id;
       socket.data.participant = participant;
 
-      console.log(`[room] created ${room.code} (uuid: ${room.id}) by ${nickname}`);
+      logger.info({
+        event: 'room.created',
+        roomCode: room.code,
+        roomId: room.id,
+        socketId: socket.id,
+        nickname,
+        language: participant.language,
+      }, 'Room created');
       cb?.({ ok: true, code: room.code, room: roomManager.getPublic(room.code) });
     } catch (err) {
-      console.error('[room:create]', err.message);
+      logger.error({ event: 'room.create_failed', socketId: socket.id, err }, 'Room creation failed');
       cb?.({ ok: false, error: err.message });
     }
   });
@@ -219,13 +264,20 @@ io.on('connection', (socket) => {
           socket.emit('room:history', { messages: formatted });
         }
       } catch (err) {
-        console.error('[room:join] failed to load history:', err.message);
+        logger.error({ event: 'room.history_failed', roomCode: room.code, roomId: room.id, socketId: socket.id, err }, 'Failed to load room history');
       }
 
-      console.log(`[room] ${nickname} joined ${room.code}`);
+      logger.info({
+        event: 'room.joined',
+        roomCode: room.code,
+        roomId: room.id,
+        socketId: socket.id,
+        nickname: participant.nickname,
+        language: participant.language,
+      }, 'Participant joined room');
       cb?.({ ok: true, room: roomManager.getPublic(room.code) });
     } catch (err) {
-      console.error('[room:join]', err.message);
+      logger.error({ event: 'room.join_failed', socketId: socket.id, roomCode: code, err }, 'Room join failed');
       cb?.({ ok: false, error: err.message });
     }
   });
@@ -277,6 +329,17 @@ io.on('connection', (socket) => {
     }
 
     try {
+      logger.info({
+        event: 'message.text.received',
+        roomCode,
+        roomId,
+        msgId,
+        socketId: socket.id,
+        senderLang: participant.language,
+        participantCount: participants.length,
+        textLength: text.trim().length,
+      }, 'Text message received');
+
       // 1. Immediately notify all servers to show the "translating" spinner
       await queue.publishTranslating(roomCode, msgId);
 
@@ -294,7 +357,7 @@ io.on('connection', (socket) => {
       });
       cb?.({ ok: true, id: msgId });
     } catch (err) {
-      console.error('[message:text]', err.message);
+      logger.error({ event: 'message.text_failed', roomCode, roomId, msgId, socketId: socket.id, err }, 'Text message failed');
       await publishMessageError(roomCode, msgId);
       cb?.({ ok: false, id: msgId, error: err.message });
     }
@@ -312,6 +375,18 @@ io.on('connection', (socket) => {
     if (roomConfig && !roomConfig.input.voice) return;
 
     try {
+      logger.info({
+        event: 'message.audio.received',
+        roomCode,
+        roomId,
+        msgId,
+        socketId: socket.id,
+        senderLang: participant.language,
+        participantCount: participants.length,
+        mimeType,
+        audioBytesApprox: Math.round(audioBase64.length * 0.75),
+      }, 'Audio message received');
+
       // 1. Show spinner on all servers immediately
       await queue.publishTranslating(roomCode, msgId);
 
@@ -329,7 +404,7 @@ io.on('connection', (socket) => {
         roomConfig,
       });
     } catch (err) {
-      console.error('[message:audio]', err.message);
+      logger.error({ event: 'message.audio_failed', roomCode, roomId, msgId, socketId: socket.id, err }, 'Audio message failed');
       await publishMessageError(roomCode, msgId);
     }
   });
@@ -357,16 +432,22 @@ io.on('connection', (socket) => {
       io.to(`room:${roomCode}`).emit('room:participants-updated', {
         participants: roomManager.getParticipants(roomCode),
       });
-      console.log(`[room] ${participant.nickname} left ${roomCode}`);
+      logger.info({
+        event: 'room.left',
+        roomCode,
+        socketId: socket.id,
+        nickname: participant.nickname,
+      }, 'Participant left room');
     }
-    console.log(`[socket] - ${socket.id}`);
+    logger.info({ event: 'socket.disconnected', socketId: socket.id }, 'Socket disconnected');
   });
 });
 
 // ── Startup ────────────────────────────────────────────────────────────────
 
 async function start() {
-  console.log('\n🌐 LiveTranslate — starting...\n');
+  logger.info({ event: 'server.starting' }, 'LiveTranslate starting');
+  startProcessMemoryLogger();
 
   // Verify all external services are reachable before accepting traffic
   const { runHealthChecks } = require('./startup/healthCheck');
@@ -382,13 +463,17 @@ async function start() {
 
   const PORT = process.env.PORT || 4000;
   httpServer.listen(PORT, () => {
-    console.log(`\n✅ Server ready → http://localhost:${PORT}`);
-    console.log(`   Inngest handler → http://localhost:${PORT}/api/inngest\n`);
+    logger.info({
+      event: 'server.ready',
+      port: Number(PORT),
+      url: `http://localhost:${PORT}`,
+      inngestUrl: `http://localhost:${PORT}/api/inngest`,
+    }, 'Server ready');
   });
 }
 
 start().catch(err => {
-  console.error('Failed to start:', err);
+  logger.fatal({ event: 'server.start_failed', err }, 'Failed to start');
   process.exit(1);
 });
 

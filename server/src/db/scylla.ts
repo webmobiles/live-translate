@@ -3,6 +3,7 @@
 const cassandra = require('cassandra-driver');
 const { v4: uuidv4 } = require('uuid');
 const { normalizeRoomConfig } = require('../rooms/config');
+const { logger } = require('../observability/logger');
 
 const HOSTS   = (process.env.SCYLLA_HOSTS  || 'localhost').split(',');
 const KEYSPACE = process.env.SCYLLA_KEYSPACE || 'live_translate';
@@ -18,7 +19,7 @@ async function connect() {
   });
   await client.connect();
   await ensureSchema();
-  console.log('[scylla] connected');
+  logger.info({ event: 'db.connected', provider: 'scylla', hosts: HOSTS, keyspace: KEYSPACE }, 'ScyllaDB connected');
 }
 
 function getClient() {

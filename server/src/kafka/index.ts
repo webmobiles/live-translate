@@ -1,6 +1,7 @@
 'use strict';
 
 const { Kafka, Partitioners, logLevel } = require('kafkajs');
+const { logger } = require('../observability/logger');
 
 const BROKERS = (process.env.REDPANDA_BROKERS || 'localhost:19092').split(',');
 
@@ -27,7 +28,7 @@ async function connect() {
   await producer.connect();
   await consumer.connect();
   await consumer.subscribe({ topic: TOPIC, fromBeginning: false });
-  console.log(`[kafka] connected — group ${GROUP_ID}`);
+  logger.info({ event: 'queue.connected', provider: 'redpanda', brokers: BROKERS, groupId: GROUP_ID, topic: TOPIC }, 'Redpanda connected');
 }
 
 // Publish an event that all Socket.io servers should broadcast
@@ -47,7 +48,7 @@ async function startConsuming(handler) {
         const data = JSON.parse(message.value.toString());
         await handler(data);
       } catch (err) {
-        console.error('[kafka] failed to process message:', err.message);
+        logger.error({ event: 'queue.message_process_failed', provider: 'redpanda', topic: TOPIC, groupId: GROUP_ID, err }, 'Redpanda message processing failed');
       }
     },
   });

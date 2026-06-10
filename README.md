@@ -57,6 +57,16 @@ docker compose up -d
 | Inngest Dev UI | http://localhost:8288 | Watch AI workflow steps |
 | ScyllaDB CQL | localhost:9042 | Database |
 
+Optional observability:
+
+```bash
+cd server/tdocker
+docker compose --profile observability up -d openobserve
+```
+
+OpenObserve runs at `http://localhost:5080` with `root@example.com` / `Complexpass#123`.
+Enable local server log and OpenTelemetry export in `server/.env` with `OPENOBSERVE_LOGS_ENABLED=true` and `OTEL_ENABLED=true`.
+
 ### 2. Server
 
 ```bash
