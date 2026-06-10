@@ -10,6 +10,11 @@ Wait ~30s for ScyllaDB to boot, then check all services are healthy:
 
 ```bash
 docker compose -f tdocker/docker-compose.yml ps
+
+``default profile start:
+ docker rm -f $(docker ps -aq --filter network=tdocker_live-translate)
+docker compose --profile tikv up -d --force-recreate
+
 ```
 
 ## Services
