@@ -55,6 +55,7 @@ function RoomScreen() {
   const socketRef = useRef(connectSocket())
   const mySocketId = useRef('')
   const hasSyncedRoom = useRef(false)
+  const syncInFlight = useRef(false)
   const wasDisconnected = useRef(false)
 
   const scrollToBottom = useCallback(() => {
@@ -75,12 +76,15 @@ function RoomScreen() {
     mySocketId.current = socket.id ?? ''
 
     const syncRoom = (mode: 'initial' | 'reconnect') => {
+      if (syncInFlight.current) return
+      syncInFlight.current = true
       mySocketId.current = socket.id ?? ''
       setConnectionError('')
       socket.timeout(8000).emit(
         'room:join',
         { code, nickname, language: myLanguageRef.current },
         (err: Error | null, res?: { ok: boolean; room?: { code: string; name: string; config?: RoomConfig }; error?: string }) => {
+          syncInFlight.current = false
           if (err || !res) {
             setIsConnected(false)
             setConnectionError('Could not reach the server.')
@@ -103,6 +107,7 @@ function RoomScreen() {
                 'room:create',
                 { name: roomName || undefined, nickname, language: myLanguageRef.current },
                 (createErr: Error | null, cr?: { ok: boolean; code?: string; room?: { name: string; config?: RoomConfig }; error?: string }) => {
+                  syncInFlight.current = false
                   if (createErr || !cr) {
                     setIsConnected(false)
                     setConnectionError('Could not recreate the room.')
@@ -137,6 +142,7 @@ function RoomScreen() {
             } else {
               setRoomLost(true)
               setIsConnected(false)
+              syncInFlight.current = false
             }
           }
         },
@@ -153,6 +159,7 @@ function RoomScreen() {
     const onConnectError = () => {
       setIsConnected(false)
       setConnectionError('Could not reach the server.')
+      syncInFlight.current = false
     }
     const onParticipantsUpdated = ({ participants: p }: { participants: Participant[] }) => setParticipants(p)
     const onConfigUpdated = ({ config }: { config: RoomConfig }) => setRoomConfig(config)
@@ -248,7 +255,21 @@ function RoomScreen() {
       })
     }
     markHistoryRead()
-    window.addEventListener('focus', markHistoryRead)
+    const recoverActiveTab = () => {
+      if (document.visibilityState === 'hidden') return
+
+      if (socket.connected) {
+        syncRoom(hasSyncedRoom.current ? 'reconnect' : 'initial')
+      } else {
+        setConnectionError('')
+        socket.connect()
+      }
+      markHistoryRead()
+    }
+
+    window.addEventListener('focus', recoverActiveTab)
+    window.addEventListener('online', recoverActiveTab)
+    document.addEventListener('visibilitychange', recoverActiveTab)
 
     return () => {
       socket.off('connect', onConnect)
@@ -264,7 +285,9 @@ function RoomScreen() {
       socket.off('message:delivered', onMessageDelivered)
       socket.off('message:read', onMessageRead)
       socket.off('room:history', onHistory)
-      window.removeEventListener('focus', markHistoryRead)
+      window.removeEventListener('focus', recoverActiveTab)
+      window.removeEventListener('online', recoverActiveTab)
+      document.removeEventListener('visibilitychange', recoverActiveTab)
     }
   }, [addSystemMsg, code, isHost, navigate, nickname, roomName, scrollToBottom])
 
