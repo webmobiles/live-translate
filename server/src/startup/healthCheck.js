@@ -40,12 +40,15 @@ async function checkScylla() {
 async function checkTikv() {
   const mysql = require('mysql2/promise');
 
-  const connection = await mysql.createConnection({
-    host: process.env.TIKV_SQL_HOST || process.env.TIDB_HOST || 'localhost',
-    port: Number.parseInt(process.env.TIKV_SQL_PORT || process.env.TIDB_PORT || '4000', 10),
-    user: process.env.TIKV_SQL_USER || process.env.TIDB_USER || 'root',
-    password: process.env.TIKV_SQL_PASSWORD || process.env.TIDB_PASSWORD || '',
-  });
+  const connection = await withTimeout(
+    mysql.createConnection({
+      host: process.env.TIKV_SQL_HOST || process.env.TIDB_HOST || 'localhost',
+      port: Number.parseInt(process.env.TIKV_SQL_PORT || process.env.TIDB_PORT || '4000', 10),
+      user: process.env.TIKV_SQL_USER || process.env.TIDB_USER || 'root',
+      password: process.env.TIKV_SQL_PASSWORD || process.env.TIDB_PASSWORD || '',
+    }),
+    'TiKV/TiDB connect',
+  );
 
   try {
     await withTimeout(connection.ping(), 'TiKV/TiDB ping');
@@ -150,7 +153,7 @@ async function checkOpenAI() {
 
 async function checkRealtime() {
   const realtime = require('../facades/realtime');
-  return realtime.checkRealtimeProvider();
+  return withTimeout(realtime.checkRealtimeProvider(), 'Realtime provider check');
 }
 
 // ── Runner ─────────────────────────────────────────────────────────────────
@@ -211,7 +214,7 @@ async function runHealthChecks() {
       console.log(`  ✅ ${check.name.padEnd(12)} OK`);
     } else {
       const label = check.required ? '❌' : '⚠️ ';
-      console.log(`  ${label} ${check.name.padEnd(12)} ${result.reason?.message ?? result.reason}`);
+      console.log(`  ${label} ${check.name.padEnd(12)} ${formatError(result.reason)}`);
       if (check.required) anyFailed = true;
     }
   });
@@ -233,6 +236,20 @@ function withTimeout(promise, label) {
       setTimeout(() => reject(new Error(`${label} timed out after ${TIMEOUT_MS}ms`)), TIMEOUT_MS),
     ),
   ]);
+}
+
+function formatError(error) {
+  if (!error) return 'Unknown error';
+  if (error.message) return error.message;
+
+  if (Array.isArray(error.errors) && error.errors.length > 0) {
+    return error.errors
+      .map(inner => inner?.message || inner?.code || String(inner))
+      .join('; ');
+  }
+
+  if (error.code) return error.code;
+  return String(error);
 }
 
 module.exports = { runHealthChecks };
