@@ -48,7 +48,22 @@ QUEUE_PROVIDER=redpanda
 REDPANDA_BROKERS=localhost:19092
 ```
 
-## Optional Realtime Adapter
+## Optional Socket.IO Realtime Adapter
+
+This is not OpenAI Realtime translation.
+
+`REALTIME_PROVIDER` configures the Socket.IO adapter used by the backend when you run multiple server instances. Dragonfly and Valkey are Redis-compatible infrastructure services. They help Socket.IO share live room events across backend processes, such as joins, leaves, message broadcasts, and participant updates.
+
+AI translation is configured separately:
+
+| Setting | Purpose |
+|---|---|
+| `TRANSLATION_PROVIDER` | Text translation provider |
+| `STT_PROVIDER` | Speech-to-text provider |
+| `TTS_PROVIDER` | Text-to-speech provider |
+| `VOICE_TRANSLATION_PROVIDER` | Direct voice translation provider, including the future `openai-realtime` path |
+
+If startup prints `Realtime provider check timed out after 8000ms`, it means the Socket.IO adapter backend is not reachable. For Dragonfly, check that the `dragonfly` service is running and that `DRAGONFLY_URL` uses the right host and port.
 
 Dragonfly:
 

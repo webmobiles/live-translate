@@ -103,8 +103,8 @@ Scan the QR code with Expo Go (iOS/Android).
 The server uses the **Façade pattern** to isolate all external library calls behind a single point of access per technology. Business logic never imports `kafkajs`, `cassandra-driver`, or `inngest` directly — only the façades do.
 
 ```
-server.js          → imports only → facades/db, facades/queue, facades/workflows
-rooms/manager.js   → imports only → facades/db
+server.ts          → imports only → facades/db, facades/queue, facades/workflows
+rooms/manager.ts   → imports only → facades/db
 inngest/functions  → imports only → facades/db, facades/queue, facades/translation, facades/stt
 ```
 
@@ -114,32 +114,32 @@ If any library changes its API or you want to swap a technology, **you only chan
 
 | Want to change | Only touch |
 |---|---|
-| ScyllaDB → TiKV/TiDB | `facades/db.js` + `db/` |
-| NATS → Redpanda | `facades/queue.js` + `nats/` or `kafka/` |
-| Inngest → Temporal | `facades/workflows.js` + `inngest/functions.js` |
-| OpenAI translation → Anthropic | `facades/translation.js` + `gateway/translation/` |
-| OpenAI STT → Vosk/faster-whisper | `facades/stt.js` + `gateway/stt/` |
+| ScyllaDB → TiKV/TiDB | `facades/db.ts` + `db/` |
+| NATS → Redpanda | `facades/queue.ts` + `nats/` or `kafka/` |
+| Inngest → Temporal | `facades/workflows.ts` + `inngest/functions.ts` |
+| OpenAI translation → Anthropic | `facades/translation.ts` + `gateway/translation/` |
+| OpenAI STT → Vosk/faster-whisper | `facades/stt.ts` + `gateway/stt/` |
 
-Nothing in `server.js` or `rooms/manager.js` changes at all.
+Nothing in `server.ts` or `rooms/manager.ts` changes at all.
 
 ### Façade files
 
 ```
 src/facades/
-  db.js          "save message", "get room"    — hides cassandra-driver
-  queue.js       "publish translating"         — hides NATS/kafkajs, subjects/topics
-  workflows.js   "trigger translate workflow"  — hides Inngest events + serve()
-  ai.js          "translate", "transcribe"     — hides OpenAI / Azure / Google
+  db.ts          "save message", "get room"    — hides cassandra-driver
+  queue.ts       "publish translating"         — hides NATS/kafkajs, subjects/topics
+  workflows.ts   "trigger translate workflow"  — hides Inngest events + serve()
+  ai.ts          "translate", "transcribe"     — hides OpenAI / Azure / Google
 ```
 
 ### Implementation files (only imported by façades)
 
 ```
-src/db/scylla.js              cassandra-driver implementation
-src/kafka/index.js            kafkajs implementation
-src/inngest/client.js         Inngest client singleton
-src/inngest/functions.js      Inngest workflow functions
-src/gateway/index.js          Backward-compatible AI router
+src/db/scylla.ts              cassandra-driver implementation
+src/kafka/index.ts            kafkajs implementation
+src/inngest/client.ts         Inngest client singleton
+src/inngest/functions.ts      Inngest workflow functions
+src/gateway/index.ts          Backward-compatible AI router
 src/gateway/translation/      Text translation providers
 src/gateway/stt/              Speech-to-text providers
 ```
@@ -165,31 +165,32 @@ live-translate/
 │       └── types/index.ts
 │
 ├── server/
-│   ├── docker/
-│   │   └── docker-compose.yml        # NATS + ScyllaDB + Inngest
+│   ├── tdocker/
+│   │   └── docker-compose.yml        # Local infrastructure
+│   ├── tsconfig.json
 │   └── src/
-│       ├── server.js                 # Express + Socket.io entry point
+│       ├── server.ts                 # Express + Socket.io entry point
 │       ├── facades/
-│       │   ├── db.js                 # Database façade
-│       │   ├── queue.js              # Message queue façade
-│       │   ├── workflows.js          # Inngest workflow façade
-│       │   ├── translation.js        # Translation provider façade
-│       │   └── stt.js                # Speech-to-text provider façade
+│       │   ├── db.ts                 # Database façade
+│       │   ├── queue.ts              # Message queue façade
+│       │   ├── workflows.ts          # Inngest workflow façade
+│       │   ├── translation.ts        # Translation provider façade
+│       │   └── stt.ts                # Speech-to-text provider façade
 │       ├── db/
-│       │   ├── scylla.js             # ScyllaDB / cassandra-driver
-│       │   ├── tikv.js               # TiKV through TiDB SQL / mysql2
-│       │   └── surreal.js            # SurrealDB / surrealdb SDK
+│       │   ├── scylla.ts             # ScyllaDB / cassandra-driver
+│       │   ├── tikv.ts               # TiKV through TiDB SQL / mysql2
+│       │   └── surreal.ts            # SurrealDB / surrealdb SDK
 │       ├── kafka/
-│       │   └── index.js              # Redpanda / kafkajs
+│       │   └── index.ts              # Redpanda / kafkajs
 │       ├── nats/
-│       │   └── index.js              # NATS message bus
+│       │   └── index.ts              # NATS message bus
 │       ├── inngest/
-│       │   ├── client.js             # Inngest client
-│       │   └── functions.js          # translate + transcribe workflows
+│       │   ├── client.ts             # Inngest client
+│       │   └── functions.ts          # translate + transcribe workflows
 │       ├── rooms/
-│       │   └── manager.js            # In-memory participant state
+│       │   └── manager.ts            # In-memory participant state
 │       └── gateway/
-│           ├── index.js              # Backward-compatible AI router
+│           ├── index.ts              # Backward-compatible AI router
 │           ├── translation/          # Text translation gateway
 │           ├── stt/                  # Speech-to-text gateway
 │           └── providers/            # Legacy/shared providers
@@ -329,6 +330,19 @@ Set `VOICE_TRANSLATION_PROVIDER` in server `.env`:
 | `mock` | ✅ Local dev | Returns mock translated text |
 | `openai-realtime` | 🚧 Streaming path needed | Requires a Realtime session, not the current batch Inngest workflow |
 
+This setting is about the AI voice pipeline only. It decides how an audio message could be translated directly from speech to speech/text.
+
+The current normal audio flow is still:
+
+```text
+audio message
+  -> speech-to-text provider, controlled by STT_PROVIDER
+  -> text translation provider, controlled by TRANSLATION_PROVIDER
+  -> optional text-to-speech provider, controlled by TTS_PROVIDER
+```
+
+`VOICE_TRANSLATION_PROVIDER=openai-realtime` is reserved for a direct streaming OpenAI Realtime API path. That is different from Dragonfly, Valkey, Redis, NATS, or Redpanda. Those are infrastructure services; they do not translate audio.
+
 ## Database Providers
 
 Set `DB_PROVIDER` in server `.env`:
@@ -375,13 +389,21 @@ SURREALDB_USERNAME=root
 SURREALDB_PASSWORD=root
 ```
 
-## Realtime Adapter
+## Socket.IO Realtime Adapter
+
+This section is about live Socket.IO event coordination, not OpenAI Realtime translation.
+
+`REALTIME_PROVIDER` controls how Socket.IO servers share room events when you run more than one backend process. It is infrastructure for the chat transport: joins, leaves, typing/message events, and broadcasts between server instances.
+
+It does not choose the AI translation provider. It does not call OpenAI. It does not perform speech translation.
 
 For one Socket.IO server, keep:
 
 ```env
 REALTIME_PROVIDER=none
 ```
+
+With `none`, Socket.IO uses only in-memory state inside the current Node process. This is fine for local development and a single backend instance.
 
 For multiple Socket.IO servers, choose one Redis-compatible adapter:
 
@@ -397,7 +419,24 @@ REALTIME_PROVIDER=valkey
 VALKEY_URL=redis://localhost:6380
 ```
 
-Both Dragonfly and Valkey use the Socket.IO Redis adapter protocol.
+Both Dragonfly and Valkey are Redis-compatible servers. The backend connects to them through `@socket.io/redis-adapter`, so a socket event emitted by one backend instance can reach clients connected to another backend instance.
+
+The startup health check prints this as `Realtime` because it is checking the Socket.IO realtime adapter. If it fails with a message like:
+
+```text
+Realtime provider check timed out after 8000ms
+```
+
+it means the configured Redis-compatible adapter is not reachable. For `REALTIME_PROVIDER=dragonfly`, check that Dragonfly is running and that `DRAGONFLY_URL` points to the right host and port.
+
+### Realtime Naming Cheat Sheet
+
+| Setting / name | Meaning | Example values | Related to OpenAI Realtime? |
+|---|---|---|---|
+| `REALTIME_PROVIDER` | Socket.IO adapter for sharing live events across backend instances | `none`, `dragonfly`, `valkey` | No |
+| `DRAGONFLY_URL` / `VALKEY_URL` | Connection URL for the Redis-compatible Socket.IO adapter | `redis://localhost:6379` | No |
+| `VOICE_TRANSLATION_PROVIDER` | Direct voice translation provider | `none`, `mock`, `openai-realtime` | Yes, only when set to `openai-realtime` |
+| `TRANSLATION_PROVIDER` | Text translation provider | `openai`, `mock`, `azure`, `google` | Uses OpenAI only when set to `openai` |
 
 ## Supported Languages
 
