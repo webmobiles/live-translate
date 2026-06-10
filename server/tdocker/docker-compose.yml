@@ -255,7 +255,6 @@ services:
   dragonfly:
     image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
     container_name: live-translate-dragonfly
-    profiles: ["dragonfly"]
     command:
       - --logtostderr
       - --proactor_threads=1
