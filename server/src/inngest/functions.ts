@@ -9,6 +9,7 @@ const tts          = require('../facades/tts');
 const voiceTranslation = require('../facades/voiceTranslation');
 const { normalizeRoomConfig } = require('../rooms/config');
 const { logger } = require('../observability/logger');
+const appMetrics = require('../observability/metrics');
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -58,6 +59,7 @@ async function buildAudioOutputs(translations: any, targetLangs: any[], roomConf
       const text = translations[lang];
       if (!text) return [lang, null];
       try {
+        appMetrics.recordTtsInput({ language: lang, text });
         return [lang, await tts.synthesize(text, lang)];
       } catch (err) {
         logger.warn({ event: 'tts.failed', language: lang, err }, 'TTS synthesis failed');
@@ -125,6 +127,14 @@ const transcribeAndTranslate = inngest.createFunction(
       const text = direct.text?.trim() || '[voice message]';
       const translations = direct.translations || Object.fromEntries([[senderLang, text]]);
       const audioOutputs = direct.audioOutputs || {};
+      appMetrics.recordWords({
+        type: 'audio',
+        stage: 'transcribed',
+        roomCode,
+        roomId,
+        language: senderLang,
+        text,
+      });
 
       await step.run('save-to-db', () =>
         db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, isAudio: true }),
@@ -143,6 +153,14 @@ const transcribeAndTranslate = inngest.createFunction(
       const result = await stt.transcribe(audioBase64, mimeType, senderLang);
       if (!result?.trim()) throw new Error('Empty transcription');
       return result.trim();
+    });
+    appMetrics.recordWords({
+      type: 'audio',
+      stage: 'transcribed',
+      roomCode,
+      roomId,
+      language: senderLang,
+      text,
     });
 
     const translations = await step.run('translate-text', () =>

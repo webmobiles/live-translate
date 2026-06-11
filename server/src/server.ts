@@ -13,6 +13,7 @@ const http       = require('http');
 const { Server } = require('socket.io');
 const cors       = require('cors');
 const { logger } = require('./observability/logger');
+const appMetrics = require('./observability/metrics');
 const { roomManager } = require('./rooms/manager');
 const { normalizeRoomConfig } = require('./rooms/config');
 const db              = require('./facades/db');
@@ -329,6 +330,14 @@ io.on('connection', (socket) => {
     }
 
     try {
+      appMetrics.recordMessage({
+        type: 'text',
+        roomCode,
+        roomId,
+        language: participant.language,
+        text: text.trim(),
+      });
+
       logger.info({
         event: 'message.text.received',
         roomCode,
@@ -364,7 +373,7 @@ io.on('connection', (socket) => {
   });
 
   // ── Audio message → queue + Inngest ──────────────────────────────────────
-  socket.on('message:audio', async ({ audioBase64, mimeType }: any = {}) => {
+  socket.on('message:audio', async ({ audioBase64, mimeType, durationMs, durationSeconds, audioDurationMs, audioDurationSeconds }: any = {}) => {
     const { roomCode, roomId, participant } = socket.data;
     if (!roomCode || !participant || !audioBase64) return;
 
@@ -375,6 +384,28 @@ io.on('connection', (socket) => {
     if (roomConfig && !roomConfig.input.voice) return;
 
     try {
+      const audioDuration = appMetrics.getAudioDurationSeconds({
+        audioBase64,
+        durationMs,
+        durationSeconds,
+        audioDurationMs,
+        audioDurationSeconds,
+      });
+
+      appMetrics.recordMessage({
+        type: 'audio',
+        roomCode,
+        roomId,
+        language: participant.language,
+      });
+      appMetrics.recordAudioInput({
+        roomCode,
+        roomId,
+        language: participant.language,
+        seconds: audioDuration.seconds,
+        source: audioDuration.source,
+      });
+
       logger.info({
         event: 'message.audio.received',
         roomCode,
@@ -384,6 +415,8 @@ io.on('connection', (socket) => {
         senderLang: participant.language,
         participantCount: participants.length,
         mimeType,
+        audioDurationSeconds: audioDuration.seconds,
+        audioDurationSource: audioDuration.source,
         audioBytesApprox: Math.round(audioBase64.length * 0.75),
       }, 'Audio message received');
 
