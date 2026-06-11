@@ -2,7 +2,7 @@
 
 const pino = require('pino');
 const pretty = require('pino-pretty');
-const { createOpenObserveStream } = require('./openobserveStream');
+const { createLogGatewayStream } = require('./logGateway');
 
 const isProduction = process.env.NODE_ENV === 'production';
 const prettyLogs = process.env.LOG_PRETTY !== 'false' && !isProduction;
@@ -17,6 +17,7 @@ const redact = {
     'OPENAI_API_KEY',
     'OPENOBSERVE_PASSWORD',
     'OPENOBSERVE_TOKEN',
+    'LOKI_TOKEN',
     '*.authorization',
     '*.password',
     '*.token',
@@ -41,9 +42,9 @@ const streams = [
   },
 ];
 
-const openObserveStream = createOpenObserveStream();
-if (openObserveStream) {
-  streams.push({ stream: openObserveStream });
+const logGatewayStream = createLogGatewayStream();
+if (logGatewayStream) {
+  streams.push({ stream: logGatewayStream });
 }
 
 const logger = pino(

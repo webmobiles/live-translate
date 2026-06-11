@@ -35,6 +35,10 @@ Default services include NATS, ScyllaDB, and Inngest.
 | Dragonfly | `localhost:6379` | Optional Redis-compatible Socket.IO adapter |
 | Valkey | `localhost:6380` | Optional Redis-compatible Socket.IO adapter |
 | Inngest Dev UI | http://localhost:8288 | Workflow dashboard |
+| Grafana | http://localhost:3001 | Optional OSS dashboards |
+| Loki | http://localhost:3100 | Optional log storage |
+| Tempo | http://localhost:3200 | Optional trace storage |
+| Prometheus | http://localhost:9090 | Optional metrics storage |
 | OpenObserve | http://localhost:5080 | Optional observability dashboard |
 
 ## Default NATS Queue
@@ -96,6 +100,52 @@ docker compose --profile valkey up -d valkey
 ```env
 REALTIME_PROVIDER=valkey
 VALKEY_URL=redis://localhost:6380
+```
+
+## Optional Grafana OSS Observability
+
+```bash
+docker compose --profile grafana up -d grafana loki tempo prometheus otel-collector
+```
+
+Open http://localhost:3001 and log in with:
+
+```text
+admin
+admin
+```
+
+For the local server, use:
+
+```env
+LOG_SINK=loki
+LOKI_URL=http://127.0.0.1:3100/loki/api/v1/push
+OTEL_ENABLED=true
+OTEL_SERVICE_NAME=live-translate-server
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
+OTEL_EXPORTER_OTLP_HEADERS=
+```
+
+Grafana datasources are provisioned automatically:
+
+| Datasource | Use |
+|---|---|
+| Loki | Pino structured logs |
+| Tempo | OpenTelemetry traces |
+| Prometheus | OpenTelemetry runtime/app metrics |
+
+Useful Loki queries in Grafana Explore:
+
+```logql
+{service="live-translate-server"}
+```
+
+```logql
+{service="live-translate-server", event="message.text.received"}
+```
+
+```logql
+{service="live-translate-server"} | json | level="50"
 ```
 
 ## Optional OpenObserve Observability

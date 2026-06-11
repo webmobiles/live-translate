@@ -57,15 +57,15 @@ docker compose up -d
 | Inngest Dev UI | http://localhost:8288 | Watch AI workflow steps |
 | ScyllaDB CQL | localhost:9042 | Database |
 
-Optional observability:
+Optional Grafana observability:
 
 ```bash
 cd server/tdocker
-docker compose --profile observability up -d openobserve
+docker compose --profile grafana up -d grafana loki tempo prometheus otel-collector
 ```
 
-OpenObserve runs at `http://localhost:5080` with `root@example.com` / `Complexpass#123`.
-Enable local server log and OpenTelemetry export in `server/.env` with `OPENOBSERVE_LOGS_ENABLED=true` and `OTEL_ENABLED=true`.
+Grafana runs at `http://localhost:3001` with `admin` / `admin`.
+The server sends Pino logs to Loki and OpenTelemetry traces/metrics to the local OpenTelemetry Collector.
 
 ### 2. Server
 

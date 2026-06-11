@@ -11,6 +11,7 @@
 #    dragonfly     → Optional Redis-compatible Socket.IO adapter
 #    valkey        → Optional Redis-compatible Socket.IO adapter
 #    inngest       → AI workflow orchestrator (http://localhost:8288)
+#    grafana/loki/tempo/prometheus → Optional OSS observability stack
 #
 #  Start:
 #    docker compose -f tdocker/docker-compose.yml up -d
@@ -36,6 +37,10 @@ volumes:
   dragonfly-data:
   valkey-data:
   openobserve-data:
+  grafana-data:
+  loki-data:
+  tempo-data:
+  prometheus-data:
 
 services:
 
@@ -311,5 +316,85 @@ services:
       - "5080:5080"   # UI and ingestion API → http://localhost:5080
     volumes:
       - openobserve-data:/data
+    networks:
+      - live-translate
+
+  # ── Grafana OSS observability stack ──────────────────────────────────────
+  # Start with:
+  #   docker compose -f tdocker/docker-compose.yml --profile grafana up -d grafana loki tempo prometheus otel-collector
+  grafana:
+    image: grafana/grafana:latest
+    container_name: live-translate-grafana
+    profiles: ["grafana"]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    ports:
+      - "3001:3000"   # UI → http://localhost:3001
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - loki
+      - tempo
+      - prometheus
+    networks:
+      - live-translate
+
+  loki:
+    image: grafana/loki:latest
+    container_name: live-translate-loki
+    profiles: ["grafana"]
+    command: -config.file=/etc/loki/local-config.yml
+    ports:
+      - "3100:3100"   # Loki API
+    volumes:
+      - loki-data:/loki
+      - ./grafana/loki.yml:/etc/loki/local-config.yml:ro
+    networks:
+      - live-translate
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: live-translate-tempo
+    profiles: ["grafana"]
+    command: -config.file=/etc/tempo.yml
+    ports:
+      - "3200:3200"   # Tempo API
+    volumes:
+      - tempo-data:/tmp/tempo
+      - ./grafana/tempo.yml:/etc/tempo.yml:ro
+    networks:
+      - live-translate
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: live-translate-prometheus
+    profiles: ["grafana"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"   # Prometheus UI/API
+    volumes:
+      - prometheus-data:/prometheus
+      - ./grafana/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - live-translate
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: live-translate-otel-collector
+    profiles: ["grafana"]
+    command: ["--config=/etc/otel-collector.yml"]
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    volumes:
+      - ./grafana/otel-collector.yml:/etc/otel-collector.yml:ro
+    depends_on:
+      - tempo
     networks:
       - live-translate
