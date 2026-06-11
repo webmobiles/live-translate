@@ -218,7 +218,7 @@ async function runHealthChecks() {
     } else {
       logger[check.required ? 'error' : 'warn']({
         event: 'startup.healthcheck.failed',
-        severity: check.required ? severity.P2 : severity.P3,
+        severity: check.required ? severity.P1 : severity.P3,
         check: check.name,
         required: check.required,
         errorMessage: formatError(result.reason),
