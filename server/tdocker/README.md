@@ -148,6 +148,44 @@ Useful Loki queries in Grafana Explore:
 {service="live-translate-server"} | json | level="50"
 ```
 
+### Alert severity policy
+
+Structured logs include a `severity` field for events that should be triaged.
+Use it for Grafana alert rules and dashboard panels:
+
+| Severity | Meaning | Default channel |
+|---|---|---|
+| P1 | Critical outage: the server cannot start or a required dependency blocks startup | PagerDuty/Opsgenie/SMS/phone |
+| P2 | User-facing failure or broken shared infrastructure | Slack plus on-call notification |
+| P3 | Degraded feature with fallback, or non-critical operational failure | Slack or work-hours ticket |
+| P4 | Informational/noise/debug | Logs only |
+
+Useful severity queries:
+
+```logql
+{service="live-translate-server"} | json | severity="P1"
+```
+
+```logql
+{service="live-translate-server"} | json | severity="P2"
+```
+
+```logql
+count_over_time({service="live-translate-server"} | json | severity="P1" [5m])
+```
+
+```logql
+count_over_time({service="live-translate-server"} | json | severity="P2" [5m])
+```
+
+Suggested first alerts:
+
+| Alert | Query | Threshold |
+|---|---|---|
+| P1 critical logs | `count_over_time({service="live-translate-server"} \| json \| severity="P1" [5m])` | `> 0` |
+| P2 repeated user-facing failures | `count_over_time({service="live-translate-server"} \| json \| severity="P2" [5m])` | `> 5` |
+| Translation degradation | `count_over_time({service="live-translate-server", event="translation.retry_failed"} [5m])` | `> 10` |
+
 ## Optional OpenObserve Observability
 
 ```bash

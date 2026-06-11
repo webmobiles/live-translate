@@ -2,6 +2,7 @@
 
 const { Kafka, Partitioners, logLevel } = require('kafkajs');
 const { logger } = require('../observability/logger');
+const { severity } = require('../observability/severity');
 
 const BROKERS = (process.env.REDPANDA_BROKERS || 'localhost:19092').split(',');
 
@@ -48,7 +49,7 @@ async function startConsuming(handler) {
         const data = JSON.parse(message.value.toString());
         await handler(data);
       } catch (err) {
-        logger.error({ event: 'queue.message_process_failed', provider: 'redpanda', topic: TOPIC, groupId: GROUP_ID, err }, 'Redpanda message processing failed');
+        logger.error({ event: 'queue.message_process_failed', severity: severity.P2, provider: 'redpanda', topic: TOPIC, groupId: GROUP_ID, err }, 'Redpanda message processing failed');
       }
     },
   });

@@ -13,6 +13,7 @@ const http       = require('http');
 const { Server } = require('socket.io');
 const cors       = require('cors');
 const { logger } = require('./observability/logger');
+const { severity } = require('./observability/severity');
 const appMetrics = require('./observability/metrics');
 const { roomManager } = require('./rooms/manager');
 const { normalizeRoomConfig } = require('./rooms/config');
@@ -206,7 +207,7 @@ io.on('connection', (socket) => {
       }, 'Room created');
       cb?.({ ok: true, code: room.code, room: roomManager.getPublic(room.code) });
     } catch (err) {
-      logger.error({ event: 'room.create_failed', socketId: socket.id, err }, 'Room creation failed');
+      logger.error({ event: 'room.create_failed', severity: severity.P2, socketId: socket.id, err }, 'Room creation failed');
       cb?.({ ok: false, error: err.message });
     }
   });
@@ -265,7 +266,7 @@ io.on('connection', (socket) => {
           socket.emit('room:history', { messages: formatted });
         }
       } catch (err) {
-        logger.error({ event: 'room.history_failed', roomCode: room.code, roomId: room.id, socketId: socket.id, err }, 'Failed to load room history');
+        logger.error({ event: 'room.history_failed', severity: severity.P3, roomCode: room.code, roomId: room.id, socketId: socket.id, err }, 'Failed to load room history');
       }
 
       logger.info({
@@ -278,7 +279,7 @@ io.on('connection', (socket) => {
       }, 'Participant joined room');
       cb?.({ ok: true, room: roomManager.getPublic(room.code) });
     } catch (err) {
-      logger.error({ event: 'room.join_failed', socketId: socket.id, roomCode: code, err }, 'Room join failed');
+      logger.error({ event: 'room.join_failed', severity: severity.P2, socketId: socket.id, roomCode: code, err }, 'Room join failed');
       cb?.({ ok: false, error: err.message });
     }
   });
@@ -366,7 +367,7 @@ io.on('connection', (socket) => {
       });
       cb?.({ ok: true, id: msgId });
     } catch (err) {
-      logger.error({ event: 'message.text_failed', roomCode, roomId, msgId, socketId: socket.id, err }, 'Text message failed');
+      logger.error({ event: 'message.text_failed', severity: severity.P2, roomCode, roomId, msgId, socketId: socket.id, err }, 'Text message failed');
       await publishMessageError(roomCode, msgId);
       cb?.({ ok: false, id: msgId, error: err.message });
     }
@@ -437,7 +438,7 @@ io.on('connection', (socket) => {
         roomConfig,
       });
     } catch (err) {
-      logger.error({ event: 'message.audio_failed', roomCode, roomId, msgId, socketId: socket.id, err }, 'Audio message failed');
+      logger.error({ event: 'message.audio_failed', severity: severity.P2, roomCode, roomId, msgId, socketId: socket.id, err }, 'Audio message failed');
       await publishMessageError(roomCode, msgId);
     }
   });
@@ -506,7 +507,7 @@ async function start() {
 }
 
 start().catch(err => {
-  logger.fatal({ event: 'server.start_failed', err }, 'Failed to start');
+  logger.fatal({ event: 'server.start_failed', severity: severity.P1, err }, 'Failed to start');
   process.exit(1);
 });
 

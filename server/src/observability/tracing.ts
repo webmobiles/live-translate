@@ -8,6 +8,7 @@ require('dotenv').config({
 });
 
 const { logger } = require('./logger');
+const { severity } = require('./severity');
 
 const otelEnabled = process.env.OTEL_ENABLED === 'true' || Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
 
@@ -60,7 +61,7 @@ if (otelEnabled) {
   process.on('SIGTERM', () => {
     sdk.shutdown()
       .then(() => logger.info({ event: 'otel.stopped' }, 'OpenTelemetry stopped'))
-      .catch((err) => logger.error({ event: 'otel.stop_failed', err }, 'OpenTelemetry shutdown failed'));
+      .catch((err) => logger.error({ event: 'otel.stop_failed', severity: severity.P3, err }, 'OpenTelemetry shutdown failed'));
   });
 }
 

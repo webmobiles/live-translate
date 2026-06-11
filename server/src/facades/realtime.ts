@@ -10,6 +10,7 @@
 const { createAdapter } = require('@socket.io/redis-adapter');
 const { createClient } = require('redis');
 const { logger } = require('../observability/logger');
+const { severity } = require('../observability/severity');
 
 const REDIS_COMPATIBLE_PROVIDERS = new Set(['dragonfly', 'valkey']);
 
@@ -45,8 +46,8 @@ async function configureSocketAdapter(io) {
   const pubClient = createClient({ url });
   const subClient = pubClient.duplicate();
 
-  pubClient.on('error', err => logger.error({ event: 'realtime.pub_client_error', provider, err }, 'Realtime pub client error'));
-  subClient.on('error', err => logger.error({ event: 'realtime.sub_client_error', provider, err }, 'Realtime sub client error'));
+  pubClient.on('error', err => logger.error({ event: 'realtime.pub_client_error', severity: severity.P2, provider, err }, 'Realtime pub client error'));
+  subClient.on('error', err => logger.error({ event: 'realtime.sub_client_error', severity: severity.P2, provider, err }, 'Realtime sub client error'));
 
   await Promise.all([pubClient.connect(), subClient.connect()]);
   io.adapter(createAdapter(pubClient, subClient));

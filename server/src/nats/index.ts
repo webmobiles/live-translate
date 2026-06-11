@@ -2,6 +2,7 @@
 
 const { connect: connectNats, StringCodec } = require('nats');
 const { logger } = require('../observability/logger');
+const { severity } = require('../observability/severity');
 
 const SERVERS = (process.env.NATS_SERVERS || 'nats://localhost:4222')
   .split(',')
@@ -25,9 +26,9 @@ async function connect() {
 
   nc.closed()
     .then(err => {
-      if (err) logger.error({ event: 'queue.nats_closed', err }, 'NATS connection closed with error');
+      if (err) logger.error({ event: 'queue.nats_closed', severity: severity.P2, err }, 'NATS connection closed with error');
     })
-    .catch(err => logger.error({ event: 'queue.nats_close_handler_failed', err }, 'NATS close handler failed'));
+    .catch(err => logger.error({ event: 'queue.nats_close_handler_failed', severity: severity.P3, err }, 'NATS close handler failed'));
 
   logger.info({ event: 'queue.connected', provider: 'nats', servers: SERVERS }, 'NATS connected');
 }
@@ -50,10 +51,10 @@ async function startConsuming(handler) {
         const data = JSON.parse(codec.decode(msg.data));
         await handler(data);
       } catch (err) {
-        logger.error({ event: 'queue.message_process_failed', provider: 'nats', subject: SUBJECT, err }, 'NATS message processing failed');
+        logger.error({ event: 'queue.message_process_failed', severity: severity.P2, provider: 'nats', subject: SUBJECT, err }, 'NATS message processing failed');
       }
     }
-  })().catch(err => logger.error({ event: 'queue.subscriber_failed', provider: 'nats', subject: SUBJECT, err }, 'NATS subscriber failed'));
+  })().catch(err => logger.error({ event: 'queue.subscriber_failed', severity: severity.P2, provider: 'nats', subject: SUBJECT, err }, 'NATS subscriber failed'));
 }
 
 module.exports = { connect, publish, startConsuming };

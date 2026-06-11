@@ -9,6 +9,7 @@ const tts          = require('../facades/tts');
 const voiceTranslation = require('../facades/voiceTranslation');
 const { normalizeRoomConfig } = require('../rooms/config');
 const { logger } = require('../observability/logger');
+const { severity } = require('../observability/severity');
 const appMetrics = require('../observability/metrics');
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -28,6 +29,7 @@ async function translateWithFallback(text, senderLang, targetLang) {
       const isLastAttempt = attempt === TRANSLATION_RETRIES;
       logger.warn({
         event: 'translation.retry_failed',
+        severity: severity.P3,
         senderLang,
         targetLang,
         attempt: attempt + 1,
@@ -62,7 +64,7 @@ async function buildAudioOutputs(translations: any, targetLangs: any[], roomConf
         appMetrics.recordTtsInput({ language: lang, text });
         return [lang, await tts.synthesize(text, lang)];
       } catch (err) {
-        logger.warn({ event: 'tts.failed', language: lang, err }, 'TTS synthesis failed');
+        logger.warn({ event: 'tts.failed', severity: severity.P3, language: lang, err }, 'TTS synthesis failed');
         return [lang, null];
       }
     }),
