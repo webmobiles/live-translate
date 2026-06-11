@@ -126,6 +126,12 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
 OTEL_EXPORTER_OTLP_HEADERS=
 ```
 
+When using Slack alerts from `../.env`, start the Grafana stack with:
+
+```bash
+docker compose --env-file ../.env --profile grafana up -d grafana loki tempo prometheus otel-collector
+```
+
 Grafana datasources are provisioned automatically:
 
 | Datasource | Use |
