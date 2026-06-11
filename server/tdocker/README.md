@@ -6,7 +6,7 @@
 
 ```bash
 docker compose down --remove-orphans
-docker compose --profile tikv --profile grafana up -d --force-recreate
+docker compose --env-file ../.env --profile tikv --profile grafana up -d --force-recreate
 #docker compose --profile observability up -d openobserve
 ```
 
@@ -126,11 +126,10 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
 OTEL_EXPORTER_OTLP_HEADERS=
 ```
 
-When using Slack alerts from `../.env`, start the Grafana stack with:
-
-```bash
-docker compose --env-file ../.env --profile grafana up -d grafana loki tempo prometheus otel-collector
-```
+Alerts are provisioned to a local email contact point by default so Grafana can
+boot without any external secrets. To send notifications to Slack, replace
+`grafana/provisioning/alerting/contact-points.yml` with a Slack receiver that
+includes a valid webhook URL or Slack API token before starting Grafana.
 
 Grafana datasources are provisioned automatically:
 
