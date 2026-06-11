@@ -6,8 +6,8 @@
 
 ```bash
 docker compose down --remove-orphans
-docker compose --profile tikv up -d --force-recreate
-docker compose --profile observability up -d openobserve
+docker compose --profile tikv --profile grafana up -d --force-recreate
+#docker compose --profile observability up -d openobserve
 ```
 
 ## Start Default Stack
