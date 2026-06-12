@@ -126,10 +126,10 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
 OTEL_EXPORTER_OTLP_HEADERS=
 ```
 
-Alerts are provisioned to a local email contact point by default so Grafana can
-boot without any external secrets. To send notifications to Slack, replace
-`grafana/provisioning/alerting/contact-points.yml` with a Slack receiver that
-includes a valid webhook URL or Slack API token before starting Grafana.
+Provisioned app alerts use the structured `severity` label for routing and
+triage. Do not route activity/no-data signals such as "no messages last hour" to
+Slack by default; those are not failures unless a future production-only alert
+explicitly enables them.
 
 Grafana datasources are provisioned automatically:
 

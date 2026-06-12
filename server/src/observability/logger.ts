@@ -47,6 +47,17 @@ if (logGatewayStream) {
   streams.push({ stream: logGatewayStream });
 }
 
+// Human-readable label for the numeric pino level.
+// This is a technical field — it never touches the `severity` business field.
+const LEVEL_LABEL: Record<number, string> = {
+  10: 'TRACE',
+  20: 'DEBUG',
+  30: 'INFO',
+  40: 'WARN',
+  50: 'ERROR',
+  60: 'FATAL',
+};
+
 const logger = pino(
   {
     level: process.env.LOG_LEVEL || 'info',
@@ -57,6 +68,16 @@ const logger = pino(
       error: pino.stdSerializers.err,
     },
     timestamp: pino.stdTimeFunctions.isoTime,
+    formatters: {
+      level(label: string, number: number) {
+        return {
+          level: number,
+          levelLabel: LEVEL_LABEL[number] ?? label.toUpperCase(),
+          // `severity` is NOT set here — it is a separate business field (P1/P2/P3/P4)
+          // set explicitly by the caller. These two fields are independent.
+        };
+      },
+    },
   },
   pino.multistream(streams),
 );

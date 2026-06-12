@@ -448,6 +448,84 @@ it means the configured Redis-compatible adapter is not reachable. For `REALTIME
 | `VOICE_TRANSLATION_PROVIDER` | Direct voice translation provider | `none`, `mock`, `openai-realtime` | Yes, only when set to `openai-realtime` |
 | `TRANSLATION_PROVIDER` | Text translation provider | `openai`, `mock`, `azure`, `google` | Uses OpenAI only when set to `openai` |
 
+## Observability — Log Levels and Severity
+
+Logs carry two independent fields so you can filter by technical detail **and** by urgency separately.
+
+### Log level — what happened technically
+
+| Level | When to use |
+|---|---|
+| `info` | Normal operations — room created, user joined, message sent. Useful history, no action needed. |
+| `warn` | Something degraded but the system kept running — retry succeeded, slow response, unexpected input. Investigate during work hours. |
+| `error` | An operation failed — translation failed, DB write failed, Inngest step failed. May need attention. |
+| `fatal` | The service is broken and cannot continue — startup failed, unrecoverable crash. Alert immediately. |
+
+### Severity — how urgently someone must respond
+
+| Severity | Meaning |
+|---|---|
+| `P1` | Wake someone now — SMS, phone call, PagerDuty |
+| `P2` | Slack + on-call notification, fix within the hour |
+| `P3` | Create a ticket, investigate during work hours |
+| `P4` | Log only — no action needed, backlog at most |
+
+### How they relate
+
+The logger maps log levels to a **default** severity automatically:
+
+| Log level | Default severity | Rationale |
+|---|---|---|
+| `trace` / `debug` | P4 | Pure developer noise |
+| `info` | P4 | Useful history, no action |
+| `warn` | P3 | Degraded, investigate later |
+| `error` | P2 | Failed operation, on-call notification |
+| `fatal` | P1 | Service broken, wake someone now |
+
+You can override the default by passing `severity` explicitly when the situation demands it:
+
+```ts
+// Normal error — P2 by default
+log.error({ event: 'translation.failed', roomCode }, 'Translation failed')
+
+// Data-loss risk — escalate to P1 even though it is an error log
+log.error({ severity: 'P1', event: 'db.write.failed', roomId }, 'Message lost — ScyllaDB write failed')
+
+// Noisy warning that never needs attention — explicitly P4
+log.warn({ severity: 'P4', event: 'reconnect.attempt' }, 'Socket reconnecting')
+```
+
+### Startup health check severity
+
+Every health check failure — required or not — is logged as **P1**.
+
+A non-required service being down (e.g. bad OpenAI key) means the app starts in a degraded state. That is still a broken service that must be fixed. It does not block startup but it must be treated with the same urgency as a required failure.
+
+> **Rule:** do not downgrade non-required health check failures to P2/P3. All `startup.healthcheck.failed` events are `severity: P1`.
+
+| Outcome | Log level | Severity |
+|---|---|---|
+| Required service down | `fatal` | `P1` — server won't start |
+| Non-required service down | `error` | `P1` — server starts degraded, must be fixed |
+| All checks pass | `info` | `P4` — normal |
+
+### Grafana / Loki queries
+
+Because `severity` is a structured JSON field on every log line, you can query by urgency independently of log level:
+
+```
+# P1 alerts in the last 5 minutes — should trigger a page
+sum(count_over_time({service="live-translate-server"} | json | severity="P1" [5m]))
+
+# P2 errors in the last hour — review on Slack
+sum(count_over_time({service="live-translate-server"} | json | severity="P2" [1h]))
+
+# Everything P3 and above in the last 24 h — morning review
+{service="live-translate-server"} | json | severity=~"P1|P2|P3"
+```
+
+---
+
 ## Supported Languages
 
 EN · ES · FR · DE · IT · PT · ZH · JA · KO · AR · RU · HI · TR · NL · PL · SV

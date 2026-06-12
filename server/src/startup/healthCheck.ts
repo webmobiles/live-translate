@@ -216,9 +216,12 @@ async function runHealthChecks() {
     if (result.status === 'fulfilled') {
       logger.info({ event: 'startup.healthcheck.ok', check: check.name, required: check.required }, 'Startup health check passed');
     } else {
-      logger[check.required ? 'error' : 'warn']({
+      // All health check failures are P1 — even non-required ones.
+      // A degraded service is still broken and must be fixed, just not blocking startup.
+      const sev = 'P1';
+      logger[check.required ? 'fatal' : 'error']({
         event: 'startup.healthcheck.failed',
-        severity: severity.P1,
+        severity: sev,
         check: check.name,
         required: check.required,
         errorMessage: formatError(result.reason),
