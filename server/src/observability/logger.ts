@@ -3,6 +3,7 @@
 const pino = require('pino');
 const pretty = require('pino-pretty');
 const { createLogGatewayStream } = require('./logGateway');
+const { createSlackAlertStream } = require('./slackGateway');
 
 const isProduction = process.env.NODE_ENV === 'production';
 const prettyLogs = process.env.LOG_PRETTY !== 'false' && !isProduction;
@@ -45,6 +46,12 @@ const streams = [
 const logGatewayStream = createLogGatewayStream();
 if (logGatewayStream) {
   streams.push({ stream: logGatewayStream });
+}
+
+const slackAlertStream = createSlackAlertStream();
+if (slackAlertStream) {
+  // level: 50 = error — only P1/P2 logs are error or fatal anyway
+  streams.push({ level: 'error', stream: slackAlertStream });
 }
 
 // Human-readable label for the numeric pino level.

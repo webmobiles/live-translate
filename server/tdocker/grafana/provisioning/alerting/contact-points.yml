@@ -12,4 +12,4 @@ contactPoints:
           username: Grafana
           title: '{{ template "slack.default.title" . }}'
           text: '{{ template "slack.default.text" . }}'
-        disableResolveMessage: false
+        disableResolveMessage: true

@@ -73,7 +73,9 @@ groups:
         for: 0s
         annotations:
           summary: P1 critical log emitted by Live Translate
-          description: A P1 log means the server cannot start or a required dependency blocks startup.
+          description: |
+            A P1 log was emitted in the last 5 minutes.
+            Check Loki for details: `{service="live-translate-server"} | json | severity="P1"`
         labels:
           service: live-translate-server
           severity: P1
