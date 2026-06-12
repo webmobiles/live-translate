@@ -65,6 +65,10 @@ function child(bindings: Record<string, unknown>) {
   return logger.child(bindings);
 }
 
-module.exports = { logger, child };
+async function flushLogs() {
+  await logGatewayStream?.flush?.();
+}
+
+module.exports = { logger, child, flushLogs };
 
 export {};

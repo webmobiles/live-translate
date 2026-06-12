@@ -506,8 +506,10 @@ async function start() {
   });
 }
 
-start().catch(err => {
-  logger.fatal({ event: 'server.start_failed', severity: severity.P1, err }, 'Failed to start');
+start().catch(async err => {
+  const { flushLogs } = require('./observability/logger');
+  logger.fatal({ event: 'server.start_failed', severity: severity.P1, severityLevel: 1, err }, 'Failed to start');
+  await flushLogs();
   process.exit(1);
 });
 

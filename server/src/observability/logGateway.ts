@@ -116,22 +116,37 @@ function createLogGatewayStream() {
   const flushIntervalMs = Number.parseInt(process.env.LOG_GATEWAY_FLUSH_INTERVAL_MS || '2000', 10);
   let pending: PendingLog[] = [];
   let flushing = false;
+  let currentFlush: Promise<void> | null = null;
 
   async function flush() {
-    if (flushing || pending.length === 0) return;
+    if (flushing) {
+      await currentFlush;
+      return flush();
+    }
+
+    if (pending.length === 0) return;
 
     flushing = true;
-    const batch = pending;
-    pending = [];
+    currentFlush = (async () => {
+      while (pending.length > 0) {
+        const batch = pending;
+        pending = [];
+
+        try {
+          const payload = activeSink === 'loki' ? toLokiPayload(batch) : batch;
+          await postJson(config.url, config.headers, payload);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          process.stderr.write(`[observability:${activeSink}] log ingest failed: ${message}\n`);
+        }
+      }
+    })();
 
     try {
-      const payload = activeSink === 'loki' ? toLokiPayload(batch) : batch;
-      await postJson(config.url, config.headers, payload);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`[observability:${activeSink}] log ingest failed: ${message}\n`);
+      await currentFlush;
     } finally {
       flushing = false;
+      currentFlush = null;
     }
   }
 
@@ -157,6 +172,7 @@ function createLogGatewayStream() {
         void flush();
       }
     },
+    flush,
   };
 }
 

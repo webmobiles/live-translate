@@ -1,6 +1,6 @@
 'use strict';
 
-const { logger } = require('../observability/logger');
+const { logger, flushLogs } = require('../observability/logger');
 const { severity } = require('../observability/severity');
 
 /**
@@ -219,6 +219,7 @@ async function runHealthChecks() {
       logger[check.required ? 'error' : 'warn']({
         event: 'startup.healthcheck.failed',
         severity: check.required ? severity.P1 : severity.P3,
+        severityLevel: check.required ? 1 : 3,
         check: check.name,
         required: check.required,
         errorMessage: formatError(result.reason),
@@ -229,7 +230,8 @@ async function runHealthChecks() {
   });
 
   if (anyFailed) {
-    logger.fatal({ event: 'startup.healthcheck.required_failed', severity: severity.P1 }, 'One or more required services are not available');
+    logger.fatal({ event: 'startup.healthcheck.required_failed', severity: severity.P1, severityLevel: 1 }, 'One or more required services are not available');
+    await flushLogs();
     process.exit(1);
   }
 }
