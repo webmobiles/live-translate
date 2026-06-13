@@ -18,21 +18,42 @@ function wait(ms: number) {
 }
 
 async function translateWithFallback(text: string, senderLang: string, targetLang: string, provider?: string) {
+  const start = Date.now();
   for (let attempt = 0; attempt <= TRANSLATION_RETRIES; attempt += 1) {
     try {
-      return await translation.translate(text, senderLang, targetLang, provider);
+      const result = await translation.translate(text, senderLang, targetLang, provider);
+      logger.info({
+        event: 'translation.ok',
+        provider,
+        senderLang,
+        targetLang,
+        durationMs: Date.now() - start,
+        attempt: attempt + 1,
+      }, 'Translation completed');
+      return result;
     } catch (err) {
       const isLastAttempt = attempt === TRANSLATION_RETRIES;
       logger.warn({
         event: 'translation.retry_failed',
         severity: severity.P3,
+        provider,
         senderLang,
         targetLang,
         attempt: attempt + 1,
         maxAttempts: TRANSLATION_RETRIES + 1,
         err,
       }, 'Translation attempt failed');
-      if (isLastAttempt) return `${text} (not translated)`;
+      if (isLastAttempt) {
+        logger.error({
+          event: 'translation.failed',
+          severity: severity.P2,
+          provider,
+          senderLang,
+          targetLang,
+          durationMs: Date.now() - start,
+        }, 'Translation failed after all retries');
+        return `${text} (not translated)`;
+      }
       await wait(TRANSLATION_RETRY_DELAY_MS);
     }
   }
