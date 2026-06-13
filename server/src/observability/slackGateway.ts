@@ -15,6 +15,10 @@ const http  = require('http');
 
 const SEVERITIES_TO_ALERT = new Set(['P1', 'P2']);
 
+// Dedup: suppress identical alerts for this many ms to avoid Slack floods
+const DEDUP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+const recentAlerts = new Map<string, number>(); // key → timestamp last sent
+
 const SEVERITY_EMOJI: Record<string, string> = {
   P1: '🔴',
   P2: '🟠',
@@ -122,6 +126,13 @@ export function createSlackAlertStream() {
 
       const severity = String(log.severity || '');
       if (!SEVERITIES_TO_ALERT.has(severity)) return;
+
+      // Dedup: one alert per unique (event + check) per DEDUP_WINDOW_MS
+      const dedupKey = `${String(log.event || '')}::${String(log.check || '')}`;
+      const now = Date.now();
+      const lastSent = recentAlerts.get(dedupKey) ?? 0;
+      if (now - lastSent < DEDUP_WINDOW_MS) return;
+      recentAlerts.set(dedupKey, now);
 
       const payload = buildSlackMessage(log);
       postJson(webhookUrl, payload);
