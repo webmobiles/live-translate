@@ -3,10 +3,6 @@ auth_enabled: false
 server:
   http_listen_port: 3100
 
-ingester:
-  min_ready_duration: 0s
-  wal_disk_full_threshold: 0
-
 common:
   path_prefix: /loki
   replication_factor: 1

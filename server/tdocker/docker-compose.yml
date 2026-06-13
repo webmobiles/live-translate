@@ -334,7 +334,10 @@ services:
     image: grafana/loki:latest
     container_name: live-translate-loki
     profiles: ["grafana"]
-    command: -config.file=/etc/loki/local-config.yml
+    command:
+      - -config.file=/etc/loki/local-config.yml
+      - -ingester.wal-disk-full-threshold=0
+      - -ingester.min-ready-duration=0s
     ports:
       - "3100:3100"   # Loki API
     volumes:
