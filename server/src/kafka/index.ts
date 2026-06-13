@@ -1,8 +1,6 @@
-'use strict';
-
-const { Kafka, Partitioners, logLevel } = require('kafkajs');
-const { logger } = require('../observability/logger');
-const { severity } = require('../observability/severity');
+import { Kafka, Partitioners, logLevel } from 'kafkajs';
+import { logger } from '../observability/logger';
+import { severity } from '../observability/severity';
 
 const BROKERS = (process.env.REDPANDA_BROKERS || 'localhost:19092').split(',');
 
@@ -19,13 +17,15 @@ const producer = kafka.producer({
 
 // Each server instance gets its own consumer group ID so every server
 // receives every message (broadcast fan-out pattern).
+// Each server instance gets its own consumer group ID so every server
+// receives every message (broadcast fan-out pattern).
 const GROUP_ID = `live-translate-socket-${process.env.SERVER_ID || Math.random().toString(36).slice(2, 8)}`;
 
 const consumer = kafka.consumer({ groupId: GROUP_ID });
 
 const TOPIC = 'live-translate.socket-broadcast';
 
-async function connect() {
+export async function connect() {
   await producer.connect();
   await consumer.connect();
   await consumer.subscribe({ topic: TOPIC, fromBeginning: false });
@@ -33,7 +33,7 @@ async function connect() {
 }
 
 // Publish an event that all Socket.io servers should broadcast
-async function publish(type, payload) {
+export async function publish(type: string, payload: Record<string, unknown>) {
   await producer.send({
     topic: TOPIC,
     messages: [{ value: JSON.stringify({ type, ...payload }) }],
@@ -42,11 +42,11 @@ async function publish(type, payload) {
 
 // Register a handler called for every message received from Redpanda
 // handler(parsedMessage) — called on every Socket.io server instance
-async function startConsuming(handler) {
+export async function startConsuming(handler: (data: any) => Promise<void>) {
   await consumer.run({
     eachMessage: async ({ message }) => {
       try {
-        const data = JSON.parse(message.value.toString());
+        const data = JSON.parse(message.value!.toString());
         await handler(data);
       } catch (err) {
         logger.error({ event: 'queue.message_process_failed', severity: severity.P2, provider: 'redpanda', topic: TOPIC, groupId: GROUP_ID, err }, 'Redpanda message processing failed');
@@ -55,7 +55,7 @@ async function startConsuming(handler) {
   });
 }
 
-async function ping() {
+export async function ping() {
   const admin = kafka.admin();
   try {
     await admin.connect();
@@ -64,7 +64,3 @@ async function ping() {
     await admin.disconnect().catch(() => {});
   }
 }
-
-module.exports = { connect, ping, publish, startConsuming };
-
-export {};

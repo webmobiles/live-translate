@@ -1,11 +1,9 @@
-'use strict';
+import { Surreal } from 'surrealdb';
+import { v4 as uuidv4 } from 'uuid';
+import { normalizeRoomConfig } from '../rooms/config';
+import { logger } from '../observability/logger';
 
-const { Surreal } = require('surrealdb');
-const { v4: uuidv4 } = require('uuid');
-const { normalizeRoomConfig } = require('../rooms/config');
-const { logger } = require('../observability/logger');
-
-let client = null;
+let client: Surreal | null = null;
 
 function config() {
   return {
@@ -17,7 +15,7 @@ function config() {
   };
 }
 
-async function connect() {
+export async function connect() {
   const dbConfig = config();
   client = new Surreal();
 
@@ -43,12 +41,12 @@ function getClient() {
   return client;
 }
 
-function unwrapQueryResult(result) {
+function unwrapQueryResult(result: any) {
   if (Array.isArray(result) && result.length === 1 && Array.isArray(result[0])) return result[0];
   return result;
 }
 
-function normalizeRow(row) {
+function normalizeRow(row: any) {
   if (!row) return row;
   return {
     ...row,
@@ -56,7 +54,7 @@ function normalizeRow(row) {
   };
 }
 
-async function query(sql, vars = {}) {
+async function query(sql: string, vars: Record<string, any> = {}) {
   return unwrapQueryResult(await getClient().query(sql, vars).json().collect());
 }
 
@@ -65,10 +63,10 @@ async function ensureSchema() {
   await query('DEFINE INDEX IF NOT EXISTS messages_room_time ON TABLE messages FIELDS room_id, timestamp;');
 }
 
-async function createRoom({ code, name, config }) {
+export async function createRoom({ code, name, config: roomCfg }: { code: string; name: string; config?: any }) {
   const id = uuidv4();
   const now = Date.now();
-  const roomConfig = normalizeRoomConfig(config);
+  const roomConfig = normalizeRoomConfig(roomCfg);
   const rows = await query(
     `CREATE type::thing("rooms", $id)
      SET code = $code,
@@ -88,7 +86,7 @@ async function createRoom({ code, name, config }) {
   };
 }
 
-async function getRoomByCode(code) {
+export async function getRoomByCode(code: string) {
   const rows = await query(
     'SELECT * FROM rooms WHERE code = $code LIMIT 1;',
     { code },
@@ -105,7 +103,7 @@ async function getRoomByCode(code) {
   };
 }
 
-async function updateRoomConfig(roomId, config) {
+export async function updateRoomConfig(roomId: string, config: any) {
   const roomConfig = normalizeRoomConfig(config);
   await query(
     'UPDATE type::thing("rooms", $id) SET config = $config;',
@@ -114,7 +112,7 @@ async function updateRoomConfig(roomId, config) {
   return roomConfig;
 }
 
-async function saveMessage({ roomId, msgId, sender, senderLang, original, translations, isAudio }) {
+export async function saveMessage({ roomId, msgId, sender, senderLang, original, translations, isAudio }: any) {
   await query(
     `CREATE type::thing("messages", $id)
      SET room_id = $roomId,
@@ -137,7 +135,7 @@ async function saveMessage({ roomId, msgId, sender, senderLang, original, transl
   );
 }
 
-async function getRecentMessages(roomId, limit = 100) {
+export async function getRecentMessages(roomId: string, limit = 100) {
   const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
   const rows = await query(
     `SELECT * FROM messages
@@ -148,7 +146,7 @@ async function getRecentMessages(roomId, limit = 100) {
   );
 
   return rows
-    .map(row => {
+    .map((row: any) => {
       const normalized = normalizeRow(row);
       return {
         id: normalized.id,
@@ -164,10 +162,6 @@ async function getRecentMessages(roomId, limit = 100) {
     .reverse();
 }
 
-async function ping() {
+export async function ping() {
   await getClient().query('RETURN true;');
 }
-
-module.exports = { connect, ping, createRoom, getRoomByCode, updateRoomConfig, saveMessage, getRecentMessages };
-
-export {};

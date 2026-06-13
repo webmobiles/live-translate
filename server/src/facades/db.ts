@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Database Façade
  *
@@ -8,11 +6,11 @@
  * Switch providers with DB_PROVIDER=scylla|tikv|surreal.
  */
 
-const PROVIDERS = {
-  scylla: require('../db/scylla'),
-  tikv: require('../db/tikv'),
-  surreal: require('../db/surreal'),
-};
+import * as scylla from '../db/scylla';
+import * as tikv from '../db/tikv';
+import * as surreal from '../db/surreal';
+
+const PROVIDERS: Record<string, typeof scylla> = { scylla, tikv, surreal };
 
 function getProvider() {
   const name = (process.env.DB_PROVIDER || 'scylla').trim().toLowerCase();
@@ -23,38 +21,34 @@ function getProvider() {
 
 // ── Lifecycle ──────────────────────────────────────────────────────────────
 
-async function connect() {
+export async function connect() {
   return getProvider().connect();
 }
 
 // ── Rooms ──────────────────────────────────────────────────────────────────
 
-async function createRoom({ code, name }) {
+export async function createRoom({ code, name }: { code: string; name: string }) {
   return getProvider().createRoom({ code, name });
 }
 
-async function getRoomByCode(code) {
+export async function getRoomByCode(code: string) {
   return getProvider().getRoomByCode(code);
 }
 
-async function updateRoomConfig(roomId, config) {
+export async function updateRoomConfig(roomId: string, config: any) {
   return getProvider().updateRoomConfig(roomId, config);
 }
 
 // ── Messages ───────────────────────────────────────────────────────────────
 
-async function saveMessage(payload) {
+export async function saveMessage(payload: any) {
   return getProvider().saveMessage(payload);
 }
 
-async function getRecentMessages(roomId, limit = 100) {
+export async function getRecentMessages(roomId: string, limit = 100) {
   return getProvider().getRecentMessages(roomId, limit);
 }
 
-async function ping() {
+export async function ping() {
   return getProvider().ping();
 }
-
-module.exports = { connect, ping, createRoom, getRoomByCode, updateRoomConfig, saveMessage, getRecentMessages };
-
-export {};

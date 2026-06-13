@@ -1,9 +1,3 @@
-'use strict';
-
-async function transcribe() {
+export async function transcribe(): Promise<string> {
   return 'Mock transcription';
 }
-
-module.exports = { transcribe };
-
-export {};

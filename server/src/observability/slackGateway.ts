@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Slack Alert Gateway
  *
@@ -10,8 +8,8 @@
  * Set SLACK_WEBHOOK_URL in .env to enable. If the var is missing, this is a no-op.
  */
 
-const https = require('https');
-const http  = require('http');
+import https from 'https';
+import http from 'http';
 
 const SEVERITIES_TO_ALERT = new Set(['P1', 'P2']);
 
@@ -76,7 +74,7 @@ function buildSlackMessage(log: Record<string, unknown>): unknown {
   const emoji = SEVERITY_EMOJI[severity] ?? '⚠️';
   const color = LEVEL_COLOR[severity]    ?? '#FF6600';
 
-  const fields = [
+  const fields: Array<{ title: string; value: string; short: boolean }> = [
     { title: 'Severity',  value: severity,    short: true },
     { title: 'Level',     value: levelLabel,  short: true },
     { title: 'Service',   value: service,     short: true },
@@ -87,7 +85,6 @@ function buildSlackMessage(log: Record<string, unknown>): unknown {
   if (check)        fields.push({ title: 'Check',         value: check,        short: true });
   if (errorMessage) fields.push({ title: 'Error',         value: errorMessage, short: false });
 
-  // Include any extra fields from the log (roomCode, msgId, etc.)
   const knownKeys = new Set(['severity','levelLabel','level','event','msg','check','errorMessage','service','env','time','pid','hostname']);
   for (const [key, val] of Object.entries(log)) {
     if (!knownKeys.has(key) && val !== undefined && val !== null && typeof val !== 'object') {
@@ -121,7 +118,7 @@ export function createSlackAlertStream() {
       try {
         log = JSON.parse(line);
       } catch {
-        return; // not JSON, ignore
+        return;
       }
 
       const severity = String(log.severity || '');

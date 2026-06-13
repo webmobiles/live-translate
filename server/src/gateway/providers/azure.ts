@@ -1,14 +1,7 @@
-'use strict';
-
-// Azure Cognitive Services — stub for future implementation
-async function translate(text, sourceLang, targetLang) {
+export async function translate(_text: string, _sourceLang: string, _targetLang: string): Promise<string> {
   throw new Error('Azure provider not yet configured. Set TRANSLATION_PROVIDER=openai');
 }
 
-async function transcribe(audioBase64, mimeType, language) {
+export async function transcribe(_audioBase64: string, _mimeType: string, _language: string): Promise<string> {
   throw new Error('Azure provider not yet configured.');
 }
-
-module.exports = { translate, transcribe };
-
-export {};

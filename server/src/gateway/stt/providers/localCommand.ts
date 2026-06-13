@@ -1,32 +1,38 @@
-'use strict';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import { spawn } from 'child_process';
 
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
-const { spawn } = require('child_process');
-
-function extensionFromMimeType(mimeType) {
+function extensionFromMimeType(mimeType: string | undefined) {
   if (mimeType?.includes('mp4') || mimeType?.includes('m4a')) return 'm4a';
   if (mimeType?.includes('webm')) return 'webm';
   if (mimeType?.includes('ogg')) return 'ogg';
   return 'wav';
 }
 
-function renderArgs(template, values) {
+function renderArgs(template: string[], values: { file: string; language: string; model: string }) {
   return template.map(arg => String(arg)
     .replaceAll('{file}', values.file)
     .replaceAll('{language}', values.language || '')
     .replaceAll('{model}', values.model || ''));
 }
 
-function splitCommand(value) {
+function splitCommand(value: string) {
   return String(value || '')
     .split(' ')
     .map(part => part.trim())
     .filter(Boolean);
 }
 
-async function runLocalCommand({ providerName, audioBase64, mimeType, language, command, args, model }) {
+export async function runLocalCommand({ providerName, audioBase64, mimeType, language, command, args, model }: {
+  providerName: string;
+  audioBase64: string;
+  mimeType: string;
+  language: string;
+  command: string;
+  args: string[];
+  model: string;
+}): Promise<string> {
   const [bin, ...commandArgs] = splitCommand(command);
   if (!bin) throw new Error(`${providerName} command is not configured`);
 
@@ -39,7 +45,7 @@ async function runLocalCommand({ providerName, audioBase64, mimeType, language, 
       ...renderArgs(args, { file: tmpFile, language: language?.split('-')[0], model }),
     ];
 
-    const output = await new Promise((resolve, reject) => {
+    const output = await new Promise<string>((resolve, reject) => {
       const child = spawn(bin, renderedArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
       let stdout = '';
       let stderr = '';
@@ -61,7 +67,3 @@ async function runLocalCommand({ providerName, audioBase64, mimeType, language, 
     try { fs.unlinkSync(tmpFile); } catch {}
   }
 }
-
-module.exports = { runLocalCommand };
-
-export {};

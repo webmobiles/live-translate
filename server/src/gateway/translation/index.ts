@@ -1,15 +1,16 @@
-'use strict';
+import * as openaiProvider from '../providers/openai';
+import * as azureProvider from '../providers/azure';
+import * as googleProvider from '../providers/google';
+import * as mockProvider from '../providers/mock';
 
-require('dotenv').config();
-
-const PROVIDERS = {
-  openai: require('../providers/openai'),
-  azure: require('../providers/azure'),
-  google: require('../providers/google'),
-  mock: require('../providers/mock'),
+const PROVIDERS: Record<string, { translate: (...args: any[]) => Promise<string> }> = {
+  openai: openaiProvider,
+  azure: azureProvider,
+  google: googleProvider,
+  mock: mockProvider,
 };
 
-function envFlag(name) {
+function envFlag(name: string) {
   return ['1', 'true', 'yes', 'on'].includes((process.env[name] || '').trim().toLowerCase());
 }
 
@@ -26,12 +27,8 @@ function getProvider() {
   return provider;
 }
 
-async function translate(text, sourceLang, targetLang) {
+export async function translate(text: string, sourceLang: string, targetLang: string): Promise<string> {
   if (!text?.trim()) return text;
   if (sourceLang === targetLang) return text;
   return getProvider().translate(text, sourceLang, targetLang);
 }
-
-module.exports = { translate };
-
-export {};

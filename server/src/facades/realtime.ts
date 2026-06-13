@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Realtime coordination facade.
  *
@@ -7,10 +5,10 @@
  * Socket.IO servers, use a Redis-compatible backend: Dragonfly or Valkey.
  */
 
-const { createAdapter } = require('@socket.io/redis-adapter');
-const { createClient } = require('redis');
-const { logger } = require('../observability/logger');
-const { severity } = require('../observability/severity');
+import { createAdapter } from '@socket.io/redis-adapter';
+import { createClient } from 'redis';
+import { logger } from '../observability/logger';
+import { severity } from '../observability/severity';
 
 const REDIS_COMPATIBLE_PROVIDERS = new Set(['dragonfly', 'valkey']);
 
@@ -18,7 +16,7 @@ function getProviderName() {
   return (process.env.REALTIME_PROVIDER || 'none').trim().toLowerCase();
 }
 
-function getRedisUrl(provider) {
+function getRedisUrl(provider: string) {
   if (provider === 'dragonfly') {
     return process.env.DRAGONFLY_URL || process.env.REALTIME_REDIS_URL || 'redis://localhost:6379';
   }
@@ -30,7 +28,7 @@ function getRedisUrl(provider) {
   return process.env.REALTIME_REDIS_URL || 'redis://localhost:6379';
 }
 
-async function configureSocketAdapter(io) {
+export async function configureSocketAdapter(io: any) {
   const provider = getProviderName();
 
   if (provider === 'none') {
@@ -54,7 +52,7 @@ async function configureSocketAdapter(io) {
   logger.info({ event: 'realtime.adapter_configured', provider, url }, 'Using shared Socket.IO adapter');
 }
 
-async function checkRealtimeProvider() {
+export async function checkRealtimeProvider() {
   const provider = getProviderName();
 
   if (provider === 'none') return { ok: true };
@@ -71,7 +69,3 @@ async function checkRealtimeProvider() {
     await client.quit().catch(() => {});
   }
 }
-
-module.exports = { configureSocketAdapter, checkRealtimeProvider };
-
-export {};

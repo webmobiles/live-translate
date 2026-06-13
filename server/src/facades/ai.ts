@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * AI Façade
  *
@@ -8,16 +6,16 @@
  * Switching providers or adding a new one only touches src/gateway/.
  */
 
-const translation = require('./translation');
-const stt = require('./stt');
-const tts = require('./tts');
-const voiceTranslation = require('./voiceTranslation');
+import * as translation from './translation';
+import * as sttFacade from './stt';
+import * as tts from './tts';
+import * as voiceTranslation from './voiceTranslation';
 
 /**
  * Translate text from one language to another.
  * Returns the translated string.
  */
-async function translate(text, fromLang, toLang) {
+export async function translate(text: string, fromLang: string, toLang: string): Promise<string> {
   return translation.translate(text, fromLang, toLang);
 }
 
@@ -25,12 +23,9 @@ async function translate(text, fromLang, toLang) {
  * Transcribe base64-encoded audio to text.
  * Returns the transcribed string.
  */
-async function transcribe(audioBase64, mimeType, language) {
-  return stt.transcribe(audioBase64, mimeType, language);
+export async function transcribe(audioBase64: string, mimeType: string, language: string): Promise<string> {
+  return sttFacade.transcribe(audioBase64, mimeType, language);
 }
 
-module.exports = { translate, transcribe };
-module.exports.synthesize = tts.synthesize;
-module.exports.translateVoice = voiceTranslation.translateVoice;
-
-export {};
+export const synthesize = tts.synthesize;
+export const translateVoice = voiceTranslation.translateVoice;

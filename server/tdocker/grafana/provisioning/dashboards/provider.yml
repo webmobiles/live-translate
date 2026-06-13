@@ -2,6 +2,7 @@ apiVersion: 1
 providers:
   - name: live-translate
     type: file
+    folder: Live Translate
     disableDeletion: false
     editable: true
     options:

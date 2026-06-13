@@ -1,29 +1,27 @@
-'use strict';
-
-const db = require('../facades/db');
-const { normalizeRoomConfig } = require('./config');
-const { logger } = require('../observability/logger');
+import * as db from '../facades/db';
+import { normalizeRoomConfig } from './config';
+import { logger } from '../observability/logger';
 
 // In-memory participant state — who is currently connected.
 // Rooms and messages are persisted via the db façade.
-const rooms = new Map(); // code → { id, code, name, createdAt, participants: Map }
+const rooms = new Map<string, any>(); // code → { id, code, name, createdAt, participants: Map }
 
 function generateCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code;
+  let code: string;
   do {
     code = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
   } while (rooms.has(code));
   return code;
 }
 
-const roomManager = {
+export const roomManager = {
 
-  async create({ name, config }) {
+  async create({ name, config }: { name?: string; config?: any }) {
     const code     = generateCode();
     const roomName = name || `Room ${code}`;
     const roomConfig = normalizeRoomConfig(config);
-    const dbRoom   = await db.createRoom({ code, name: roomName, config: roomConfig });
+    const dbRoom   = await db.createRoom({ code, name: roomName });
 
     rooms.set(code, {
       id:           dbRoom.id,
@@ -39,7 +37,7 @@ const roomManager = {
   },
 
   // Get from memory, or restore from DB if server restarted
-  async getOrRestore(code) {
+  async getOrRestore(code: string) {
     const upper = code?.toUpperCase();
     if (rooms.has(upper)) return rooms.get(upper);
 
@@ -59,11 +57,11 @@ const roomManager = {
     return rooms.get(upper);
   },
 
-  get(code) {
+  get(code: string) {
     return rooms.get(code?.toUpperCase()) || null;
   },
 
-  addParticipant(code, { socketId, nickname, language, isHost }) {
+  addParticipant(code: string, { socketId, nickname, language, isHost }: any) {
     const room = this.get(code);
     if (!room) throw new Error('Room not found');
     const participant = { socketId, nickname, language, isHost, joinedAt: Date.now() };
@@ -71,19 +69,19 @@ const roomManager = {
     return participant;
   },
 
-  removeParticipant(code, socketId) {
+  removeParticipant(code: string, socketId: string) {
     const room = this.get(code);
     if (!room) return;
     room.participants.delete(socketId);
   },
 
-  updateParticipantLanguage(code, socketId, language) {
+  updateParticipantLanguage(code: string, socketId: string, language: string) {
     const room = this.get(code);
     const p    = room?.participants.get(socketId);
     if (p) p.language = language;
   },
 
-  async updateConfig(code, config) {
+  async updateConfig(code: string, config: any) {
     const room = this.get(code);
     if (!room) throw new Error('Room not found');
     const normalized = normalizeRoomConfig(config);
@@ -91,11 +89,11 @@ const roomManager = {
     return room.config;
   },
 
-  getParticipants(code) {
+  getParticipants(code: string) {
     return Array.from(this.get(code)?.participants.values() ?? []);
   },
 
-  getPublic(code) {
+  getPublic(code: string) {
     const room = this.get(code);
     if (!room) return null;
     return {
@@ -108,7 +106,3 @@ const roomManager = {
     };
   },
 };
-
-module.exports = { roomManager };
-
-export {};

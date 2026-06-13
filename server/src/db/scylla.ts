@@ -1,21 +1,19 @@
-'use strict';
-
-const cassandra = require('cassandra-driver');
-const { v4: uuidv4 } = require('uuid');
-const { normalizeRoomConfig } = require('../rooms/config');
-const { logger } = require('../observability/logger');
+import cassandra from 'cassandra-driver';
+import { v4 as uuidv4 } from 'uuid';
+import { normalizeRoomConfig } from '../rooms/config';
+import { logger } from '../observability/logger';
 
 const HOSTS   = (process.env.SCYLLA_HOSTS  || 'localhost').split(',');
 const KEYSPACE = process.env.SCYLLA_KEYSPACE || 'live_translate';
 
-let client = null;
+let client: cassandra.Client | null = null;
 
-async function connect() {
+export async function connect() {
   client = new cassandra.Client({
     contactPoints: HOSTS,
     localDataCenter: 'datacenter1',
     keyspace: KEYSPACE,
-    pooling: { coreConnectionsPerHost: { local: 2, remote: 1 } },
+    pooling: { coreConnectionsPerHost: { local: 2, remote: 1 } as any },
   });
   await client.connect();
   await ensureSchema();
@@ -27,21 +25,21 @@ function getClient() {
   return client;
 }
 
-function toNumber(value) {
+function toNumber(value: any) {
   return typeof value?.toNumber === 'function' ? value.toNumber() : value;
 }
 
 async function ensureSchema() {
   try {
-    await client.execute('ALTER TABLE rooms ADD config text');
-  } catch (err) {
+    await client!.execute('ALTER TABLE rooms ADD config text');
+  } catch (err: any) {
     if (!/already exists|Invalid column name/i.test(err.message)) throw err;
   }
 }
 
 // ── Rooms ──────────────────────────────────────────────────────────────────
 
-async function createRoom({ code, name, config }) {
+export async function createRoom({ code, name, config }: { code: string; name: string; config?: any }) {
   const id = uuidv4();
   const now = Date.now();
   const db = getClient();
@@ -63,7 +61,7 @@ async function createRoom({ code, name, config }) {
   return { id, code, name, config: roomConfig, createdAt: now };
 }
 
-async function getRoomByCode(code) {
+export async function getRoomByCode(code: string) {
   const db = getClient();
   const lookup = await db.execute(
     'SELECT room_id FROM rooms_by_code WHERE code = ?',
@@ -90,7 +88,7 @@ async function getRoomByCode(code) {
   };
 }
 
-async function updateRoomConfig(roomId, config) {
+export async function updateRoomConfig(roomId: string, config: any) {
   const roomConfig = normalizeRoomConfig(config);
   await getClient().execute(
     'UPDATE rooms SET config = ? WHERE id = ?',
@@ -102,7 +100,7 @@ async function updateRoomConfig(roomId, config) {
 
 // ── Messages ───────────────────────────────────────────────────────────────
 
-async function saveMessage({ roomId, msgId, sender, senderLang, original, translations, isAudio }) {
+export async function saveMessage({ roomId, msgId, sender, senderLang, original, translations, isAudio }: any) {
   await getClient().execute(
     `INSERT INTO messages
        (room_id, timestamp, id, sender, sender_lang, original, translations, is_audio)
@@ -122,7 +120,7 @@ async function saveMessage({ roomId, msgId, sender, senderLang, original, transl
 }
 
 // Returns last `limit` messages ordered oldest → newest (good for rendering)
-async function getRecentMessages(roomId, limit = 100) {
+export async function getRecentMessages(roomId: string, limit = 100) {
   const result = await getClient().execute(
     `SELECT * FROM messages
      WHERE room_id = ?
@@ -145,10 +143,6 @@ async function getRecentMessages(roomId, limit = 100) {
     .reverse(); // oldest first for chat rendering
 }
 
-async function ping() {
+export async function ping() {
   await getClient().execute('SELECT now() FROM system.local');
 }
-
-module.exports = { connect, ping, createRoom, getRoomByCode, updateRoomConfig, saveMessage, getRecentMessages };
-
-export {};

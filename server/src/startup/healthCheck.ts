@@ -1,8 +1,3 @@
-'use strict';
-
-const { logger, flushLogs } = require('../observability/logger');
-const { severity } = require('../observability/severity');
-
 /**
  * Startup health checks
  *
@@ -13,6 +8,15 @@ const { severity } = require('../observability/severity');
  * so local dev can still exercise runtime fallback behavior with a bad key.
  */
 
+import cassandra from 'cassandra-driver';
+import mysql from 'mysql2/promise';
+import { Surreal } from 'surrealdb';
+import { Kafka } from 'kafkajs';
+import { connect as connectNats } from 'nats';
+import * as realtimeFacade from '../facades/realtime';
+import { logger, flushLogs } from '../observability/logger';
+import { severity } from '../observability/severity';
+
 const TIMEOUT_MS = 8_000;
 const RETRY_ATTEMPTS = Number.parseInt(process.env.STARTUP_HEALTHCHECK_RETRIES || '30', 10);
 const RETRY_DELAY_MS = Number.parseInt(process.env.STARTUP_HEALTHCHECK_RETRY_DELAY_MS || '2000', 10);
@@ -20,7 +24,6 @@ const RETRY_DELAY_MS = Number.parseInt(process.env.STARTUP_HEALTHCHECK_RETRY_DEL
 // ── Individual checks ──────────────────────────────────────────────────────
 
 async function checkScylla() {
-  const cassandra = require('cassandra-driver');
   const hosts     = (process.env.SCYLLA_HOSTS   || 'localhost').split(',');
   const keyspace  = process.env.SCYLLA_KEYSPACE || 'live_translate';
 
@@ -43,8 +46,6 @@ async function checkScylla() {
 }
 
 async function checkTikv() {
-  const mysql = require('mysql2/promise');
-
   const connection = await withTimeout(
     mysql.createConnection({
       host: process.env.TIKV_SQL_HOST || process.env.TIDB_HOST || 'localhost',
@@ -64,7 +65,6 @@ async function checkTikv() {
 }
 
 async function checkSurreal() {
-  const { Surreal } = require('surrealdb');
   const db = new Surreal();
 
   const url = process.env.SURREALDB_URL || 'http://localhost:8000/rpc';
@@ -90,9 +90,7 @@ async function checkSurreal() {
 }
 
 async function checkRedpanda() {
-  const { Kafka } = require('kafkajs');
-  const brokers   = (process.env.REDPANDA_BROKERS || 'localhost:19092').split(',');
-
+  const brokers = (process.env.REDPANDA_BROKERS || 'localhost:19092').split(',');
   const kafka = new Kafka({ clientId: 'health-check', brokers, logLevel: 0 });
   const admin = kafka.admin();
 
@@ -106,14 +104,13 @@ async function checkRedpanda() {
 }
 
 async function checkNats() {
-  const { connect } = require('nats');
   const servers = (process.env.NATS_SERVERS || 'nats://localhost:4222')
     .split(',')
     .map(server => server.trim())
     .filter(Boolean);
 
   const nc = await withTimeout(
-    connect({ servers, name: 'live-translate-health-check' }),
+    connectNats({ servers, name: 'live-translate-health-check' }),
     'NATS connect',
   );
 
@@ -157,13 +154,10 @@ async function checkOpenAI() {
 }
 
 async function checkRealtime() {
-  const realtime = require('../facades/realtime');
-  return withTimeout(realtime.checkRealtimeProvider(), 'Realtime provider check');
+  return withTimeout(realtimeFacade.checkRealtimeProvider(), 'Realtime provider check');
 }
 
-// ── Runner ─────────────────────────────────────────────────────────────────
-
-function envFlag(name) {
+function envFlag(name: string) {
   return ['1', 'true', 'yes', 'on'].includes((process.env[name] || '').trim().toLowerCase());
 }
 
@@ -174,12 +168,12 @@ function checksForProvider() {
   const voiceTranslationProvider = process.env.VOICE_TRANSLATION_PROVIDER || 'none';
   const dbProvider = (process.env.DB_PROVIDER || 'scylla').trim().toLowerCase();
   const queueProvider = (process.env.QUEUE_PROVIDER || 'nats').trim().toLowerCase();
-  const dbChecks = {
+  const dbChecks: Record<string, any> = {
     scylla: { name: 'ScyllaDB', fn: checkScylla, required: true },
     tikv: { name: 'TiKV/TiDB', fn: checkTikv, required: true },
     surreal: { name: 'SurrealDB', fn: checkSurreal, required: true },
   };
-  const queueChecks = {
+  const queueChecks: Record<string, any> = {
     nats: { name: 'NATS', fn: checkNats, required: true },
     redpanda: { name: 'Redpanda', fn: checkRedpanda, required: true },
     kafka: { name: 'Redpanda', fn: checkRedpanda, required: true },
@@ -205,7 +199,9 @@ function checksForProvider() {
   ];
 }
 
-async function runHealthChecks() {
+// ── Runner ─────────────────────────────────────────────────────────────────
+
+export async function runHealthChecks() {
   logger.info({ event: 'startup.healthcheck.started' }, 'Running startup health checks');
 
   const CHECKS = checksForProvider();
@@ -218,8 +214,6 @@ async function runHealthChecks() {
     if (result.status === 'fulfilled') {
       logger.info({ event: 'startup.healthcheck.ok', check: check.name, required: check.required }, 'Startup health check passed');
     } else {
-      // All health check failures are P1 — even non-required ones.
-      // A degraded service is still broken and must be fixed, just not blocking startup.
       const sev = 'P1';
       logger[check.required ? 'fatal' : 'error']({
         event: 'startup.healthcheck.failed',
@@ -242,9 +236,9 @@ async function runHealthChecks() {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-async function runCheckWithRetry(check) {
+async function runCheckWithRetry(check: any) {
   const maxAttempts = Math.max(1, RETRY_ATTEMPTS);
-  let lastError;
+  let lastError: unknown;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
@@ -271,33 +265,29 @@ async function runCheckWithRetry(check) {
   throw lastError;
 }
 
-function withTimeout(promise, label) {
+function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
   return Promise.race([
     promise,
-    new Promise((_, reject) =>
+    new Promise<T>((_, reject) =>
       setTimeout(() => reject(new Error(`${label} timed out after ${TIMEOUT_MS}ms`)), TIMEOUT_MS),
     ),
   ]);
 }
 
-function delay(ms) {
+function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function formatError(error) {
+function formatError(error: any) {
   if (!error) return 'Unknown error';
   if (error.message) return error.message;
 
   if (Array.isArray(error.errors) && error.errors.length > 0) {
     return error.errors
-      .map(inner => inner?.message || inner?.code || String(inner))
+      .map((inner: any) => inner?.message || inner?.code || String(inner))
       .join('; ');
   }
 
   if (error.code) return error.code;
   return String(error);
 }
-
-module.exports = { runHealthChecks };
-
-export {};

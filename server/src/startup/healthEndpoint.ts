@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Health endpoints
  *
@@ -16,9 +14,9 @@
  *   Combined view: process info + each dependency status + latency.
  */
 
-const { Router } = require('express');
-const db        = require('../facades/db');
-const queue     = require('../facades/queue');
+import { Router } from 'express';
+import * as db from '../facades/db';
+import * as queue from '../facades/queue';
 
 const router = Router();
 
@@ -108,6 +106,4 @@ router.get('/', async (_req, res) => {
   });
 });
 
-module.exports = { healthRouter: router };
-
-export {};
+export const healthRouter = router;

@@ -1,24 +1,22 @@
-'use strict';
+import path from 'path';
+import dotenv from 'dotenv';
 
-const path = require('path');
-
-require('dotenv').config({
+dotenv.config({
   path: path.join(__dirname, '..', '..', '.env'),
   override: false,
 });
 
-const { logger } = require('./logger');
-const { severity } = require('./severity');
+import { logger } from './logger';
+import { severity } from './severity';
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
+import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 
 const otelEnabled = process.env.OTEL_ENABLED === 'true' || Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
 
 if (otelEnabled) {
-  const { NodeSDK } = require('@opentelemetry/sdk-node');
-  const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
-  const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
-  const { OTLPMetricExporter } = require('@opentelemetry/exporter-metrics-otlp-http');
-  const { PeriodicExportingMetricReader } = require('@opentelemetry/sdk-metrics');
-
   const baseEndpoint = (process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:5080/api/default').replace(/\/$/, '');
   const traceEndpoint = process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || `${baseEndpoint}/v1/traces`;
   const metricEndpoint = process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || `${baseEndpoint}/v1/metrics`;
@@ -64,5 +62,3 @@ if (otelEnabled) {
       .catch((err) => logger.error({ event: 'otel.stop_failed', severity: severity.P3, err }, 'OpenTelemetry shutdown failed'));
   });
 }
-
-export {};

@@ -1,6 +1,9 @@
-'use strict';
-
-async function translateVoice(_audioBase64, _mimeType, sourceLang, targetLangs) {
+export async function translateVoice(
+  _audioBase64: string,
+  _mimeType: string,
+  sourceLang: string,
+  targetLangs: string[],
+): Promise<{ text: string; translations: Record<string, string>; audioOutputs: Record<string, unknown> }> {
   const text = 'Mock voice translation';
   const translations = Object.fromEntries([
     [sourceLang, text],
@@ -11,7 +14,3 @@ async function translateVoice(_audioBase64, _mimeType, sourceLang, targetLangs) 
 
   return { text, translations, audioOutputs: {} };
 }
-
-module.exports = { translateVoice };
-
-export {};

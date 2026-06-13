@@ -1,9 +1,3 @@
-'use strict';
-
-async function synthesize() {
+export async function synthesize(): Promise<null> {
   return null;
 }
-
-module.exports = { synthesize };
-
-export {};

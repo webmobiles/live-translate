@@ -1,6 +1,4 @@
-'use strict';
-
-const { metrics } = require('@opentelemetry/api');
+import { metrics } from '@opentelemetry/api';
 
 const meter = metrics.getMeter('live-translate-server');
 
@@ -24,25 +22,25 @@ const ttsRequestCounter = meter.createCounter('live_translate_tts_requests', {
   unit: '{request}',
 });
 
-function countWords(text) {
+export function countWords(text: string) {
   if (typeof text !== 'string') return 0;
   const matches = text.trim().match(/\S+/g);
   return matches ? matches.length : 0;
 }
 
-function finitePositiveNumber(value) {
+function finitePositiveNumber(value: any) {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? number : 0;
 }
 
-function estimateAudioSecondsFromBytes(byteCount) {
+function estimateAudioSecondsFromBytes(byteCount: number) {
   const bitrateBps = finitePositiveNumber(process.env.AUDIO_ESTIMATED_BITRATE_BPS) || 128000;
   const bytes = finitePositiveNumber(byteCount);
   if (!bytes) return 0;
   return (bytes * 8) / bitrateBps;
 }
 
-function getAudioDurationSeconds(payload: any = {}) {
+export function getAudioDurationSeconds(payload: any = {}) {
   const exactSeconds = finitePositiveNumber(payload.durationSeconds ?? payload.audioDurationSeconds);
   if (exactSeconds) return { seconds: exactSeconds, source: 'client' };
 
@@ -55,7 +53,7 @@ function getAudioDurationSeconds(payload: any = {}) {
   return { seconds: estimatedSeconds, source: estimatedSeconds ? 'estimated_bitrate' : 'unknown' };
 }
 
-function recordMessage({ type, roomCode, roomId, language, text }) {
+export function recordMessage({ type, roomCode, roomId, language, text }: any) {
   const attributes = {
     type,
     room_code: roomCode || 'unknown',
@@ -71,7 +69,7 @@ function recordMessage({ type, roomCode, roomId, language, text }) {
   }
 }
 
-function recordWords({ type, stage, roomCode, roomId, language, text }) {
+export function recordWords({ type, stage, roomCode, roomId, language, text }: any) {
   const words = countWords(text);
   if (words <= 0) return;
 
@@ -84,7 +82,7 @@ function recordWords({ type, stage, roomCode, roomId, language, text }) {
   });
 }
 
-function recordAudioInput({ roomCode, roomId, language, seconds, source }) {
+export function recordAudioInput({ roomCode, roomId, language, seconds, source }: any) {
   if (!seconds || seconds <= 0) return;
   audioInputSecondsCounter.add(seconds, {
     room_code: roomCode || 'unknown',
@@ -94,7 +92,7 @@ function recordAudioInput({ roomCode, roomId, language, seconds, source }) {
   });
 }
 
-function recordTtsInput({ language, text }) {
+export function recordTtsInput({ language, text }: any) {
   const attributes = { language: language || 'unknown' };
   ttsRequestCounter.add(1, attributes);
 
@@ -103,14 +101,3 @@ function recordTtsInput({ language, text }) {
     wordCounter.add(words, { ...attributes, type: 'tts', stage: 'tts_input' });
   }
 }
-
-module.exports = {
-  countWords,
-  getAudioDurationSeconds,
-  recordAudioInput,
-  recordMessage,
-  recordTtsInput,
-  recordWords,
-};
-
-export {};

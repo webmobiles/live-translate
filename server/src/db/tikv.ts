@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * TiKV provider through TiDB's MySQL-compatible SQL layer.
  *
@@ -8,14 +6,14 @@
  * because TiKV's official stable clients are Go/Java.
  */
 
-const mysql = require('mysql2/promise');
-const { v4: uuidv4 } = require('uuid');
-const { normalizeRoomConfig } = require('../rooms/config');
-const { logger } = require('../observability/logger');
+import mysql from 'mysql2/promise';
+import { v4 as uuidv4 } from 'uuid';
+import { normalizeRoomConfig } from '../rooms/config';
+import { logger } from '../observability/logger';
 
-let pool = null;
+let pool: mysql.Pool | null = null;
 
-function envInt(name, fallback) {
+function envInt(name: string, fallback: number) {
   const value = Number.parseInt(process.env[name] || '', 10);
   return Number.isFinite(value) ? value : fallback;
 }
@@ -30,11 +28,11 @@ function config() {
   };
 }
 
-function escapeIdentifier(identifier) {
+function escapeIdentifier(identifier: string) {
   return String(identifier).replace(/`/g, '``');
 }
 
-async function connect() {
+export async function connect() {
   const dbConfig = config();
   const bootstrap = await mysql.createConnection({
     host: dbConfig.host,
@@ -84,7 +82,7 @@ async function ensureSchema() {
 
   try {
     await db.execute('ALTER TABLE rooms ADD COLUMN config JSON NULL');
-  } catch (err) {
+  } catch (err: any) {
     if (!/Duplicate column/i.test(err.message)) throw err;
   }
 
@@ -104,10 +102,12 @@ async function ensureSchema() {
   `);
 }
 
-async function createRoom({ code, name, config }) {
+// ── Rooms ──────────────────────────────────────────────────────────────────
+
+export async function createRoom({ code, name, config: roomCfg }: { code: string; name: string; config?: any }) {
   const id = uuidv4();
   const now = Date.now();
-  const roomConfig = normalizeRoomConfig(config);
+  const roomConfig = normalizeRoomConfig(roomCfg);
 
   await getPool().execute(
     'INSERT INTO rooms (id, code, name, config, created_at) VALUES (?, ?, ?, ?, ?)',
@@ -117,8 +117,8 @@ async function createRoom({ code, name, config }) {
   return { id, code, name, config: roomConfig, createdAt: now };
 }
 
-async function getRoomByCode(code) {
-  const [rows] = await getPool().execute(
+export async function getRoomByCode(code: string) {
+  const [rows]: any = await getPool().execute(
     'SELECT id, code, name, config, created_at FROM rooms WHERE code = ? LIMIT 1',
     [code],
   );
@@ -135,7 +135,7 @@ async function getRoomByCode(code) {
   };
 }
 
-async function updateRoomConfig(roomId, config) {
+export async function updateRoomConfig(roomId: string, config: any) {
   const roomConfig = normalizeRoomConfig(config);
   await getPool().execute(
     'UPDATE rooms SET config = ? WHERE id = ?',
@@ -144,7 +144,9 @@ async function updateRoomConfig(roomId, config) {
   return roomConfig;
 }
 
-async function saveMessage({ roomId, msgId, sender, senderLang, original, translations, isAudio }) {
+// ── Messages ───────────────────────────────────────────────────────────────
+
+export async function saveMessage({ roomId, msgId, sender, senderLang, original, translations, isAudio }: any) {
   await getPool().execute(
     `INSERT INTO messages
        (room_id, timestamp, id, sender, sender_lang, original, translations, is_audio)
@@ -162,9 +164,9 @@ async function saveMessage({ roomId, msgId, sender, senderLang, original, transl
   );
 }
 
-async function getRecentMessages(roomId, limit = 100) {
+export async function getRecentMessages(roomId: string, limit = 100) {
   const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
-  const [rows] = await getPool().query(
+  const [rows]: any = await getPool().query(
     `SELECT id, room_id, sender, sender_lang, original, translations, is_audio, timestamp
      FROM messages
      WHERE room_id = ?
@@ -174,7 +176,7 @@ async function getRecentMessages(roomId, limit = 100) {
   );
 
   return rows
-    .map(row => ({
+    .map((row: any) => ({
       id: row.id,
       roomId: row.room_id,
       sender: row.sender,
@@ -189,11 +191,7 @@ async function getRecentMessages(roomId, limit = 100) {
     .reverse();
 }
 
-async function ping() {
+export async function ping() {
   const conn = await getPool().getConnection();
   try { await conn.ping(); } finally { conn.release(); }
 }
-
-module.exports = { connect, ping, createRoom, getRoomByCode, updateRoomConfig, saveMessage, getRecentMessages };
-
-export {};

@@ -1,11 +1,5 @@
-'use strict';
+import * as gateway from '../gateway/tts';
 
-const gateway = require('../gateway/tts');
-
-async function synthesize(text, language, options = {}) {
+export async function synthesize(text: string, language: string, options = {}): Promise<any> {
   return gateway.synthesize(text, language, options);
 }
-
-module.exports = { synthesize };
-
-export {};

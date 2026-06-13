@@ -1,27 +1,23 @@
-'use strict';
-
-const { inngest }  = require('./client');
-const db           = require('../facades/db');
-const queue        = require('../facades/queue');
-const translation  = require('../facades/translation');
-const stt          = require('../facades/stt');
-const tts          = require('../facades/tts');
-const voiceTranslation = require('../facades/voiceTranslation');
-const { normalizeRoomConfig } = require('../rooms/config');
-const { logger } = require('../observability/logger');
-const { severity } = require('../observability/severity');
-const appMetrics = require('../observability/metrics');
-
-// ── Helpers ────────────────────────────────────────────────────────────────
+import { inngest } from './client';
+import * as db from '../facades/db';
+import * as queue from '../facades/queue';
+import * as translation from '../facades/translation';
+import * as stt from '../facades/stt';
+import * as tts from '../facades/tts';
+import * as voiceTranslation from '../facades/voiceTranslation';
+import { normalizeRoomConfig } from '../rooms/config';
+import { logger } from '../observability/logger';
+import { severity } from '../observability/severity';
+import * as appMetrics from '../observability/metrics';
 
 const TRANSLATION_RETRIES = 2;
 const TRANSLATION_RETRY_DELAY_MS = 500;
 
-function wait(ms) {
+function wait(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function translateWithFallback(text, senderLang, targetLang) {
+async function translateWithFallback(text: string, senderLang: string, targetLang: string) {
   for (let attempt = 0; attempt <= TRANSLATION_RETRIES; attempt += 1) {
     try {
       return await translation.translate(text, senderLang, targetLang);
@@ -44,7 +40,7 @@ async function translateWithFallback(text, senderLang, targetLang) {
   return `${text} (not translated)`;
 }
 
-async function buildTranslations(text, senderLang, targetLangs) {
+async function buildTranslations(text: string, senderLang: string, targetLangs: string[]) {
   const unique = [...new Set(targetLangs.filter(l => l !== senderLang))];
   const entries = await Promise.all(
     unique.map(async lang => [lang, await translateWithFallback(text, senderLang, lang)]),
@@ -52,7 +48,7 @@ async function buildTranslations(text, senderLang, targetLangs) {
   return Object.fromEntries([[senderLang, text], ...entries]);
 }
 
-async function buildAudioOutputs(translations: any, targetLangs: any[], roomConfig) {
+async function buildAudioOutputs(translations: any, targetLangs: any[], roomConfig: any) {
   if (!roomConfig.output.translatedAudio) return {};
 
   const unique = [...new Set(targetLangs)];
@@ -73,9 +69,7 @@ async function buildAudioOutputs(translations: any, targetLangs: any[], roomConf
   return Object.fromEntries(entries.filter(([, audio]) => audio));
 }
 
-// ── Function 1: translate text message ────────────────────────────────────
-
-const translateMessage = inngest.createFunction(
+export const translateMessage = inngest.createFunction(
   {
     id: 'translate-message',
     retries: 3,
@@ -84,7 +78,7 @@ const translateMessage = inngest.createFunction(
   async ({ event, step }) => {
     const { msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, participants } = event.data;
     const roomConfig = normalizeRoomConfig(event.data.roomConfig);
-    const targetLangs = participants.map(p => p.language);
+    const targetLangs = participants.map((p: any) => p.language);
 
     const translations = await step.run('translate-text', () =>
       buildTranslations(text, senderLang, targetLangs),
@@ -108,9 +102,7 @@ const translateMessage = inngest.createFunction(
   },
 );
 
-// ── Function 2: transcribe audio then translate ───────────────────────────
-
-const transcribeAndTranslate = inngest.createFunction(
+export const transcribeAndTranslate = inngest.createFunction(
   {
     id: 'transcribe-and-translate',
     retries: 3,
@@ -119,7 +111,7 @@ const transcribeAndTranslate = inngest.createFunction(
   async ({ event, step }) => {
     const { msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, participants } = event.data;
     const roomConfig = normalizeRoomConfig(event.data.roomConfig);
-    const targetLangs = participants.map(p => p.language);
+    const targetLangs = participants.map((p: any) => p.language);
 
     if (roomConfig.voicePipeline === 'direct-voice-translation') {
       const direct = await step.run('translate-voice-direct', () =>
@@ -186,7 +178,3 @@ const transcribeAndTranslate = inngest.createFunction(
     return { ok: true, msgId, text };
   },
 );
-
-module.exports = { translateMessage, transcribeAndTranslate };
-
-export {};

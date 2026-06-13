@@ -1,12 +1,13 @@
-'use strict';
+import * as openaiStt from './providers/openai';
+import * as mockStt from './providers/mock';
+import * as fasterWhisper from './providers/fasterWhisper';
+import * as vosk from './providers/vosk';
 
-require('dotenv').config();
-
-const PROVIDERS = {
-  openai: require('./providers/openai'),
-  mock: require('./providers/mock'),
-  'faster-whisper': require('./providers/fasterWhisper'),
-  vosk: require('./providers/vosk'),
+const PROVIDERS: Record<string, { transcribe: (...args: any[]) => Promise<string> }> = {
+  openai: openaiStt,
+  mock: mockStt,
+  'faster-whisper': fasterWhisper,
+  vosk,
 };
 
 function getProviderName() {
@@ -22,10 +23,6 @@ function getProvider() {
   return provider;
 }
 
-async function transcribe(audioBase64, mimeType, language) {
+export async function transcribe(audioBase64: string, mimeType: string, language: string): Promise<string> {
   return getProvider().transcribe(audioBase64, mimeType, language);
 }
-
-module.exports = { transcribe };
-
-export {};

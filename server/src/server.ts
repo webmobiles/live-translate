@@ -1,27 +1,21 @@
-'use strict';
-
-const path = require('path');
-const { randomUUID } = require('crypto');
-
-require('dotenv').config({
-  path: path.join(__dirname, '..', '.env'),
-  override: process.env.NODE_ENV !== 'production',
-});
-
-const express    = require('express');
-const http       = require('http');
-const { Server } = require('socket.io');
-const cors       = require('cors');
-const { logger } = require('./observability/logger');
-const { severity } = require('./observability/severity');
-const appMetrics = require('./observability/metrics');
-const { metricsHandler } = require('./observability/prometheus');
-const { roomManager } = require('./rooms/manager');
-const { normalizeRoomConfig } = require('./rooms/config');
-const db              = require('./facades/db');
-const queue           = require('./facades/queue');
-const workflows       = require('./facades/workflows');
-const realtime        = require('./facades/realtime');
+import './env'; // must be first — loads .env before any other module reads process.env
+import { randomUUID } from 'crypto';
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
+import cors from 'cors';
+import { logger, flushLogs } from './observability/logger';
+import { severity } from './observability/severity';
+import * as appMetrics from './observability/metrics';
+import { metricsHandler } from './observability/prometheus';
+import { roomManager } from './rooms/manager';
+import { normalizeRoomConfig } from './rooms/config';
+import * as db from './facades/db';
+import * as queue from './facades/queue';
+import * as workflows from './facades/workflows';
+import * as realtime from './facades/realtime';
+import { healthRouter } from './startup/healthEndpoint';
+import { runHealthChecks } from './startup/healthCheck';
 
 const app = express();
 app.use(cors());
@@ -49,18 +43,14 @@ const io = new Server(httpServer, {
 // ── Inngest HTTP handler ───────────────────────────────────────────────────
 // Inngest calls this endpoint to trigger and progress workflow steps.
 app.use('/api/inngest', workflows.httpHandler());
-
-const { healthRouter } = require('./startup/healthEndpoint');
 app.use('/health', healthRouter);
 app.get('/metrics', metricsHandler);
-
-// ── Helpers ────────────────────────────────────────────────────────────────
 
 function makeMsgId() {
   return randomUUID();
 }
 
-function isUuid(value) {
+function isUuid(value: any) {
   return typeof value === 'string'
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
@@ -85,17 +75,15 @@ function startProcessMemoryLogger() {
   interval.unref?.();
 }
 
-// Emit a socket event to every client in a room on THIS server instance.
-// All server instances do this when they receive the broadcast from the queue.
-function emitToRoom(roomCode, event, payload) {
+function emitToRoom(roomCode: string, event: string, payload: any) {
   io.to(`room:${roomCode}`).emit(event, payload);
 }
 
 // ── Read-receipt tracking (in-memory, single server) ──────────────────────
 // msgId → { senderSocketId, needed: number, readers: Set<socketId> }
-const pendingReads = new Map();
+const pendingReads = new Map<string, { senderSocketId: string; needed: number; readers: Set<string> }>();
 
-async function publishMessageError(roomCode, msgId) {
+async function publishMessageError(roomCode: string, msgId: string) {
   try {
     await queue.publishSocketEvent('message:error', { roomCode, msgId });
   } catch {
@@ -120,9 +108,9 @@ async function startQueueConsumer() {
       if (!room) return;
 
       const participants = roomManager.getParticipants(roomCode);
-      const others = participants.filter(p => p.socketId !== message.senderSocketId);
+      const others = participants.filter((p: any) => p.socketId !== message.senderSocketId);
 
-      participants.forEach((participant) => {
+      participants.forEach((participant: any) => {
         const translated = message.translations[participant.language]
           ?? message.translations[message.senderLang]
           ?? message.original;
@@ -181,7 +169,7 @@ io.on('connection', (socket) => {
   // ── Create room ──────────────────────────────────────────────────────────
   socket.on('room:create', async ({ name, nickname, language, config }: any = {}, cb) => {
     try {
-      const room = await roomManager.create({ name, config: normalizeRoomConfig(config), hostSocketId: socket.id });
+      const room = await roomManager.create({ name, config: normalizeRoomConfig(config) });
       const participant = roomManager.addParticipant(room.code, {
         socketId: socket.id,
         nickname: nickname || 'Host',
@@ -203,7 +191,7 @@ io.on('connection', (socket) => {
         language: participant.language,
       }, 'Room created');
       cb?.({ ok: true, code: room.code, room: roomManager.getPublic(room.code) });
-    } catch (err) {
+    } catch (err: any) {
       logger.error({ event: 'room.create_failed', severity: severity.P2, socketId: socket.id, err }, 'Room creation failed');
       cb?.({ ok: false, error: err.message });
     }
@@ -251,12 +239,12 @@ io.on('connection', (socket) => {
           const formatted = history.map(msg => ({
             id:         msg.id,
             original:   msg.original,
-            translated: msg.translations[language] ?? msg.translations[msg.senderLang] ?? msg.original,
-            sender:     msg.sender,
-            senderLang: msg.senderLang,
+            translated: (msg as any).translations[language] ?? (msg as any).translations[(msg as any).senderLang] ?? msg.original,
+            sender:     (msg as any).sender,
+            senderLang: (msg as any).senderLang,
             targetLang: language || 'en',
             isMine:     false,
-            isAudio:    msg.isAudio,
+            isAudio:    (msg as any).isAudio,
             translatedAudio: null,
             timestamp:  msg.timestamp,
           }));
@@ -275,7 +263,7 @@ io.on('connection', (socket) => {
         language: participant.language,
       }, 'Participant joined room');
       cb?.({ ok: true, room: roomManager.getPublic(room.code) });
-    } catch (err) {
+    } catch (err: any) {
       logger.error({ event: 'room.join_failed', severity: severity.P2, socketId: socket.id, roomCode: code, err }, 'Room join failed');
       cb?.({ ok: false, error: err.message });
     }
@@ -305,7 +293,7 @@ io.on('connection', (socket) => {
       const roomConfig = await roomManager.updateConfig(roomCode, config);
       io.to(`room:${roomCode}`).emit('room:config-updated', { config: roomConfig });
       cb?.({ ok: true, config: roomConfig });
-    } catch (err) {
+    } catch (err: any) {
       cb?.({ ok: false, error: err.message });
     }
   });
@@ -363,7 +351,7 @@ io.on('connection', (socket) => {
         roomConfig,
       });
       cb?.({ ok: true, id: msgId });
-    } catch (err) {
+    } catch (err: any) {
       logger.error({ event: 'message.text_failed', severity: severity.P2, roomCode, roomId, msgId, socketId: socket.id, err }, 'Text message failed');
       await publishMessageError(roomCode, msgId);
       cb?.({ ok: false, id: msgId, error: err.message });
@@ -434,7 +422,7 @@ io.on('connection', (socket) => {
         participants,
         roomConfig,
       });
-    } catch (err) {
+    } catch (err: any) {
       logger.error({ event: 'message.audio_failed', severity: severity.P2, roomCode, roomId, msgId, socketId: socket.id, err }, 'Audio message failed');
       await publishMessageError(roomCode, msgId);
     }
@@ -481,7 +469,6 @@ async function start() {
   startProcessMemoryLogger();
 
   // Verify all external services are reachable before accepting traffic
-  const { runHealthChecks } = require('./startup/healthCheck');
   await runHealthChecks();
 
   // Connect to the selected database provider
@@ -503,11 +490,8 @@ async function start() {
   });
 }
 
-start().catch(async err => {
-  const { flushLogs } = require('./observability/logger');
+start().catch(async (err) => {
   logger.fatal({ event: 'server.start_failed', severity: severity.P1, err }, 'Failed to start');
   await flushLogs();
   process.exit(1);
 });
-
-export {};

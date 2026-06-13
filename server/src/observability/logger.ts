@@ -1,9 +1,7 @@
-'use strict';
-
-const pino = require('pino');
-const pretty = require('pino-pretty');
-const { createLogGatewayStream } = require('./logGateway');
-const { createSlackAlertStream } = require('./slackGateway');
+import pino from 'pino';
+import pretty from 'pino-pretty';
+import { createLogGatewayStream } from './logGateway';
+import { createSlackAlertStream } from './slackGateway';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const prettyLogs = process.env.LOG_PRETTY !== 'false' && !isProduction;
@@ -30,7 +28,7 @@ const redact = {
   censor: '[redacted]',
 };
 
-const streams = [
+const streams: any[] = [
   {
     stream: prettyLogs
       ? pretty({
@@ -51,6 +49,7 @@ if (logGatewayStream) {
 const slackAlertStream = createSlackAlertStream();
 if (slackAlertStream) {
   // level: 50 = error — only P1/P2 logs are error or fatal anyway
+  // level: 50 = error — only P1/P2 logs are error or fatal anyway
   streams.push({ level: 'error', stream: slackAlertStream });
 }
 
@@ -65,7 +64,7 @@ const LEVEL_LABEL: Record<number, string> = {
   60: 'FATAL',
 };
 
-const logger = pino(
+export const logger = pino(
   {
     level: process.env.LOG_LEVEL || 'info',
     base,
@@ -80,8 +79,6 @@ const logger = pino(
         return {
           level: number,
           levelLabel: LEVEL_LABEL[number] ?? label.toUpperCase(),
-          // `severity` is NOT set here — it is a separate business field (P1/P2/P3/P4)
-          // set explicitly by the caller. These two fields are independent.
         };
       },
     },
@@ -89,14 +86,10 @@ const logger = pino(
   pino.multistream(streams),
 );
 
-function child(bindings: Record<string, unknown>) {
+export function child(bindings: Record<string, unknown>) {
   return logger.child(bindings);
 }
 
-async function flushLogs() {
+export async function flushLogs() {
   await logGatewayStream?.flush?.();
 }
-
-module.exports = { logger, child, flushLogs };
-
-export {};

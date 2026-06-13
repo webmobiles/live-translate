@@ -1,6 +1,4 @@
-'use strict';
-
-const DEFAULT_ROOM_CONFIG = {
+export const DEFAULT_ROOM_CONFIG = {
   input: {
     text: true,
     voice: true,
@@ -39,6 +37,4 @@ function normalizeRoomConfig(config: any = {}) {
   return normalized;
 }
 
-module.exports = { DEFAULT_ROOM_CONFIG, normalizeRoomConfig };
-
-export {};
+export { normalizeRoomConfig };

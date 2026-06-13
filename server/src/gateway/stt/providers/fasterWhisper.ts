@@ -1,8 +1,6 @@
-'use strict';
+import { runLocalCommand } from './localCommand';
 
-const { runLocalCommand } = require('./localCommand');
-
-async function transcribe(audioBase64, mimeType, language) {
+export async function transcribe(audioBase64: string, mimeType: string, language: string): Promise<string> {
   return runLocalCommand({
     providerName: 'faster-whisper',
     audioBase64,
@@ -15,7 +13,3 @@ async function transcribe(audioBase64, mimeType, language) {
       : ['{file}', '--model', '{model}', '--language', '{language}']),
   });
 }
-
-module.exports = { transcribe };
-
-export {};

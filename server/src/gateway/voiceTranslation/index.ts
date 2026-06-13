@@ -1,11 +1,11 @@
-'use strict';
+import * as noneVT from './providers/none';
+import * as mockVT from './providers/mock';
+import * as openaiRealtime from './providers/openaiRealtime';
 
-require('dotenv').config();
-
-const PROVIDERS = {
-  none: require('./providers/none'),
-  mock: require('./providers/mock'),
-  'openai-realtime': require('./providers/openaiRealtime'),
+const PROVIDERS: Record<string, { translateVoice: (...args: any[]) => Promise<any> }> = {
+  none: noneVT,
+  mock: mockVT,
+  'openai-realtime': openaiRealtime,
 };
 
 function getProviderName() {
@@ -19,10 +19,6 @@ function getProvider() {
   return provider;
 }
 
-async function translateVoice(audioBase64, mimeType, sourceLang, targetLangs, options = {}) {
+export async function translateVoice(audioBase64: string, mimeType: string, sourceLang: string, targetLangs: string[], options = {}): Promise<any> {
   return getProvider().translateVoice(audioBase64, mimeType, sourceLang, targetLangs, options);
 }
-
-module.exports = { translateVoice };
-
-export {};

@@ -1,11 +1,5 @@
-'use strict';
+import * as gateway from '../gateway/translation';
 
-const gateway = require('../gateway/translation');
-
-async function translate(text, fromLang, toLang) {
+export async function translate(text: string, fromLang: string, toLang: string): Promise<string> {
   return gateway.translate(text, fromLang, toLang);
 }
-
-module.exports = { translate };
-
-export {};

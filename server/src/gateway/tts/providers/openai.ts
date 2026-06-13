@@ -1,10 +1,8 @@
-'use strict';
-
-const OpenAI = require('openai');
+import OpenAI from 'openai';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-async function synthesize(text, _language, options: any = {}) {
+export async function synthesize(text: string, _language: string, options: any = {}): Promise<{ audioBase64: string; mimeType: string } | null> {
   if (!text?.trim()) return null;
 
   const responseFormat = options.responseFormat || process.env.TTS_RESPONSE_FORMAT || 'mp3';
@@ -21,7 +19,3 @@ async function synthesize(text, _language, options: any = {}) {
     mimeType: responseFormat === 'wav' ? 'audio/wav' : `audio/${responseFormat}`,
   };
 }
-
-module.exports = { synthesize };
-
-export {};

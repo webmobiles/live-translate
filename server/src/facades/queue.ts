@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Queue Façade
  *
@@ -8,10 +6,10 @@
  * The concrete provider is selected by QUEUE_PROVIDER.
  */
 
-const kafka = require('../kafka');
-const nats = require('../nats');
+import * as kafka from '../kafka';
+import * as nats from '../nats';
 
-const providers = {
+const providers: Record<string, typeof kafka> = {
   redpanda: kafka,
   kafka,
   nats,
@@ -32,41 +30,30 @@ function getProvider() {
 
 // ── Lifecycle ──────────────────────────────────────────────────────────────
 
-async function connect() {
+export async function connect() {
   return getProvider().connect();
 }
 
 // ── Publishing — named methods so callers never know topic names ───────────
 
-async function publishSocketEvent(type, payload) {
+export async function publishSocketEvent(type: string, payload: Record<string, unknown>) {
   return getProvider().publish(type, payload);
 }
 
-async function publishTranslating(roomCode, msgId) {
+export async function publishTranslating(roomCode: string, msgId: string) {
   return getProvider().publish('message:translating', { roomCode, msgId });
 }
 
-async function publishMessageReady(roomCode, message) {
+export async function publishMessageReady(roomCode: string, message: Record<string, unknown>) {
   return getProvider().publish('message:incoming', { roomCode, message });
 }
 
 // ── Consuming ──────────────────────────────────────────────────────────────
 
-async function startConsuming(handler) {
+export async function startConsuming(handler: (data: any) => Promise<void>) {
   return getProvider().startConsuming(handler);
 }
 
-async function ping() {
+export async function ping() {
   return getProvider().ping();
 }
-
-module.exports = {
-  connect,
-  ping,
-  publishSocketEvent,
-  publishTranslating,
-  publishMessageReady,
-  startConsuming,
-};
-
-export {};

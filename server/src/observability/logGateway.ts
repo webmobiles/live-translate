@@ -1,7 +1,5 @@
-'use strict';
-
-const http = require('http');
-const https = require('https');
+import http from 'http';
+import https from 'https';
 
 type PendingLog = Record<string, unknown>;
 
@@ -37,7 +35,7 @@ function postJson(url: string, headers: Record<string, string>, payload: unknown
       res.setEncoding('utf8');
       res.on('data', chunk => { responseBody += chunk; });
       res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
+        if (res.statusCode! >= 200 && res.statusCode! < 300) {
           resolve();
           return;
         }
@@ -91,7 +89,7 @@ function toLokiPayload(batch: PendingLog[]) {
     const timestampNs = `${Number.isFinite(time) ? time : Date.now()}000000`;
 
     if (!streams.has(key)) streams.set(key, []);
-    streams.get(key).push([timestampNs, JSON.stringify(log)]);
+    streams.get(key)!.push([timestampNs, JSON.stringify(log)]);
   }
 
   return {
@@ -102,7 +100,7 @@ function toLokiPayload(batch: PendingLog[]) {
   };
 }
 
-function createLogGatewayStream() {
+export function createLogGatewayStream() {
   const sink = (process.env.LOG_SINK || '').trim().toLowerCase();
   const openObserveEnabled = process.env.OPENOBSERVE_LOGS_ENABLED === 'true';
   const activeSink = sink || (openObserveEnabled ? 'openobserve' : '');
@@ -134,7 +132,7 @@ function createLogGatewayStream() {
 
         try {
           const payload = activeSink === 'loki' ? toLokiPayload(batch) : batch;
-          await postJson(config.url, config.headers, payload);
+          await postJson(config.url!, config.headers, payload);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           process.stderr.write(`[observability:${activeSink}] log ingest failed: ${message}\n`);
@@ -175,7 +173,3 @@ function createLogGatewayStream() {
     flush,
   };
 }
-
-module.exports = { createLogGatewayStream };
-
-export {};

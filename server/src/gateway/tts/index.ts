@@ -1,12 +1,13 @@
-'use strict';
+import * as noneTts from './providers/none';
+import * as mockTts from './providers/mock';
+import * as openaiTts from './providers/openai';
+import * as localTts from './providers/local';
 
-require('dotenv').config();
-
-const PROVIDERS = {
-  none: require('./providers/none'),
-  mock: require('./providers/mock'),
-  openai: require('./providers/openai'),
-  local: require('./providers/local'),
+const PROVIDERS: Record<string, { synthesize: (...args: any[]) => Promise<any> }> = {
+  none: noneTts,
+  mock: mockTts,
+  openai: openaiTts,
+  local: localTts,
 };
 
 function getProviderName() {
@@ -20,10 +21,6 @@ function getProvider() {
   return provider;
 }
 
-async function synthesize(text, language, options = {}) {
+export async function synthesize(text: string, language: string, options = {}): Promise<any> {
   return getProvider().synthesize(text, language, options);
 }
-
-module.exports = { synthesize };
-
-export {};

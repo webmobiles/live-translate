@@ -1,11 +1,5 @@
-'use strict';
+import * as gateway from '../gateway/stt';
 
-const gateway = require('../gateway/stt');
-
-async function transcribe(audioBase64, mimeType, language) {
+export async function transcribe(audioBase64: string, mimeType: string, language: string): Promise<string> {
   return gateway.transcribe(audioBase64, mimeType, language);
 }
-
-module.exports = { transcribe };
-
-export {};
