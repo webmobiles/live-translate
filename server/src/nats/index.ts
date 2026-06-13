@@ -57,6 +57,11 @@ async function startConsuming(handler) {
   })().catch(err => logger.error({ event: 'queue.subscriber_failed', severity: severity.P2, provider: 'nats', subject: SUBJECT, err }, 'NATS subscriber failed'));
 }
 
-module.exports = { connect, publish, startConsuming };
+async function ping() {
+  if (!nc) throw new Error('[nats] not connected');
+  await nc.flush();
+}
+
+module.exports = { connect, ping, publish, startConsuming };
 
 export {};

@@ -6,3 +6,22 @@ scrape_configs:
     static_configs:
       - targets:
           - otel-collector:9464
+
+  # Blackbox Exporter — probes the server health endpoints over HTTP.
+  # probe_success=1 means healthy, probe_success=0 means down.
+  - job_name: live-translate-health
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://host.docker.internal:4000/health/live   # liveness
+          - http://host.docker.internal:4000/health/ready  # readiness
+          - http://host.docker.internal:4000/health        # full status
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

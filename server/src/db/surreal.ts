@@ -164,6 +164,10 @@ async function getRecentMessages(roomId, limit = 100) {
     .reverse();
 }
 
-module.exports = { connect, createRoom, getRoomByCode, updateRoomConfig, saveMessage, getRecentMessages };
+async function ping() {
+  await getClient().query('RETURN true;');
+}
+
+module.exports = { connect, ping, createRoom, getRoomByCode, updateRoomConfig, saveMessage, getRecentMessages };
 
 export {};

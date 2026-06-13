@@ -56,8 +56,13 @@ async function startConsuming(handler) {
   return getProvider().startConsuming(handler);
 }
 
+async function ping() {
+  return getProvider().ping();
+}
+
 module.exports = {
   connect,
+  ping,
   publishSocketEvent,
   publishTranslating,
   publishMessageReady,

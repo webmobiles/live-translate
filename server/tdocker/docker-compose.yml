@@ -386,6 +386,17 @@ services:
     networks:
       - live-translate
 
+  blackbox-exporter:
+    image: prom/blackbox-exporter:latest
+    container_name: live-translate-blackbox
+    profiles: ["grafana"]
+    ports:
+      - "9115:9115"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - live-translate
+
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
     container_name: live-translate-otel-collector

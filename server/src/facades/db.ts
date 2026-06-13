@@ -51,6 +51,10 @@ async function getRecentMessages(roomId, limit = 100) {
   return getProvider().getRecentMessages(roomId, limit);
 }
 
-module.exports = { connect, createRoom, getRoomByCode, updateRoomConfig, saveMessage, getRecentMessages };
+async function ping() {
+  return getProvider().ping();
+}
+
+module.exports = { connect, ping, createRoom, getRoomByCode, updateRoomConfig, saveMessage, getRecentMessages };
 
 export {};

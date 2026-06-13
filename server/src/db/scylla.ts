@@ -145,6 +145,10 @@ async function getRecentMessages(roomId, limit = 100) {
     .reverse(); // oldest first for chat rendering
 }
 
-module.exports = { connect, createRoom, getRoomByCode, updateRoomConfig, saveMessage, getRecentMessages };
+async function ping() {
+  await getClient().execute('SELECT now() FROM system.local');
+}
+
+module.exports = { connect, ping, createRoom, getRoomByCode, updateRoomConfig, saveMessage, getRecentMessages };
 
 export {};

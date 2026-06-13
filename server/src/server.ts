@@ -49,13 +49,8 @@ const io = new Server(httpServer, {
 // Inngest calls this endpoint to trigger and progress workflow steps.
 app.use('/api/inngest', workflows.httpHandler());
 
-app.get('/health', (_req, res) =>
-  res.json({
-    status: 'ok',
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-  }),
-);
+const { healthRouter } = require('./startup/healthEndpoint');
+app.use('/health', healthRouter);
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 

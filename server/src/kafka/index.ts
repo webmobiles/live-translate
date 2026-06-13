@@ -55,6 +55,16 @@ async function startConsuming(handler) {
   });
 }
 
-module.exports = { connect, publish, startConsuming };
+async function ping() {
+  const admin = kafka.admin();
+  try {
+    await admin.connect();
+    await admin.listTopics();
+  } finally {
+    await admin.disconnect().catch(() => {});
+  }
+}
+
+module.exports = { connect, ping, publish, startConsuming };
 
 export {};
