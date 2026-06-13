@@ -136,13 +136,20 @@ async function checkInngest() {
   return { ok: true };
 }
 
-async function checkOllama() {
+async function checkOllamaModel() {
   const baseUrl = (process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1').replace(/\/v1\/?$/, '');
+  const model = process.env.OLLAMA_TRANSLATION_MODEL || 'qwen2.5:7b';
+
   const res = await withTimeout(
-    fetch(`${baseUrl}/`, { signal: AbortSignal.timeout(TIMEOUT_MS) }),
-    'Ollama HTTP',
+    fetch(`${baseUrl}/api/tags`, { signal: AbortSignal.timeout(TIMEOUT_MS) }),
+    'Ollama /api/tags',
   );
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`Ollama unreachable — HTTP ${res.status}`);
+
+  const { models = [] } = await res.json() as { models: Array<{ name: string }> };
+  const found = models.some(m => m.name === model || m.name.startsWith(model.split(':')[0] + ':'));
+  if (!found) throw new Error(`model '${model}' not found — run: docker exec live-translate-ollama ollama pull ${model}`);
+
   return { ok: true };
 }
 
@@ -172,12 +179,16 @@ function envFlag(name: string) {
 }
 
 function checksForProvider() {
-  const translationProvider = process.env.TRANSLATION_PROVIDER || 'openai';
+  // Comma-separated list of active translation providers to validate at startup.
+  const activeTranslationProviders = (process.env.TRANSLATION_PROVIDERS || '')
+    .split(',').map(s => s.trim()).filter(Boolean);
+
   const sttProvider = process.env.STT_PROVIDER || 'openai';
   const ttsProvider = process.env.TTS_PROVIDER || 'none';
   const voiceTranslationProvider = process.env.VOICE_TRANSLATION_PROVIDER || 'none';
   const dbProvider = (process.env.DB_PROVIDER || 'scylla').trim().toLowerCase();
   const queueProvider = (process.env.QUEUE_PROVIDER || 'nats').trim().toLowerCase();
+
   const dbChecks: Record<string, any> = {
     scylla: { name: 'ScyllaDB', fn: checkScylla, required: true },
     tikv: { name: 'TiKV/TiDB', fn: checkTikv, required: true },
@@ -188,24 +199,30 @@ function checksForProvider() {
     redpanda: { name: 'Redpanda', fn: checkRedpanda, required: true },
     kafka: { name: 'Redpanda', fn: checkRedpanda, required: true },
   };
+
   const dbCheck = dbChecks[dbProvider];
   if (!dbCheck) throw new Error(`Unknown DB_PROVIDER: "${dbProvider}". Valid: scylla, tikv, surreal`);
   const queueCheck = queueChecks[queueProvider];
   if (!queueCheck) throw new Error(`Unknown QUEUE_PROVIDER: "${queueProvider}". Valid: nats, redpanda`);
-  const requiresOllama = translationProvider === 'ollama';
-  const requiresOpenAI = translationProvider === 'openai'
+
+  const requiresOpenAI = activeTranslationProviders.includes('openai')
     || sttProvider === 'openai'
     || ttsProvider === 'openai'
     || voiceTranslationProvider === 'openai-realtime';
 
   const openAiRequired = envFlag('STARTUP_OPENAI_REQUIRED');
 
+  const translationChecks = activeTranslationProviders.flatMap(provider => {
+    if (provider === 'ollama') return [{ name: 'Ollama translation model', fn: checkOllamaModel, required: false }];
+    return [];
+  });
+
   return [
     dbCheck,
     queueCheck,
     { name: 'Realtime', fn: checkRealtime, required: true },
     { name: 'Inngest', fn: checkInngest, required: true },
-    ...(requiresOllama ? [{ name: 'Ollama', fn: checkOllama, required: false }] : []),
+    ...translationChecks,
     ...(requiresOpenAI ? [{ name: 'OpenAI', fn: checkOpenAI, required: openAiRequired }] : []),
   ];
 }
