@@ -51,6 +51,8 @@ async function translateWithFallback(text: string, senderLang: string, targetLan
           senderLang,
           targetLang,
           durationMs: Date.now() - start,
+          errorMessage: err instanceof Error ? err.message : String(err),
+          err,
         }, 'Translation failed after all retries');
         return `${text} (not translated)`;
       }

@@ -128,6 +128,18 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
 OTEL_EXPORTER_OTLP_HEADERS=
 ```
 
+To silence the terminal and only show P1/P2 errors on screen while keeping full logs in Loki:
+
+```env
+LOG_SCREEN_LEVEL=error
+```
+
+To go back to verbose terminal at any time:
+
+```env
+LOG_SCREEN_LEVEL=info
+```
+
 Provisioned app alerts use the structured `severity` label for routing and
 triage. Do not route activity/no-data signals such as "no messages last hour" to
 Slack by default; those are not failures unless a future production-only alert

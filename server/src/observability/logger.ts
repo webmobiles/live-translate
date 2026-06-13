@@ -1,3 +1,4 @@
+import '../env';
 import pino from 'pino';
 import pretty from 'pino-pretty';
 import { createLogGatewayStream } from './logGateway';
@@ -28,8 +29,11 @@ const redact = {
   censor: '[redacted]',
 };
 
+const screenLevel = process.env.LOG_SCREEN_LEVEL || process.env.LOG_LEVEL || 'info';
+
 const streams: any[] = [
   {
+    level: screenLevel,
     stream: prettyLogs
       ? pretty({
           colorize: true,
