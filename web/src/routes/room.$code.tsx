@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Mic, Send, Square } from 'lucide-react'
+import { CircleAlert, Mic, Send, Square, X } from 'lucide-react'
 import { connectSocket } from '@/lib/socket'
 import { getLang } from '@/lib/languages'
 import { LanguageSelector, LanguageBadge } from '@/components/LanguageSelector'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import type { Message, Participant, RoomConfig } from '@/types'
 
 const DEFAULT_ROOM_CONFIG: RoomConfig = {
@@ -11,6 +12,7 @@ const DEFAULT_ROOM_CONFIG: RoomConfig = {
   voicePipeline: 'stt-text-translate',
   output: { translatedText: true, translatedAudio: false },
 }
+const MIN_VOICE_MESSAGE_DURATION_MS = 1000
 
 export const Route = createFileRoute('/room/$code')({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -39,6 +41,7 @@ function RoomScreen() {
   const [countdown, setCountdown] = useState(4)
   const [isRecording, setIsRecording] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [voiceAlertVisible, setVoiceAlertVisible] = useState(false)
 
   const myLanguageRef = useRef(initialLang)
 
@@ -52,6 +55,7 @@ function RoomScreen() {
   const textInputRef = useRef<HTMLTextAreaElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
+  const recordingStartedAtRef = useRef(0)
   const socketRef = useRef(connectSocket())
   const mySocketId = useRef('')
   const hasSyncedRoom = useRef(false)
@@ -294,6 +298,16 @@ function RoomScreen() {
   useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
 
   useEffect(() => {
+    if (!voiceAlertVisible) return
+
+    const timeout = window.setTimeout(() => {
+      setVoiceAlertVisible(false)
+    }, 5000)
+
+    return () => window.clearTimeout(timeout)
+  }, [voiceAlertVisible])
+
+  useEffect(() => {
     if (!isConnected || !roomConfig.input.text) return
     const focusTimer = window.setTimeout(() => textInputRef.current?.focus(), 0)
     return () => window.clearTimeout(focusTimer)
@@ -355,6 +369,8 @@ function RoomScreen() {
       mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
       mr.start()
       mediaRecorderRef.current = mr
+      recordingStartedAtRef.current = Date.now()
+      setVoiceAlertVisible(false)
       setIsRecording(true)
     } catch {
       alert('Microphone access is required for voice messages.')
@@ -364,16 +380,22 @@ function RoomScreen() {
   const stopAndSend = useCallback(() => {
     const mr = mediaRecorderRef.current
     if (!mr) return
+    const durationMs = recordingStartedAtRef.current ? Date.now() - recordingStartedAtRef.current : 0
     mr.onstop = () => {
+      mr.stream.getTracks().forEach(t => t.stop())
+      mediaRecorderRef.current = null
+      recordingStartedAtRef.current = 0
+      if (durationMs < MIN_VOICE_MESSAGE_DURATION_MS) {
+        setVoiceAlertVisible(true)
+        return
+      }
       const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
       const reader = new FileReader()
       reader.onloadend = () => {
         const base64 = (reader.result as string).split(',')[1]
-        socketRef.current.emit('message:audio', { audioBase64: base64, mimeType: 'audio/webm' })
+        socketRef.current.emit('message:audio', { audioBase64: base64, mimeType: 'audio/webm', durationMs })
       }
       reader.readAsDataURL(blob)
-      mr.stream.getTracks().forEach(t => t.stop())
-      mediaRecorderRef.current = null
     }
     mr.stop()
     setIsRecording(false)
@@ -540,6 +562,24 @@ function RoomScreen() {
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {voiceAlertVisible && (
+        <div className="px-4 pb-3">
+          <Alert variant="destructive" className="pr-10">
+            <CircleAlert aria-hidden="true" />
+            <AlertTitle>Voice message too short</AlertTitle>
+            <AlertDescription>Record at least 1 second before sending.</AlertDescription>
+            <button
+              type="button"
+              className="absolute right-3 top-3 rounded-md p-1 text-lt-muted transition-colors hover:bg-lt-card hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lt-primary"
+              onClick={() => setVoiceAlertVisible(false)}
+              aria-label="Dismiss voice message alert"
+            >
+              <X size={16} aria-hidden="true" />
+            </button>
+          </Alert>
+        </div>
+      )}
 
       {/* Input Bar */}
       <div className="flex items-end px-4 py-3 border-t border-lt-border gap-3 shrink-0">

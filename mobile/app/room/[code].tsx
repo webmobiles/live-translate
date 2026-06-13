@@ -20,6 +20,8 @@ import { VoiceButton } from '@/components/VoiceButton';
 import { LanguageSelector, LanguageBadge } from '@/components/LanguageSelector';
 import type { Message, Participant, Room } from '@/types';
 
+const MIN_VOICE_MESSAGE_DURATION_MS = 1000;
+
 export default function RoomScreen() {
   const { code, nickname, language: initialLang, roomName } = useLocalSearchParams<{
     code: string;
@@ -38,6 +40,7 @@ export default function RoomScreen() {
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recordingRef = useRef<ReturnType<typeof useAudioRecorder> | null>(null);
+  const recordingStartedAtRef = useRef(0);
   const listRef = useRef<FlatList>(null);
   const socketRef = useRef(getSocket());
   const mySocketId = useRef<string>('');
@@ -153,6 +156,7 @@ export default function RoomScreen() {
       await recorder.prepareToRecordAsync();
       recorder.record();
       recordingRef.current = recorder;
+      recordingStartedAtRef.current = Date.now();
       setIsRecording(true);
     } catch (err) {
       console.error('startRecording', err);
@@ -163,20 +167,29 @@ export default function RoomScreen() {
     if (!recordingRef.current) return;
     setIsRecording(false);
     try {
+      const durationMs = recordingStartedAtRef.current ? Date.now() - recordingStartedAtRef.current : 0;
       await recordingRef.current.stop();
       const uri = recordingRef.current.uri;
       recordingRef.current = null;
+      recordingStartedAtRef.current = 0;
       if (!uri) return;
+
+      if (durationMs < MIN_VOICE_MESSAGE_DURATION_MS) {
+        Alert.alert('Send voice at least 1 second duration.');
+        await FileSystem.deleteAsync(uri, { idempotent: true });
+        return;
+      }
 
       const base64 = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      socketRef.current.emit('message:audio', { audioBase64: base64, mimeType: 'audio/m4a' });
+      socketRef.current.emit('message:audio', { audioBase64: base64, mimeType: 'audio/m4a', durationMs });
 
       await FileSystem.deleteAsync(uri, { idempotent: true });
     } catch (err) {
       console.error('stopAndSend', err);
       recordingRef.current = null;
+      recordingStartedAtRef.current = 0;
     }
   }, []);
 
