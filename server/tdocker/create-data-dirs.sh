@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_DIR="${1:-/var/myapps/livetranslate}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="${1:-${SCRIPT_DIR}/../data}"
 MODE="${LIVE_TRANSLATE_DATA_MODE:-777}"
 
 DIRS=(
@@ -20,21 +21,25 @@ DIRS=(
   prometheus
 )
 
-if [[ $EUID -eq 0 ]]; then
-  SUDO=()
-else
-  SUDO=(sudo)
-fi
-
 echo "Creating Live Translate data directories under: ${BASE_DIR}"
 
-"${SUDO[@]}" mkdir -p "$BASE_DIR"
+mkdir -p "$BASE_DIR"
 
 for dir in "${DIRS[@]}"; do
-  "${SUDO[@]}" mkdir -p "${BASE_DIR}/${dir}"
+  mkdir -p "${BASE_DIR}/${dir}"
 done
 
-"${SUDO[@]}" chmod -R "$MODE" "$BASE_DIR"
+chmod -R "$MODE" "$BASE_DIR"
 
-echo "Done."
-echo "Permissions set to ${MODE}. Override with LIVE_TRANSLATE_DATA_MODE=755 if needed."
+cat <<EOF
+Done.
+Permissions set to ${MODE}.
+
+Data directory:
+  ${BASE_DIR}
+
+Usage:
+  ./tdocker/create-data-dirs.sh
+  LIVE_TRANSLATE_DATA_MODE=755 ./tdocker/create-data-dirs.sh
+  ./tdocker/create-data-dirs.sh /custom/local/path
+EOF
