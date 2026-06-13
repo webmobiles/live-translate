@@ -238,6 +238,40 @@
       },
       "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
       "targets": [{ "expr": "topk(10, sum by (name) (rate(container_cpu_usage_seconds_total{job=\"cadvisor\", cpu=\"total\", name!=\"\"}[$__rate_interval])) * 100)", "legendFormat": "{{name}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }]
+    },
+    {
+      "id": 14,
+      "title": "Docker RAM Total (MB)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 43, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmbytes",
+          "decimals": 1,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 2048 }, { "color": "red", "value": 4096 }] },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [{ "expr": "sum(container_memory_usage_bytes{job=\"cadvisor\", name!=\"\"}) / 1024 / 1024", "legendFormat": "Total RAM", "instant": true, "datasource": { "type": "prometheus", "uid": "prometheus" } }]
+    },
+    {
+      "id": 15,
+      "title": "Docker RAM by Container (MB)",
+      "type": "timeseries",
+      "gridPos": { "x": 6, "y": 43, "w": 18, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmbytes",
+          "decimals": 1,
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{ "expr": "topk(10, container_memory_usage_bytes{job=\"cadvisor\", name!=\"\"} / 1024 / 1024)", "legendFormat": "{{name}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }]
     }
   ]
 }
