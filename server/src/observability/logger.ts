@@ -53,7 +53,6 @@ if (logGatewayStream) {
 const slackAlertStream = createSlackAlertStream();
 if (slackAlertStream) {
   // level: 50 = error — only P1/P2 logs are error or fatal anyway
-  // level: 50 = error — only P1/P2 logs are error or fatal anyway
   streams.push({ level: 'error', stream: slackAlertStream });
 }
 
@@ -95,5 +94,15 @@ export function child(bindings: Record<string, unknown>) {
 }
 
 export async function flushLogs() {
-  await logGatewayStream?.flush?.();
+  await Promise.allSettled([
+    logGatewayStream?.flush?.(),
+    slackAlertStream?.flush?.(),
+  ]);
 }
+
+// Flush before the process exits on SIGTERM (e.g. npm run dev restart) so
+// in-flight Slack alerts and Loki batches are not dropped.
+process.once('SIGTERM', async () => {
+  await flushLogs();
+  process.exit(0);
+});

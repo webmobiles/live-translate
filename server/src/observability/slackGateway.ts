@@ -27,37 +27,41 @@ const LEVEL_COLOR: Record<string, string> = {
   P2: '#FF6600',
 };
 
-function postJson(webhookUrl: string, payload: unknown): void {
-  const body = JSON.stringify(payload);
-  const target = new URL(webhookUrl);
-  const client = target.protocol === 'https:' ? https : http;
+function postJson(webhookUrl: string, payload: unknown): Promise<void> {
+  return new Promise((resolve) => {
+    const body = JSON.stringify(payload);
+    const target = new URL(webhookUrl);
+    const client = target.protocol === 'https:' ? https : http;
 
-  const req = client.request(
-    {
-      method: 'POST',
-      hostname: target.hostname,
-      port: target.port || (target.protocol === 'https:' ? 443 : 80),
-      path: `${target.pathname}${target.search}`,
-      headers: {
-        'content-type': 'application/json',
-        'content-length': Buffer.byteLength(body),
+    const req = client.request(
+      {
+        method: 'POST',
+        hostname: target.hostname,
+        port: target.port || (target.protocol === 'https:' ? 443 : 80),
+        path: `${target.pathname}${target.search}`,
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(body),
+        },
       },
-    },
-    (res: any) => {
-      // Drain the response to free the socket
-      res.resume();
-      if (res.statusCode >= 400) {
-        process.stderr.write(`[slack-gateway] webhook returned HTTP ${res.statusCode}\n`);
-      }
-    },
-  );
+      (res: any) => {
+        // Drain the response to free the socket
+        res.resume();
+        if (res.statusCode >= 400) {
+          process.stderr.write(`[slack-gateway] webhook returned HTTP ${res.statusCode}\n`);
+        }
+        resolve();
+      },
+    );
 
-  req.on('error', (err: Error) => {
-    process.stderr.write(`[slack-gateway] failed to send alert: ${err.message}\n`);
+    req.on('error', (err: Error) => {
+      process.stderr.write(`[slack-gateway] failed to send alert: ${err.message}\n`);
+      resolve(); // never reject — shutdown must not hang
+    });
+
+    req.write(body);
+    req.end();
   });
-
-  req.write(body);
-  req.end();
 }
 
 function buildSlackMessage(log: Record<string, unknown>): unknown {
@@ -112,6 +116,8 @@ export function createSlackAlertStream() {
 
   if (!webhookUrl) return null;
 
+  const pending = new Set<Promise<void>>();
+
   return {
     write(line: string) {
       let log: Record<string, unknown>;
@@ -132,7 +138,13 @@ export function createSlackAlertStream() {
       recentAlerts.set(dedupKey, now);
 
       const payload = buildSlackMessage(log);
-      postJson(webhookUrl, payload);
+      const p = postJson(webhookUrl, payload);
+      pending.add(p);
+      p.finally(() => pending.delete(p));
+    },
+
+    async flush() {
+      await Promise.allSettled(pending);
     },
   };
 }
