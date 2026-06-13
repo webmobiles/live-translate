@@ -169,6 +169,41 @@
       "targets": [
         { "expr": "rate(v8js_gc_duration_seconds_sum{exported_job=\"live-translate-server\"}[$__rate_interval]) * 1000", "legendFormat": "GC ms/s", "datasource": { "type": "prometheus", "uid": "prometheus" } }
       ]
+    },
+    {
+      "id": 10,
+      "title": "Server CPU (% of one core)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 27, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 100 }] },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [{ "expr": "sum(rate(live_translate_server_process_cpu_seconds_total{job=\"live-translate-server\"}[$__rate_interval])) * 100", "legendFormat": "Server CPU", "instant": true, "datasource": { "type": "prometheus", "uid": "prometheus" } }]
+    },
+    {
+      "id": 11,
+      "title": "Server CPU Over Time (% of one core)",
+      "type": "timeseries",
+      "gridPos": { "x": 6, "y": 27, "w": 18, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "custom": { "lineWidth": 2, "fillOpacity": 15 },
+          "color": { "mode": "fixed", "fixedColor": "blue" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 100 }] }
+        }
+      },
+      "options": { "tooltip": { "mode": "single" }, "legend": { "displayMode": "hidden" } },
+      "targets": [{ "expr": "sum(rate(live_translate_server_process_cpu_seconds_total{job=\"live-translate-server\"}[$__rate_interval])) * 100", "legendFormat": "Server CPU", "datasource": { "type": "prometheus", "uid": "prometheus" } }]
     }
   ]
 }

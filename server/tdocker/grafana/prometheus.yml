@@ -7,6 +7,14 @@ scrape_configs:
       - targets:
           - otel-collector:9464
 
+  - job_name: live-translate-server
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:4000
+          # If the Node server runs as a service on this Docker network, use:
+          # - server:4000
+
   # Blackbox Exporter — probes the server health endpoints over HTTP.
   # probe_success=1 means healthy, probe_success=0 means down.
   #

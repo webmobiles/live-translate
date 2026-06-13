@@ -380,6 +380,8 @@ services:
       - --web.enable-lifecycle
     ports:
       - "9090:9090"   # Prometheus UI/API
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - prometheus-data:/prometheus
       - ./grafana/prometheus.yml:/etc/prometheus/prometheus.yml:ro

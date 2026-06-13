@@ -15,6 +15,7 @@ const cors       = require('cors');
 const { logger } = require('./observability/logger');
 const { severity } = require('./observability/severity');
 const appMetrics = require('./observability/metrics');
+const { metricsHandler } = require('./observability/prometheus');
 const { roomManager } = require('./rooms/manager');
 const { normalizeRoomConfig } = require('./rooms/config');
 const db              = require('./facades/db');
@@ -51,6 +52,7 @@ app.use('/api/inngest', workflows.httpHandler());
 
 const { healthRouter } = require('./startup/healthEndpoint');
 app.use('/health', healthRouter);
+app.get('/metrics', metricsHandler);
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
