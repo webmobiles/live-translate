@@ -5,10 +5,10 @@
 ## Lqst  Default Stack
 
 ```bash
-docker compose down --remove-orphans
+docker-compose down --remove-orphans
 docker stop $(docker ps -q) 2>&1; docker rm $(docker ps -aq) 2>&1
-docker compose --env-file ../.env --profile tikv --profile grafana up -d --force-recreate
-#docker compose --profile observability up -d openobserve
+docker-compose --env-file ../.env --profile tikv --profile grafana up -d --force-recreate
+#docker-compose --profile observability up -d openobserve
 ```
 
 ## Start Default Stack
@@ -16,8 +16,8 @@ docker compose --env-file ../.env --profile tikv --profile grafana up -d --force
 Run these commands from this `server/tdocker` folder:
 
 ```bash
-docker compose up -d
-docker compose ps
+docker-compose up -d
+docker-compose ps
 ```
 
 Default services include NATS, ScyllaDB, and Inngest.
@@ -54,7 +54,7 @@ NATS starts in the default Docker Compose profile.
 ## Optional Redpanda Queue
 
 ```bash
-docker compose --profile redpanda up -d redpanda redpanda-console
+docker-compose --profile redpanda up -d redpanda redpanda-console
 ```
 
 Then set:
@@ -84,7 +84,7 @@ If startup prints `Realtime provider check timed out after 8000ms`, it means the
 Dragonfly:
 
 ```bash
-docker compose --profile dragonfly up -d dragonfly
+docker-compose --profile dragonfly up -d dragonfly
 ```
 
 ```env
@@ -95,7 +95,7 @@ DRAGONFLY_URL=redis://localhost:6379
 Valkey:
 
 ```bash
-docker compose --profile valkey up -d valkey
+docker-compose --profile valkey up -d valkey
 ```
 
 ```env
@@ -106,7 +106,7 @@ VALKEY_URL=redis://localhost:6380
 ## Optional Grafana OSS Observability
 
 ```bash
-docker compose --profile grafana up -d grafana loki tempo prometheus otel-collector
+docker-compose --profile grafana up -d grafana loki tempo prometheus otel-collector
 ```
 
 Open http://localhost:3001 and log in with:
@@ -195,7 +195,7 @@ Suggested first alerts:
 ## Optional OpenObserve Observability
 
 ```bash
-docker compose --profile observability up -d openobserve
+docker-compose --profile observability up -d openobserve
 ```
 
 Open http://localhost:5080 and log in with:
@@ -228,7 +228,7 @@ OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic cm9vdEBleGFtcGxlLmNvbTpDb21wbGV4
 ## Optional TiKV/TiDB
 
 ```bash
-docker compose --profile tikv up -d pd tikv tidb
+docker-compose --profile tikv up -d pd tikv tidb
 ```
 
 Then set:
@@ -245,7 +245,7 @@ TIKV_SQL_DATABASE=live_translate
 ## Optional SurrealDB
 
 ```bash
-docker compose --profile surreal up -d surrealdb
+docker-compose --profile surreal up -d surrealdb
 ```
 
 Then set:
@@ -262,11 +262,11 @@ SURREALDB_PASSWORD=root
 ## Stop
 
 ```bash
-docker compose down
+docker-compose down
 ```
 
 ## Wipe Data
 
 ```bash
-docker compose down -v
+docker-compose down -v
 ```

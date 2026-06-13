@@ -8,7 +8,7 @@ Never configure datasources, dashboards, or alerts manually in the UI — put th
 ## Start the stack
 
 ```bash
-docker compose --profile grafana up -d
+docker-compose --profile grafana up -d
 ```
 
 | Service | URL |
@@ -73,12 +73,12 @@ Grafana's internal database (e.g. after adding explicit UIDs to existing datasou
 wipe the Grafana volume and let it rebuild from the provisioning files:
 
 ```bash
-docker compose stop grafana
-docker compose rm -f grafana
+docker-compose stop grafana
+docker-compose rm -f grafana
 docker volume rm tdocker_grafana-data
-docker compose --env-file ../.env  --profile grafana up -d grafana
+docker-compose --env-file ../.env  --profile grafana up -d grafana
 # just grafana restart
-docker compose --env-file ../.env restart grafana
+docker-compose --env-file ../.env restart grafana
 ```
 
 This is safe — everything is in the provisioning files in git, nothing is lost.

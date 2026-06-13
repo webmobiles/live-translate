@@ -14,20 +14,20 @@
 #    grafana/loki/tempo/prometheus → Optional OSS observability stack
 #
 #  Start:
-#    docker compose -f tdocker/docker-compose.yml up -d
+#    docker-compose -f tdocker/docker-compose.yml up -d
 #
 #  Stop:
-#    docker compose -f tdocker/docker-compose.yml down
+#    docker-compose -f tdocker/docker-compose.yml down
 #
 #  Wipe all data:
-#    docker compose -f docker/docker-compose.yml down -v
+#    docker-compose -f docker/docker-compose.yml down -v
 # ──────────────────────────────────────────────────────────────────────────
 
 networks:
   live-translate:
     driver: bridge
 
-# Data lives locally at server/data — never lost on `docker compose down`
+# Data lives locally at server/data — never lost on `docker-compose down`
 # To create the directories: ./tdocker/create-data-dirs.sh
 
 services:
@@ -161,7 +161,7 @@ services:
 
   # ── TiKV via TiDB SQL layer ──────────────────────────────────────────────
   # Start with:
-  #   docker compose -f tdocker/docker-compose.yml --profile tikv up -d pd tikv tidb
+  #   docker-compose -f tdocker/docker-compose.yml --profile tikv up -d pd tikv tidb
   pd:
     image: pingcap/pd:v8.5.0
     container_name: live-translate-pd
@@ -224,7 +224,7 @@ services:
 
   # ── SurrealDB ────────────────────────────────────────────────────────────
   # Start with:
-  #   docker compose -f tdocker/docker-compose.yml --profile surreal up -d surrealdb
+  #   docker-compose -f tdocker/docker-compose.yml --profile surreal up -d surrealdb
   surrealdb:
     image: surrealdb/surrealdb:latest
     container_name: live-translate-surrealdb
@@ -245,7 +245,7 @@ services:
 
   # ── Realtime adapters: Dragonfly / Valkey ────────────────────────────────
   # Dragonfly:
-  #   docker compose -f tdocker/docker-compose.yml --profile dragonfly up -d dragonfly
+  #   docker-compose -f tdocker/docker-compose.yml --profile dragonfly up -d dragonfly
   dragonfly:
     image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
     container_name: live-translate-dragonfly
@@ -261,7 +261,7 @@ services:
       - live-translate
 
   # Valkey:
-  #   docker compose -f tdocker/docker-compose.yml --profile valkey up -d valkey
+  #   docker-compose -f tdocker/docker-compose.yml --profile valkey up -d valkey
   valkey:
     image: valkey/valkey:8
     container_name: live-translate-valkey
@@ -289,7 +289,7 @@ services:
 
   # ── OpenObserve ──────────────────────────────────────────────────────────
   # Start with:
-  #   docker compose -f tdocker/docker-compose.yml --profile observability up -d openobserve
+  #   docker-compose -f tdocker/docker-compose.yml --profile observability up -d openobserve
   openobserve:
     image: public.ecr.aws/zinclabs/openobserve:latest
     container_name: live-translate-openobserve
@@ -307,7 +307,7 @@ services:
 
   # ── Grafana OSS observability stack ──────────────────────────────────────
   # Start with:
-  #   docker compose -f tdocker/docker-compose.yml --profile grafana up -d grafana loki tempo prometheus otel-collector
+  #   docker-compose -f tdocker/docker-compose.yml --profile grafana up -d grafana loki tempo prometheus otel-collector
   grafana:
     image: grafana/grafana:latest
     container_name: live-translate-grafana
