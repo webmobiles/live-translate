@@ -130,6 +130,35 @@
       "targets": [{ "expr": "sum by (language) (increase(live_translate_words_total[$__range]))", "legendFormat": "{{language}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }]
     },
     {
+      "id": 11,
+      "title": "Messages by Provider",
+      "type": "piechart",
+      "gridPos": { "x": 12, "y": 20, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" },
+        "overrides": [
+          { "matcher": { "id": "byFrameRefID", "options": "Ollama" }, "properties": [{ "id": "displayName", "value": "Ollama" }] },
+          { "matcher": { "id": "byFrameRefID", "options": "OpenAI" }, "properties": [{ "id": "displayName", "value": "OpenAI" }] }
+        ]
+      },
+      "options": { "pieType": "donut", "legendDisplayMode": "table", "legendPlacement": "right" },
+      "targets": [
+        {
+          "refId": "Ollama",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({service=\"live-translate-server\"} | json | event=\"translation.ok\" | provider=\"ollama\" [$__range]))",
+          "queryType": "instant"
+        },
+        {
+          "refId": "OpenAI",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({service=\"live-translate-server\"} | json | event=\"translation.ok\" | provider=\"openai\" [$__range]))",
+          "queryType": "instant"
+        }
+      ]
+    },
+    {
       "id": 8,
       "title": "Translation Failure Log",
       "type": "logs",
