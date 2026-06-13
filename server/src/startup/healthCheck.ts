@@ -14,7 +14,7 @@ const { severity } = require('../observability/severity');
  */
 
 const TIMEOUT_MS = 8_000;
-const RETRY_ATTEMPTS = Number.parseInt(process.env.STARTUP_HEALTHCHECK_RETRIES || '6', 10);
+const RETRY_ATTEMPTS = Number.parseInt(process.env.STARTUP_HEALTHCHECK_RETRIES || '30', 10);
 const RETRY_DELAY_MS = Number.parseInt(process.env.STARTUP_HEALTHCHECK_RETRY_DELAY_MS || '2000', 10);
 
 // ── Individual checks ──────────────────────────────────────────────────────
