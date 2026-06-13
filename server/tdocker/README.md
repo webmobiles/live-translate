@@ -35,6 +35,7 @@ Default services include NATS, ScyllaDB, and Inngest.
 | SurrealDB | http://localhost:8000 | Optional document/graph database |
 | Dragonfly | `localhost:6379` | Optional Redis-compatible Socket.IO adapter |
 | Valkey | `localhost:6380` | Optional Redis-compatible Socket.IO adapter |
+| Ollama | http://localhost:11434 | Optional local LLM runtime |
 | Inngest Dev UI | http://localhost:8288 | Workflow dashboard |
 | Grafana | http://localhost:3001 | Optional OSS dashboards |
 | Loki | http://localhost:3100 | Optional log storage |
@@ -223,6 +224,34 @@ OTEL_ENABLED=true
 OTEL_SERVICE_NAME=live-translate-server
 OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:5080/api/default
 OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic cm9vdEBleGFtcGxlLmNvbTpDb21wbGV4cGFzcyMxMjM="
+```
+
+## Optional Ollama (local LLM translation)
+
+Start the container:
+
+```bash
+docker-compose --profile local-llm up -d ollama
+```
+
+Pull the translation model once (~4.7 GB):
+
+```bash
+docker exec live-translate-ollama ollama pull qwen2.5:7b
+```
+
+Verify the model is ready:
+
+```bash
+docker exec live-translate-ollama ollama list
+```
+
+Then set in `.env`:
+
+```env
+TRANSLATION_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434/v1
+OLLAMA_TRANSLATION_MODEL=qwen2.5:7b
 ```
 
 ## Optional TiKV/TiDB
