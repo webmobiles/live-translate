@@ -24,8 +24,7 @@ scrape_configs:
   # probe_success=1 means healthy, probe_success=0 means down.
   #
   # Option A (local dev — server runs on Mac with npm run dev):
-  #   Uses the Mac's LAN IP so Docker containers can reach it.
-  #   Update the IP if your network changes (ipconfig getifaddr en0).
+  #   host.docker.internal resolves to the Mac host from inside Colima/Docker.
   #
   # Option B (production — server runs inside Docker on same network):
   #   Replace the targets below with:
@@ -39,9 +38,9 @@ scrape_configs:
       module: [http_2xx]
     static_configs:
       - targets:
-          - http://192.168.1.66:4000/health/live   # liveness
-          - http://192.168.1.66:4000/health/ready  # readiness
-          - http://192.168.1.66:4000/health        # full status
+          - http://host.docker.internal:4000/health/live   # liveness
+          - http://host.docker.internal:4000/health/ready  # readiness
+          - http://host.docker.internal:4000/health        # full status
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target

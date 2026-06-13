@@ -284,8 +284,6 @@ services:
     command: inngest dev -u http://host.docker.internal:4000/api/inngest --no-poll
     ports:
       - "8288:8288"     # Dev UI → http://localhost:8288
-    extra_hosts:
-      - "host.docker.internal:host-gateway"   # lets Inngest reach your local server
     networks:
       - live-translate
 
@@ -368,8 +366,6 @@ services:
       - --web.enable-lifecycle
     ports:
       - "9090:9090"   # Prometheus UI/API
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
       - /var/myapps/livetranslate/prometheus:/prometheus
       - ./grafana/prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -400,8 +396,6 @@ services:
     profiles: ["grafana"]
     ports:
       - "9115:9115"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     networks:
       - live-translate
 

@@ -91,10 +91,7 @@ The volume only contains Grafana's internal SQLite database which is fully rebui
 Probes the server `/health` endpoints and exposes results as Prometheus metrics.
 
 **Local dev (server runs on Mac with `npm run dev`):**
-Targets in `prometheus.yml` use the Mac's LAN IP — update it if your network changes:
-```bash
-ipconfig getifaddr en0
-```
+Targets in `prometheus.yml` use `host.docker.internal` — Colima and Docker Desktop both resolve this automatically to the Mac host. No IP needed.
 
 **Production (server runs in Docker on the same network):**
 See the commented Option B in `prometheus.yml` — replace IPs with the service name:
