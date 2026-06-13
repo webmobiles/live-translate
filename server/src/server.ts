@@ -348,6 +348,7 @@ io.on('connection', (socket) => {
         sender:         participant.nickname,
         senderSocketId: socket.id,
         participants,
+        knownLanguages: roomManager.getKnownLanguages(roomCode),
         roomConfig,
       });
       cb?.({ ok: true, id: msgId });
@@ -420,6 +421,7 @@ io.on('connection', (socket) => {
         sender:         participant.nickname,
         senderSocketId: socket.id,
         participants,
+        knownLanguages: roomManager.getKnownLanguages(roomCode),
         roomConfig,
       });
     } catch (err: any) {

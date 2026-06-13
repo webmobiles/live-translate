@@ -99,9 +99,9 @@ export const translateMessage = inngest.createFunction(
     triggers: [{ event: 'message/translate' }],
   },
   async ({ event, step }) => {
-    const { msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, participants } = event.data;
+    const { msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, participants, knownLanguages } = event.data;
     const roomConfig = normalizeRoomConfig(event.data.roomConfig);
-    const targetLangs = participants.map((p: any) => p.language);
+    const targetLangs = (knownLanguages?.length ? knownLanguages : participants.map((p: any) => p.language)) as string[];
 
     const translations = await step.run('translate-text', () =>
       buildTranslations(text, senderLang, targetLangs, roomConfig.translationProvider),
@@ -132,9 +132,9 @@ export const transcribeAndTranslate = inngest.createFunction(
     triggers: [{ event: 'message/transcribe' }],
   },
   async ({ event, step }) => {
-    const { msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, participants } = event.data;
+    const { msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, participants, knownLanguages } = event.data;
     const roomConfig = normalizeRoomConfig(event.data.roomConfig);
-    const targetLangs = participants.map((p: any) => p.language);
+    const targetLangs = (knownLanguages?.length ? knownLanguages : participants.map((p: any) => p.language)) as string[];
 
     if (roomConfig.voicePipeline === 'direct-voice-translation') {
       const direct = await step.run('translate-voice-direct', () =>

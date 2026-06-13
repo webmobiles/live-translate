@@ -24,12 +24,13 @@ export const roomManager = {
     const dbRoom   = await db.createRoom({ code, name: roomName });
 
     rooms.set(code, {
-      id:           dbRoom.id,
+      id:             dbRoom.id,
       code,
-      name:         roomName,
-      createdAt:    dbRoom.createdAt,
-      config:       dbRoom.config || roomConfig,
-      participants: new Map(),
+      name:           roomName,
+      createdAt:      dbRoom.createdAt,
+      config:         dbRoom.config || roomConfig,
+      knownLanguages: new Set<string>(),
+      participants:   new Map(),
     });
 
     logger.info({ event: 'room.persisted', roomCode: code, roomId: dbRoom.id }, 'Room persisted');
@@ -44,13 +45,15 @@ export const roomManager = {
     const dbRoom = await db.getRoomByCode(upper);
     if (!dbRoom) return null;
 
+    const rawConfig = dbRoom.config || {};
     rooms.set(upper, {
-      id:           dbRoom.id,
-      code:         upper,
-      name:         dbRoom.name,
-      createdAt:    dbRoom.createdAt,
-      config:       normalizeRoomConfig(dbRoom.config),
-      participants: new Map(),
+      id:             dbRoom.id,
+      code:           upper,
+      name:           dbRoom.name,
+      createdAt:      dbRoom.createdAt,
+      config:         normalizeRoomConfig(rawConfig),
+      knownLanguages: new Set<string>((rawConfig as any).knownLanguages || []),
+      participants:   new Map(),
     });
 
     logger.info({ event: 'room.restored', roomCode: upper, roomId: dbRoom.id }, 'Room restored from database');
@@ -66,6 +69,15 @@ export const roomManager = {
     if (!room) throw new Error('Room not found');
     const participant = { socketId, nickname, language, isHost, joinedAt: Date.now() };
     room.participants.set(socketId, participant);
+
+    if (language && !room.knownLanguages.has(language)) {
+      room.knownLanguages.add(language);
+      // Persist async — do not block join
+      db.updateRoomConfig(room.id, { ...room.config, knownLanguages: [...room.knownLanguages] }).catch(
+        (err: Error) => logger.warn({ event: 'room.knownLanguages.persist_failed', roomCode: code, language, err }, 'Failed to persist knownLanguages'),
+      );
+    }
+
     return participant;
   },
 
@@ -85,8 +97,13 @@ export const roomManager = {
     const room = this.get(code);
     if (!room) throw new Error('Room not found');
     const normalized = normalizeRoomConfig(config);
-    room.config = await db.updateRoomConfig(room.id, normalized);
+    const persisted  = await db.updateRoomConfig(room.id, { ...normalized, knownLanguages: [...room.knownLanguages] });
+    room.config = normalized;
     return room.config;
+  },
+
+  getKnownLanguages(code: string): string[] {
+    return [...(this.get(code)?.knownLanguages ?? [])];
   },
 
   getParticipants(code: string) {
