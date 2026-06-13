@@ -11,6 +11,7 @@
 #    dragonfly     → Optional Redis-compatible Socket.IO adapter
 #    valkey        → Optional Redis-compatible Socket.IO adapter
 #    inngest       → AI workflow orchestrator (http://localhost:8288)
+#    ollama        → Local LLM runtime for offline translation (http://localhost:11434)
 #    grafana/loki/tempo/prometheus → Optional OSS observability stack
 #
 #  Start:
@@ -286,6 +287,28 @@ services:
       - "8288:8288"     # Dev UI → http://localhost:8288
     networks:
       - live-translate
+
+  # ── Ollama (local LLM) ───────────────────────────────────────────────────
+  # Start with:
+  #   docker-compose -f tdocker/docker-compose.yml --profile local-llm up -d ollama
+  # Pull the translation model once (≈4.7 GB):
+  #   docker exec live-translate-ollama ollama pull qwen2.5:7b
+  ollama:
+    image: ollama/ollama:latest
+    container_name: live-translate-ollama
+    profiles: ["local-llm"]
+    ports:
+      - "11434:11434"   # OpenAI-compatible API → http://localhost:11434/v1
+    volumes:
+      - ../data/ollama:/root/.ollama
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
 
   # ── OpenObserve ──────────────────────────────────────────────────────────
   # Start with:

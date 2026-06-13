@@ -14,6 +14,7 @@ DIRS=(
   surrealdb
   dragonfly
   valkey
+  ollama
   openobserve
   grafana
   loki

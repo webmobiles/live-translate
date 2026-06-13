@@ -136,6 +136,16 @@ async function checkInngest() {
   return { ok: true };
 }
 
+async function checkOllama() {
+  const baseUrl = (process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1').replace(/\/v1\/?$/, '');
+  const res = await withTimeout(
+    fetch(`${baseUrl}/`, { signal: AbortSignal.timeout(TIMEOUT_MS) }),
+    'Ollama HTTP',
+  );
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return { ok: true };
+}
+
 async function checkOpenAI() {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error('OPENAI_API_KEY is not set in .env');
@@ -182,8 +192,8 @@ function checksForProvider() {
   if (!dbCheck) throw new Error(`Unknown DB_PROVIDER: "${dbProvider}". Valid: scylla, tikv, surreal`);
   const queueCheck = queueChecks[queueProvider];
   if (!queueCheck) throw new Error(`Unknown QUEUE_PROVIDER: "${queueProvider}". Valid: nats, redpanda`);
+  const requiresOllama = translationProvider === 'ollama';
   const requiresOpenAI = translationProvider === 'openai'
-    || (translationProvider === 'mock' && envFlag('FORCE_AI_TRANSLATION'))
     || sttProvider === 'openai'
     || ttsProvider === 'openai'
     || voiceTranslationProvider === 'openai-realtime';
@@ -195,6 +205,7 @@ function checksForProvider() {
     queueCheck,
     { name: 'Realtime', fn: checkRealtime, required: true },
     { name: 'Inngest', fn: checkInngest, required: true },
+    ...(requiresOllama ? [{ name: 'Ollama', fn: checkOllama, required: false }] : []),
     ...(requiresOpenAI ? [{ name: 'OpenAI', fn: checkOpenAI, required: openAiRequired }] : []),
   ];
 }

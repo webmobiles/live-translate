@@ -17,10 +17,10 @@ function wait(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function translateWithFallback(text: string, senderLang: string, targetLang: string) {
+async function translateWithFallback(text: string, senderLang: string, targetLang: string, provider?: string) {
   for (let attempt = 0; attempt <= TRANSLATION_RETRIES; attempt += 1) {
     try {
-      return await translation.translate(text, senderLang, targetLang);
+      return await translation.translate(text, senderLang, targetLang, provider);
     } catch (err) {
       const isLastAttempt = attempt === TRANSLATION_RETRIES;
       logger.warn({
@@ -40,10 +40,10 @@ async function translateWithFallback(text: string, senderLang: string, targetLan
   return `${text} (not translated)`;
 }
 
-async function buildTranslations(text: string, senderLang: string, targetLangs: string[]) {
+async function buildTranslations(text: string, senderLang: string, targetLangs: string[], provider?: string) {
   const unique = [...new Set(targetLangs.filter(l => l !== senderLang))];
   const entries = await Promise.all(
-    unique.map(async lang => [lang, await translateWithFallback(text, senderLang, lang)]),
+    unique.map(async lang => [lang, await translateWithFallback(text, senderLang, lang, provider)]),
   );
   return Object.fromEntries([[senderLang, text], ...entries]);
 }
@@ -81,7 +81,7 @@ export const translateMessage = inngest.createFunction(
     const targetLangs = participants.map((p: any) => p.language);
 
     const translations = await step.run('translate-text', () =>
-      buildTranslations(text, senderLang, targetLangs),
+      buildTranslations(text, senderLang, targetLangs, roomConfig.translationProvider),
     );
 
     const audioOutputs = await step.run('generate-audio-output', () =>
@@ -158,7 +158,7 @@ export const transcribeAndTranslate = inngest.createFunction(
     });
 
     const translations = await step.run('translate-text', () =>
-      buildTranslations(text, senderLang, targetLangs),
+      buildTranslations(text, senderLang, targetLangs, roomConfig.translationProvider),
     );
 
     const audioOutputs = await step.run('generate-audio-output', () =>
