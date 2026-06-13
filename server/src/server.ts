@@ -13,6 +13,7 @@ import { normalizeRoomConfig } from './rooms/config';
 import * as db from './facades/db';
 import * as queue from './facades/queue';
 import * as workflows from './facades/workflows';
+import * as translation from './facades/translation';
 import * as realtime from './facades/realtime';
 import { healthRouter } from './startup/healthEndpoint';
 import { runHealthChecks } from './startup/healthCheck';
@@ -232,21 +233,48 @@ io.on('connection', (socket) => {
         participants: roomManager.getParticipants(room.code),
       });
 
-      // Load chat history from ScyllaDB and send to the joining user
+      // Load chat history and send to the joining participant, translating any
+      // messages that weren't translated into their language when originally sent.
       try {
         const history = await db.getRecentMessages(room.id, 100);
         if (history.length > 0) {
-          const formatted = history.map(msg => ({
-            id:         msg.id,
-            original:   msg.original,
-            translated: (msg as any).translations[language] ?? (msg as any).translations[(msg as any).senderLang] ?? msg.original,
-            sender:     (msg as any).sender,
-            senderLang: (msg as any).senderLang,
-            targetLang: language || 'en',
-            isMine:     false,
-            isAudio:    (msg as any).isAudio,
+          const lang     = language || 'en';
+          const provider = room.config?.translationProvider;
+
+          const missing = (history as any[]).filter(msg => !msg.translations[lang]);
+          if (missing.length > 0) {
+            logger.info({
+              event: 'room.history_translate',
+              roomCode: room.code,
+              language: lang,
+              count: missing.length,
+            }, 'Translating history for joining participant');
+
+            await Promise.all(missing.map(async (msg: any) => {
+              try {
+                const text = await translation.translate(msg.original, msg.senderLang, lang, provider);
+                msg.translations[lang] = text;
+                // Persist back so future joins for the same language are instant
+                db.addMessageTranslations(room.id, msg.id, msg.timestamp, { [lang]: text }).catch(
+                  (err: Error) => logger.warn({ event: 'history.translation.persist_failed', msgId: msg.id, err }, 'Failed to persist history translation'),
+                );
+              } catch (err) {
+                logger.warn({ event: 'history.translate_message_failed', msgId: msg.id, senderLang: msg.senderLang, targetLang: lang, err }, 'Failed to translate history message');
+              }
+            }));
+          }
+
+          const formatted = (history as any[]).map(msg => ({
+            id:              msg.id,
+            original:        msg.original,
+            translated:      msg.translations[lang] ?? msg.translations[msg.senderLang] ?? msg.original,
+            sender:          msg.sender,
+            senderLang:      msg.senderLang,
+            targetLang:      lang,
+            isMine:          false,
+            isAudio:         msg.isAudio,
             translatedAudio: null,
-            timestamp:  msg.timestamp,
+            timestamp:       msg.timestamp,
           }));
           socket.emit('room:history', { messages: formatted });
         }

@@ -143,6 +143,14 @@ export async function getRecentMessages(roomId: string, limit = 100) {
     .reverse(); // oldest first for chat rendering
 }
 
+export async function addMessageTranslations(roomId: string, msgId: string, timestamp: number, newTranslations: Record<string, string>) {
+  await getClient().execute(
+    'UPDATE messages SET translations = translations + ? WHERE room_id = ? AND timestamp = ? AND id = ?',
+    [newTranslations, roomId, timestamp, msgId],
+    { prepare: true },
+  );
+}
+
 export async function ping() {
   await getClient().execute('SELECT now() FROM system.local');
 }

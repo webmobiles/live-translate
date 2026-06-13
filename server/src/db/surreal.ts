@@ -162,6 +162,13 @@ export async function getRecentMessages(roomId: string, limit = 100) {
     .reverse();
 }
 
+export async function addMessageTranslations(_roomId: string, msgId: string, _timestamp: number, newTranslations: Record<string, string>) { // roomId/timestamp not needed — SurrealDB uses record ID
+  await query(
+    'UPDATE type::thing("messages", $id) SET translations += $extra;',
+    { id: msgId, extra: newTranslations },
+  );
+}
+
 export async function ping() {
   await getClient().query('RETURN true;');
 }

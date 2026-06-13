@@ -49,6 +49,10 @@ export async function getRecentMessages(roomId: string, limit = 100) {
   return getProvider().getRecentMessages(roomId, limit);
 }
 
+export async function addMessageTranslations(roomId: string, msgId: string, timestamp: number, newTranslations: Record<string, string>) {
+  return getProvider().addMessageTranslations(roomId, msgId, timestamp, newTranslations);
+}
+
 export async function ping() {
   return getProvider().ping();
 }

@@ -191,6 +191,13 @@ export async function getRecentMessages(roomId: string, limit = 100) {
     .reverse();
 }
 
+export async function addMessageTranslations(roomId: string, msgId: string, timestamp: number, newTranslations: Record<string, string>) {
+  await getPool().execute(
+    'UPDATE messages SET translations = JSON_MERGE_PATCH(translations, ?) WHERE room_id = ? AND timestamp = ? AND id = ?',
+    [JSON.stringify(newTranslations), roomId, timestamp, msgId],
+  );
+}
+
 export async function ping() {
   const conn = await getPool().getConnection();
   try { await conn.ping(); } finally { conn.release(); }
