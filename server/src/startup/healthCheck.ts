@@ -14,6 +14,8 @@ const { severity } = require('../observability/severity');
  */
 
 const TIMEOUT_MS = 8_000;
+const RETRY_ATTEMPTS = Number.parseInt(process.env.STARTUP_HEALTHCHECK_RETRIES || '6', 10);
+const RETRY_DELAY_MS = Number.parseInt(process.env.STARTUP_HEALTHCHECK_RETRY_DELAY_MS || '2000', 10);
 
 // ── Individual checks ──────────────────────────────────────────────────────
 
@@ -207,7 +209,7 @@ async function runHealthChecks() {
   logger.info({ event: 'startup.healthcheck.started' }, 'Running startup health checks');
 
   const CHECKS = checksForProvider();
-  const results = await Promise.allSettled(CHECKS.map(c => c.fn()));
+  const results = await Promise.allSettled(CHECKS.map(c => runCheckWithRetry(c)));
 
   let anyFailed = false;
 
@@ -240,6 +242,35 @@ async function runHealthChecks() {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+async function runCheckWithRetry(check) {
+  const maxAttempts = Math.max(1, RETRY_ATTEMPTS);
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await check.fn();
+    } catch (error) {
+      lastError = error;
+
+      if (attempt === maxAttempts) break;
+
+      logger.warn({
+        event: 'startup.healthcheck.retry',
+        check: check.name,
+        required: check.required,
+        attempt,
+        maxAttempts,
+        retryDelayMs: RETRY_DELAY_MS,
+        errorMessage: formatError(error),
+      }, 'Startup health check failed, retrying');
+
+      await delay(RETRY_DELAY_MS);
+    }
+  }
+
+  throw lastError;
+}
+
 function withTimeout(promise, label) {
   return Promise.race([
     promise,
@@ -247,6 +278,10 @@ function withTimeout(promise, label) {
       setTimeout(() => reject(new Error(`${label} timed out after ${TIMEOUT_MS}ms`)), TIMEOUT_MS),
     ),
   ]);
+}
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function formatError(error) {
