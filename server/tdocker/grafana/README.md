@@ -76,6 +76,8 @@ docker compose stop grafana
 docker compose rm -f grafana
 docker volume rm tdocker_grafana-data
 docker compose --env-file ../.env  --profile grafana up -d grafana
+# just grafana restart
+docker compose --env-file ../.env restart grafana
 ```
 
 This is safe — everything is in the provisioning files in git, nothing is lost.

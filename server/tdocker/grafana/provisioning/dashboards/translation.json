@@ -28,13 +28,53 @@
     },
     {
       "id": 3,
-      "title": "Audio Input (last 24h)",
+      "title": "Voice Minutes (last 24h)",
       "type": "stat",
       "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "purple" }, "unit": "s" } },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "purple" },
+          "unit": "m",
+          "decimals": 1
+        }
+      },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
-      "targets": [{ "expr": "sum(increase(live_translate_audio_input_seconds_total[24h]))", "legendFormat": "Seconds", "datasource": { "type": "prometheus", "uid": "prometheus" } }]
+      "targets": [{ "expr": "sum(increase(live_translate_audio_input_seconds_total[24h])) / 60", "legendFormat": "Minutes", "datasource": { "type": "prometheus", "uid": "prometheus" } }]
+    },
+    {
+      "id": 9,
+      "title": "Voice Duration Per Minute by Language",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 2,
+          "custom": { "lineWidth": 2, "fillOpacity": 20 },
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } },
+      "targets": [{ "expr": "sum by (language) (rate(live_translate_audio_input_seconds_total[$__rate_interval])) * 60", "legendFormat": "{{language}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }]
+    },
+    {
+      "id": 10,
+      "title": "Cumulative Voice Seconds by Language",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 2,
+          "custom": { "lineWidth": 2, "fillOpacity": 20 },
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } },
+      "targets": [{ "expr": "sum by (language) (live_translate_audio_input_seconds_total)", "legendFormat": "{{language}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }]
     },
     {
       "id": 4,
@@ -65,7 +105,7 @@
       "id": 6,
       "title": "Messages Per Minute by Type",
       "type": "timeseries",
-      "gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+      "gridPos": { "x": 0, "y": 12, "w": 24, "h": 8 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
@@ -83,7 +123,7 @@
       "id": 7,
       "title": "Words by Language",
       "type": "piechart",
-      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "gridPos": { "x": 0, "y": 20, "w": 12, "h": 8 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" } },
       "options": { "pieType": "donut", "legendDisplayMode": "table", "legendPlacement": "right" },
@@ -93,7 +133,7 @@
       "id": 8,
       "title": "Translation Failure Log",
       "type": "logs",
-      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 8 },
+      "gridPos": { "x": 0, "y": 28, "w": 24, "h": 8 },
       "datasource": { "type": "loki", "uid": "loki" },
       "options": { "showTime": true, "wrapLogMessage": true, "prettifyLogMessage": true, "enableLogDetails": true, "sortOrder": "Descending" },
       "targets": [{ "expr": "{service=\"live-translate-server\"} | json | event=~\"translation\\\\..*failed\"", "datasource": { "type": "loki", "uid": "loki" } }]
