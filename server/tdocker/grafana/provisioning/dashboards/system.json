@@ -220,7 +220,7 @@
         }
       },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
-      "targets": [{ "expr": "sum(rate(container_cpu_usage_seconds_total{job=\"cadvisor\", cpu=\"total\", id=~\"/docker/.+\"}[$__rate_interval])) * 100", "legendFormat": "Docker CPU", "instant": true, "datasource": { "type": "prometheus", "uid": "prometheus" } }]
+      "targets": [{ "expr": "sum(rate(container_cpu_usage_seconds_total{job=\"cadvisor\", cpu=\"total\", name!=\"\"}[$__rate_interval])) * 100", "legendFormat": "Docker CPU", "instant": true, "datasource": { "type": "prometheus", "uid": "prometheus" } }]
     },
     {
       "id": 13,
@@ -237,7 +237,7 @@
         }
       },
       "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
-      "targets": [{ "expr": "topk(10, sum by (id) (rate(container_cpu_usage_seconds_total{job=\"cadvisor\", cpu=\"total\", id=~\"/docker/.+\"}[$__rate_interval])) * 100)", "legendFormat": "{{id}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }]
+      "targets": [{ "expr": "topk(10, sum by (name) (rate(container_cpu_usage_seconds_total{job=\"cadvisor\", cpu=\"total\", name!=\"\"}[$__rate_interval])) * 100)", "legendFormat": "{{name}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }]
     }
   ]
 }
