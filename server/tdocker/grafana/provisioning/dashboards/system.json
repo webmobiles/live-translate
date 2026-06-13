@@ -1,0 +1,174 @@
+{
+  "title": "System",
+  "uid": "live-translate-system",
+  "tags": ["live-translate"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Heap Used (MB)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmbytes",
+          "decimals": 1,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 200 }, { "color": "red", "value": 400 }] },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [{ "expr": "sum(v8js_memory_heap_used_bytes{exported_job=\"live-translate-server\"}) / 1024 / 1024", "legendFormat": "Heap used", "instant": true, "datasource": { "type": "prometheus", "uid": "prometheus" } }]
+    },
+    {
+      "id": 2,
+      "title": "Heap Limit (MB)",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmbytes",
+          "decimals": 1,
+          "color": { "mode": "fixed", "fixedColor": "blue" }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [{ "expr": "sum(v8js_memory_heap_limit_bytes{exported_job=\"live-translate-server\"}) / 1024 / 1024", "legendFormat": "Heap limit", "instant": true, "datasource": { "type": "prometheus", "uid": "prometheus" } }]
+    },
+    {
+      "id": 3,
+      "title": "Event Loop Utilization",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 1,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 0.5 }, { "color": "red", "value": 0.8 }] },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [{ "expr": "nodejs_eventloop_utilization_ratio{exported_job=\"live-translate-server\"}", "legendFormat": "ELU", "instant": true, "datasource": { "type": "prometheus", "uid": "prometheus" } }]
+    },
+    {
+      "id": 4,
+      "title": "Event Loop Lag p99 (ms)",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 1,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 100 }, { "color": "red", "value": 500 }] },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [{ "expr": "nodejs_eventloop_delay_p99_seconds{exported_job=\"live-translate-server\"} * 1000", "legendFormat": "p99 lag", "instant": true, "datasource": { "type": "prometheus", "uid": "prometheus" } }]
+    },
+    {
+      "id": 5,
+      "title": "Heap Used Over Time (MB)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmbytes",
+          "decimals": 1,
+          "custom": { "lineWidth": 2, "fillOpacity": 15 },
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum(v8js_memory_heap_used_bytes{exported_job=\"live-translate-server\"}) / 1024 / 1024", "legendFormat": "Heap used", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "expr": "sum(v8js_memory_heap_limit_bytes{exported_job=\"live-translate-server\"}) / 1024 / 1024", "legendFormat": "Heap limit", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Event Loop Utilization Over Time",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "custom": { "lineWidth": 2, "fillOpacity": 15 },
+          "color": { "mode": "fixed", "fixedColor": "orange" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 0.5 }, { "color": "red", "value": 0.8 }] }
+        }
+      },
+      "options": { "tooltip": { "mode": "single" }, "legend": { "displayMode": "hidden" } },
+      "targets": [{ "expr": "nodejs_eventloop_utilization_ratio{exported_job=\"live-translate-server\"}", "legendFormat": "ELU", "datasource": { "type": "prometheus", "uid": "prometheus" } }]
+    },
+    {
+      "id": 7,
+      "title": "Event Loop Delay Percentiles (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 1,
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "nodejs_eventloop_delay_p50_seconds{exported_job=\"live-translate-server\"} * 1000", "legendFormat": "p50", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "expr": "nodejs_eventloop_delay_p90_seconds{exported_job=\"live-translate-server\"} * 1000", "legendFormat": "p90", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "expr": "nodejs_eventloop_delay_p99_seconds{exported_job=\"live-translate-server\"} * 1000", "legendFormat": "p99", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Heap by Space (MB)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmbytes",
+          "decimals": 1,
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "v8js_memory_heap_used_bytes{exported_job=\"live-translate-server\"} / 1024 / 1024", "legendFormat": "{{v8js_heap_space_name}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "GC Duration (ms/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 2,
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "rate(v8js_gc_duration_seconds_sum{exported_job=\"live-translate-server\"}[$__rate_interval]) * 1000", "legendFormat": "GC ms/s", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    }
+  ]
+}

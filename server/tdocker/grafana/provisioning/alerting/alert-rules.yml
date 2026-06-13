@@ -2,25 +2,25 @@ apiVersion: 1
 
 groups:
   - orgId: 1
-    name: live-translate-log-severity
+    name: live-translate-health
     folder: Live Translate
     interval: 1m
     rules:
-      - uid: live_translate_p1_logs
-        title: P1 critical logs
+
+      - uid: live_translate_liveness
+        title: Server down — liveness probe failed
         condition: C
         data:
           - refId: A
-            datasourceUid: P8E80F9AEF21F6940
+            datasourceUid: prometheus
             relativeTimeRange:
-              from: 300
+              from: 120
               to: 0
             model:
               datasource:
-                type: loki
-                uid: P8E80F9AEF21F6940
-              editorMode: code
-              expr: 'sum(count_over_time({service="live-translate-server"} | json | severity="P1" [5m]))'
+                type: prometheus
+                uid: prometheus
+              expr: 'probe_success{instance=~".*health/live"}'
               intervalMs: 1000
               maxDataPoints: 43200
               queryType: instant
@@ -28,29 +28,27 @@ groups:
           - refId: B
             datasourceUid: __expr__
             relativeTimeRange:
-              from: 300
+              from: 120
               to: 0
             model:
               datasource:
                 type: __expr__
                 uid: __expr__
               expression: A
-              intervalMs: 1000
-              maxDataPoints: 43200
               reducer: last
               refId: B
               type: reduce
           - refId: C
             datasourceUid: __expr__
             relativeTimeRange:
-              from: 300
+              from: 120
               to: 0
             model:
               conditions:
                 - evaluator:
                     params:
-                      - 0
-                    type: gt
+                      - 1
+                    type: lt
                   operator:
                     type: and
                   query:
@@ -64,38 +62,35 @@ groups:
                 type: __expr__
                 uid: __expr__
               expression: B
-              intervalMs: 1000
-              maxDataPoints: 43200
               refId: C
               type: threshold
-        noDataState: OK
-        execErrState: Error
+        noDataState: Alerting
+        execErrState: Alerting
         for: 0s
         annotations:
-          summary: P1 critical log emitted by Live Translate
+          summary: 🔴 Live Translate server is DOWN
           description: |
-            A P1 log was emitted in the last 5 minutes.
-            Check Loki for details: `{service="live-translate-server"} | json | severity="P1"`
+            The liveness probe failed — the server process is not responding.
+            Check: `http://localhost:4000/health/live`
         labels:
           service: live-translate-server
           severity: P1
         isPaused: false
 
-      - uid: live_translate_p2_logs
-        title: P2 repeated user-facing failures
+      - uid: live_translate_readiness
+        title: Server degraded — readiness probe failed
         condition: C
         data:
           - refId: A
-            datasourceUid: P8E80F9AEF21F6940
+            datasourceUid: prometheus
             relativeTimeRange:
-              from: 300
+              from: 120
               to: 0
             model:
               datasource:
-                type: loki
-                uid: P8E80F9AEF21F6940
-              editorMode: code
-              expr: 'sum(count_over_time({service="live-translate-server"} | json | severity="P2" [5m]))'
+                type: prometheus
+                uid: prometheus
+              expr: 'probe_success{instance=~".*health/ready"}'
               intervalMs: 1000
               maxDataPoints: 43200
               queryType: instant
@@ -103,29 +98,27 @@ groups:
           - refId: B
             datasourceUid: __expr__
             relativeTimeRange:
-              from: 300
+              from: 120
               to: 0
             model:
               datasource:
                 type: __expr__
                 uid: __expr__
               expression: A
-              intervalMs: 1000
-              maxDataPoints: 43200
               reducer: last
               refId: B
               type: reduce
           - refId: C
             datasourceUid: __expr__
             relativeTimeRange:
-              from: 300
+              from: 120
               to: 0
             model:
               conditions:
                 - evaluator:
                     params:
-                      - 5
-                    type: gt
+                      - 1
+                    type: lt
                   operator:
                     type: and
                   query:
@@ -139,91 +132,17 @@ groups:
                 type: __expr__
                 uid: __expr__
               expression: B
-              intervalMs: 1000
-              maxDataPoints: 43200
               refId: C
               type: threshold
-        noDataState: OK
-        execErrState: Error
+        noDataState: Alerting
+        execErrState: Alerting
         for: 0s
         annotations:
-          summary: Repeated P2 user-facing failures in Live Translate
-          description: More than five P2 logs were emitted in five minutes.
+          summary: 🟠 Live Translate dependencies unavailable
+          description: |
+            The readiness probe failed — one or more dependencies (DB, queue, Inngest) are down.
+            Check: `http://localhost:4000/health/ready`
         labels:
           service: live-translate-server
-          severity: P2
-        isPaused: false
-
-      - uid: live_translate_p3_translation_retries
-        title: P3 translation retry failures
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: P8E80F9AEF21F6940
-            relativeTimeRange:
-              from: 300
-              to: 0
-            model:
-              datasource:
-                type: loki
-                uid: P8E80F9AEF21F6940
-              editorMode: code
-              expr: 'sum(count_over_time({service="live-translate-server", event="translation.retry_failed"} [5m]))'
-              intervalMs: 1000
-              maxDataPoints: 43200
-              queryType: instant
-              refId: A
-          - refId: B
-            datasourceUid: __expr__
-            relativeTimeRange:
-              from: 300
-              to: 0
-            model:
-              datasource:
-                type: __expr__
-                uid: __expr__
-              expression: A
-              intervalMs: 1000
-              maxDataPoints: 43200
-              reducer: last
-              refId: B
-              type: reduce
-          - refId: C
-            datasourceUid: __expr__
-            relativeTimeRange:
-              from: 300
-              to: 0
-            model:
-              conditions:
-                - evaluator:
-                    params:
-                      - 0
-                    type: gt
-                  operator:
-                    type: and
-                  query:
-                    params:
-                      - C
-                  reducer:
-                    params: []
-                    type: last
-                  type: query
-              datasource:
-                type: __expr__
-                uid: __expr__
-              expression: B
-              intervalMs: 1000
-              maxDataPoints: 43200
-              refId: C
-              type: threshold
-        noDataState: OK
-        execErrState: Error
-        for: 0s
-        annotations:
-          summary: Translation retry failures in Live Translate
-          description: At least one translation retry failed in the last five minutes.
-        labels:
-          service: live-translate-server
-          severity: P3
-          feature: translation
+          severity: P1
         isPaused: false

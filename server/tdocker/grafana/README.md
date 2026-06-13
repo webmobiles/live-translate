@@ -32,6 +32,7 @@ provisioning/
     messages.json         Message volume, languages, rooms
     errors.json           P1/P2/P3 counts, error rate, recent logs
     translation.json      Words translated, audio seconds, failures
+    system.json           CPU, memory, event loop lag, uptime
   alerting/
     alert-rules.yml       P1, P2, P3 alert rules
     contact-points.yml    Slack webhook destination
