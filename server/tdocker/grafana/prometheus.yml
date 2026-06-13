@@ -15,6 +15,11 @@ scrape_configs:
           # If the Node server runs as a service on this Docker network, use:
           # - server:4000
 
+  - job_name: cadvisor
+    static_configs:
+      - targets:
+          - cadvisor:8080
+
   # Blackbox Exporter — probes the server health endpoints over HTTP.
   # probe_success=1 means healthy, probe_success=0 means down.
   #
