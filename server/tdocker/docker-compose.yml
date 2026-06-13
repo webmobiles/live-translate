@@ -27,20 +27,8 @@ networks:
   live-translate:
     driver: bridge
 
-volumes:
-  nats-data:
-  redpanda-data:
-  scylla-data:
-  pd-data:
-  tikv-data:
-  surrealdb-data:
-  dragonfly-data:
-  valkey-data:
-  openobserve-data:
-  grafana-data:
-  loki-data:
-  tempo-data:
-  prometheus-data:
+# Data lives on the host at /var/myapps/livetranslate — never lost on `docker compose down`
+# To create the directories: sudo mkdir -p /var/myapps/livetranslate/{nats,redpanda,scylla,pd,tikv,surrealdb,dragonfly,valkey,openobserve,grafana,loki,tempo,prometheus} && sudo chown -R $(whoami) /var/myapps/livetranslate
 
 services:
 
@@ -58,7 +46,7 @@ services:
       - "4222:4222"   # NATS client port
       - "8222:8222"   # Monitoring UI/API → http://localhost:8222
     volumes:
-      - nats-data:/data
+      - /var/myapps/livetranslate/nats:/data
     networks:
       - live-translate
     healthcheck:
@@ -91,7 +79,7 @@ services:
       - "18081:18081"   # Schema Registry
       - "9644:9644"     # Admin API
     volumes:
-      - redpanda-data:/var/lib/redpanda/data
+      - /var/myapps/livetranslate/redpanda:/var/lib/redpanda/data
     networks:
       - live-translate
     healthcheck:
@@ -141,7 +129,7 @@ services:
       - "9160:9160"     # Thrift (legacy, rarely needed)
       - "10000:10000"   # REST API
     volumes:
-      - scylla-data:/var/lib/scylla
+      - /var/myapps/livetranslate/scylla:/var/lib/scylla
     networks:
       - live-translate
     healthcheck:
@@ -190,7 +178,7 @@ services:
     ports:
       - "2379:2379"
     volumes:
-      - pd-data:/data/pd
+      - /var/myapps/livetranslate/pd:/data/pd
     networks:
       - live-translate
 
@@ -211,7 +199,7 @@ services:
       - "20160:20160"
       - "20180:20180"
     volumes:
-      - tikv-data:/data/tikv
+      - /var/myapps/livetranslate/tikv:/data/tikv
     networks:
       - live-translate
 
@@ -251,7 +239,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - surrealdb-data:/data
+      - /var/myapps/livetranslate/surrealdb:/data
     networks:
       - live-translate
 
@@ -268,7 +256,7 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      - dragonfly-data:/data
+      - /var/myapps/livetranslate/dragonfly:/data
     networks:
       - live-translate
 
@@ -285,7 +273,7 @@ services:
     ports:
       - "6380:6379"
     volumes:
-      - valkey-data:/data
+      - /var/myapps/livetranslate/valkey:/data
     networks:
       - live-translate
 
@@ -315,7 +303,7 @@ services:
     ports:
       - "5080:5080"   # UI and ingestion API → http://localhost:5080
     volumes:
-      - openobserve-data:/data
+      - /var/myapps/livetranslate/openobserve:/data
     networks:
       - live-translate
 
@@ -335,7 +323,7 @@ services:
     ports:
       - "3001:3000"   # UI → http://localhost:3001
     volumes:
-      - grafana-data:/var/lib/grafana
+      - /var/myapps/livetranslate/grafana:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
       - loki
@@ -352,7 +340,7 @@ services:
     ports:
       - "3100:3100"   # Loki API
     volumes:
-      - loki-data:/loki
+      - /var/myapps/livetranslate/loki:/loki
       - ./grafana/loki.yml:/etc/loki/local-config.yml:ro
     networks:
       - live-translate
@@ -365,7 +353,7 @@ services:
     ports:
       - "3200:3200"   # Tempo API
     volumes:
-      - tempo-data:/tmp/tempo
+      - /var/myapps/livetranslate/tempo:/tmp/tempo
       - ./grafana/tempo.yml:/etc/tempo.yml:ro
     networks:
       - live-translate
@@ -383,7 +371,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - prometheus-data:/prometheus
+      - /var/myapps/livetranslate/prometheus:/prometheus
       - ./grafana/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     networks:
       - live-translate
