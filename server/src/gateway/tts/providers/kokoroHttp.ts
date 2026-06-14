@@ -24,9 +24,9 @@ function getVoiceForLanguage(language: string, options: any = {}) {
   if (options.voice) return options.voice;
 
   const lang = normalizeLanguage(language);
-  return DEFAULT_KOKORO_VOICE_BY_LANGUAGE[lang]
-    || process.env.KOKORO_VOICE
-    || DEFAULT_KOKORO_VOICE_BY_LANGUAGE.en;
+  if (lang === 'en' && process.env.KOKORO_VOICE) return process.env.KOKORO_VOICE;
+
+  return DEFAULT_KOKORO_VOICE_BY_LANGUAGE[lang] ?? null;
 }
 
 export async function synthesize(text: string, language: string, options: any = {}): Promise<{ audioBase64: string; mimeType: string } | null> {
@@ -34,6 +34,7 @@ export async function synthesize(text: string, language: string, options: any = 
 
   const responseFormat = options.responseFormat || process.env.TTS_RESPONSE_FORMAT || 'mp3';
   const voice = getVoiceForLanguage(language, options);
+  if (!voice) return null;
 
   const audio = await getClient().audio.speech.create({
     model: 'kokoro',

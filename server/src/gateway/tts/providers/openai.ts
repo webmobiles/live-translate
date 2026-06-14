@@ -3,13 +3,21 @@ import OpenAI from 'openai';
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const LANGUAGE_NAMES: Record<string, string> = {
+  ar: 'Arabic',
+  de: 'German',
   en: 'English',
   es: 'Spanish',
   fr: 'French',
   hi: 'Hindi',
   it: 'Italian',
   ja: 'Japanese',
+  ko: 'Korean',
+  nl: 'Dutch',
+  pl: 'Polish',
   pt: 'Portuguese',
+  ru: 'Russian',
+  sv: 'Swedish',
+  tr: 'Turkish',
   zh: 'Chinese',
 };
 

@@ -96,7 +96,7 @@ Provider env vars choose provider-level behavior only:
 | `TTS_PROVIDER` | Which TTS backend to use |
 | `TTS_RESPONSE_FORMAT` | Audio format such as `mp3` or `wav` |
 | `TTS_OPENAI_VOICE` | OpenAI voice style, while language still comes from `lang` |
-| `KOKORO_VOICE` | Fallback Kokoro voice only when no mapping exists for `lang` |
+| `KOKORO_VOICE` | Optional English Kokoro voice override only; do not use it as the receiver language |
 
 For Kokoro, the default voice is selected from the receiver language map first:
 
@@ -112,6 +112,8 @@ For Kokoro, the default voice is selected from the receiver language map first:
 | `zh` | `zf_xiaobei` |
 
 Example: if the sender speaks English and the receiver joined with Spanish, the workflow translates to Spanish and calls `tts.synthesize(spanishText, 'es')`. Kokoro should then use `ef_dora`, not the English fallback `af_heart`.
+
+Kokoro must return no TTS audio for languages that are not in this map. Do not fall back to English for unsupported languages such as German (`de`), Korean (`ko`), Arabic (`ar`), Russian (`ru`), Turkish (`tr`), Dutch (`nl`), Polish (`pl`), or Swedish (`sv`). `KOKORO_VOICE` may override the English voice only; it must not be used as a fallback voice for unsupported receiver languages. If those languages need spoken output, use `TTS_PROVIDER=openai` or a `local` TTS command that supports the target language.
 
 ### Frontend playback choice
 
@@ -443,7 +445,7 @@ KOKORO_BASE_URL=http://localhost:8880
 KOKORO_VOICE=af_heart
 ```
 
-Kokoro chooses the TTS voice from the receiver's target language at runtime, not from `.env`. For example, a receiver who joined with Spanish (`es`) uses the Spanish voice `ef_dora`, so Spanish text is not spoken with the English `af_heart` voice. `KOKORO_VOICE` is only a fallback for languages that do not have a built-in mapping.
+Kokoro chooses the TTS voice from the receiver's target language at runtime, not from `.env`. For example, a receiver who joined with Spanish (`es`) uses the Spanish voice `ef_dora`, so Spanish text is not spoken with the English `af_heart` voice. `KOKORO_VOICE` only overrides the English voice. If the receiver language is unsupported by Kokoro, such as German (`de`), the provider returns no audio instead of using an English voice. Use OpenAI or a local TTS provider for German spoken output.
 
 For local TTS:
 
