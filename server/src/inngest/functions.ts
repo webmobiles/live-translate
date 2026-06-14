@@ -83,8 +83,14 @@ async function buildAudioOutputs(translations: any, targetLangs: any[], roomConf
       try {
         appMetrics.recordTtsInput({ language: lang, text });
         return [lang, await tts.synthesize(text, lang)];
-      } catch (err) {
-        logger.warn({ event: 'tts.failed', severity: severity.P3, language: lang, err }, 'TTS synthesis failed');
+      } catch (err: any) {
+        const isConfigError = /unknown tts_provider/i.test(err?.message || '');
+        logger[isConfigError ? 'error' : 'warn']({
+          event: 'tts.failed',
+          severity: isConfigError ? severity.P2 : severity.P3,
+          language: lang,
+          err,
+        }, isConfigError ? 'TTS misconfigured — check TTS_PROVIDER in .env' : 'TTS synthesis failed');
         return [lang, null];
       }
     }),
