@@ -13,6 +13,15 @@ const DEFAULT_ROOM_CONFIG: RoomConfig = {
   output: { translatedText: true, translatedAudio: true },
 }
 const MIN_VOICE_MESSAGE_DURATION_MS = 1000
+const pendingAutoPlayAudios = new Set<HTMLAudioElement>()
+
+function retryPendingAutoPlayAudios() {
+  for (const audio of Array.from(pendingAutoPlayAudios)) {
+    audio.play()
+      .then(() => pendingAutoPlayAudios.delete(audio))
+      .catch(() => {})
+  }
+}
 
 export const Route = createFileRoute('/room/$code')({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -64,6 +73,20 @@ function RoomScreen() {
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [])
+
+  useEffect(() => {
+    const retry = () => retryPendingAutoPlayAudios()
+
+    window.addEventListener('pointerdown', retry)
+    window.addEventListener('keydown', retry)
+    window.addEventListener('touchstart', retry)
+
+    return () => {
+      window.removeEventListener('pointerdown', retry)
+      window.removeEventListener('keydown', retry)
+      window.removeEventListener('touchstart', retry)
+    }
   }, [])
 
   const addSystemMsg = useCallback((text: string) => {
@@ -719,6 +742,7 @@ function generateWaveformBars(seed: string, count: number): number[] {
 
 function AudioPlayer({ audioBase64, mimeType, isMine, autoPlay }: { audioBase64: string; mimeType: string; isMine: boolean; autoPlay?: boolean }) {
   const audioRef = useRef<HTMLAudioElement>(null)
+  const autoPlayAttemptedRef = useRef(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
   const [currentTime, setCurrentTime] = useState(0)
@@ -753,6 +777,24 @@ function AudioPlayer({ audioBase64, mimeType, isMine, autoPlay }: { audioBase64:
   const activeColor   = isMine ? 'rgba(255,255,255,0.92)' : '#7C3AED'
   const inactiveColor = isMine ? 'rgba(255,255,255,0.28)' : 'rgba(124,58,237,0.22)'
 
+  const tryAutoPlay = useCallback(() => {
+    const audio = audioRef.current
+    if (!autoPlay || !audio || autoPlayAttemptedRef.current) return
+    if (audio.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return
+
+    autoPlayAttemptedRef.current = true
+    audio.play()
+      .then(() => pendingAutoPlayAudios.delete(audio))
+      .catch(() => {
+        pendingAutoPlayAudios.add(audio)
+        setIsPlaying(false)
+      })
+  }, [autoPlay])
+
+  useEffect(() => {
+    autoPlayAttemptedRef.current = false
+    tryAutoPlay()
+  }, [src, tryAutoPlay])
 
   return (
     <div className="flex items-center gap-2 mt-2 min-w-[180px]" onClick={e => e.stopPropagation()}>
@@ -763,9 +805,10 @@ function AudioPlayer({ audioBase64, mimeType, isMine, autoPlay }: { audioBase64:
         onPause={() => setIsPlaying(false)}
         onEnded={() => { setIsPlaying(false); setProgress(0); setCurrentTime(0) }}
         onTimeUpdate={handleTimeUpdate}
+        onCanPlay={tryAutoPlay}
         onLoadedMetadata={() => {
           setDuration(audioRef.current?.duration ?? 0)
-          if (autoPlay !== false) audioRef.current?.play().catch(() => {})
+          tryAutoPlay()
         }}
       />
 
@@ -815,11 +858,12 @@ function AudioPlayer({ audioBase64, mimeType, isMine, autoPlay }: { audioBase64:
 // ── Message bubble ─────────────────────────────────────────────────────────
 
 function MessageBubble({ message }: { message: Message }) {
-  const { isMine, sender, senderLang, translated, original, isTranslating, isAudio, translatedAudio, timestamp, deliveryStatus } = message
+  const { isMine, sender, senderLang, translated, original, isTranslating, isAudio, originalAudio, translatedAudio, timestamp, deliveryStatus } = message
   const [showOriginal, setShowOriginal] = useState(false)
   const senderInfo = getLang(senderLang)
   const time = formatMessageTime(timestamp)
   const hasTranslation = translated !== original
+  const audioToPlay = translatedAudio ?? originalAudio ?? null
 
   if (isTranslating) {
     return (
@@ -848,18 +892,18 @@ function MessageBubble({ message }: { message: Message }) {
         {isAudio && (
           <p className={`text-xs mb-1 ${isMine ? 'text-white/60' : 'text-lt-muted'}`}>🎤 Voice</p>
         )}
-        <p className="text-white text-base leading-relaxed">
-          {showOriginal ? original : translated}
-        </p>
-        {translatedAudio && !isMine && (
+        {audioToPlay && (
           <AudioPlayer
-            audioBase64={translatedAudio.audioBase64}
-            mimeType={translatedAudio.mimeType}
+            audioBase64={audioToPlay.audioBase64}
+            mimeType={audioToPlay.mimeType}
             isMine={isMine}
-            autoPlay={message.autoPlay}
+            autoPlay={isAudio && !isMine}
           />
         )}
-        {hasTranslation && !translatedAudio && (
+        <p className={`text-white text-base leading-relaxed ${audioToPlay ? 'mt-2' : ''}`}>
+          {showOriginal ? original : translated}
+        </p>
+        {hasTranslation && (
           <p className={`text-xs mt-1.5 ${isMine ? 'text-white/50' : 'text-lt-muted'}`}>
             {showOriginal ? '↩ show translation' : `${senderInfo.flag} tap to see original`}
           </p>
