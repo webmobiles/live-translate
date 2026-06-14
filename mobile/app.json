@@ -1,39 +1,56 @@
 {
   "expo": {
-    "name": "LiveTranslate",
-    "slug": "live-translate",
+    "name": "Hellovia Translate",
+    "slug": "hellovia-translate",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "livetranslate",
+    "scheme": "hellovia-translate",
     "userInterfaceStyle": "dark",
     "splash": {
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#0A0A0F"
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.livetranslate.app",
+      "bundleIdentifier": "app.hellovia.translate",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "LiveTranslate uses your microphone to record voice messages for live translation."
+        "NSMicrophoneUsageDescription": "Hellovia Translate uses your microphone to record voice messages for live translation.",
+        "NSPhotoLibraryUsageDescription": "Hellovia Translate uses your photo library to set your profile picture."
       }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0A0A0F"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#5B21B6"
       },
-      "package": "com.livetranslate.app",
+      "package": "app.hellovia.translate",
+      "versionCode": 1,
       "permissions": [
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.INTERNET"
       ]
     },
     "plugins": [
       "expo-router",
       "expo-audio",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Hellovia Translate uses your photo library to set your profile picture."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
     }
   }
 }
