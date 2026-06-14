@@ -1,0 +1,192 @@
+{
+  "common": {
+    "back": "← Back",
+    "continue": "Continue →",
+    "loading": "Loading…",
+    "saving": "Saving…",
+    "signOut": "Sign out",
+    "uiLanguage": "Select language",
+    "change": "Change →",
+    "error": {
+      "network": "Could not reach the server. Check your network.",
+      "generic": "Something went wrong."
+    }
+  },
+  "home": {
+    "tagline": "Real-time AI translation across languages",
+    "poweredBy": "Powered by",
+    "createRoom": "Create Room",
+    "createRoomSub": "Start a new translation session",
+    "joinRoom": "Join Room",
+    "joinRoomSub": "Enter a room code to join"
+  },
+  "login": {
+    "title": "Welcome",
+    "subtitle": "Sign in to start translating",
+    "emailSignIn": "Sign in",
+    "createAccount": "Create account",
+    "namePlaceholder": "Name (optional)",
+    "emailPlaceholder": "Email",
+    "passwordPlaceholder": "Password",
+    "or": "or",
+    "continueWithGoogle": "Continue with Google",
+    "noAccount": "Use email and password, or continue with Google.",
+    "terms": "By signing in you agree to our terms of service. Your data is only used to provide the translation service.",
+    "error": {
+      "oauth_failed": "Google sign-in failed. Please try again.",
+      "google_not_configured": "Google sign-in is not configured on this server.",
+      "too_many_requests": "Too many attempts. Please wait a moment and try again.",
+      "email_invalid": "Enter a valid email address.",
+      "password_too_short": "Password must be at least 8 characters.",
+      "email_already_registered": "That email already has a password. Sign in instead.",
+      "email_password_required": "Enter your email and password.",
+      "invalid_credentials": "Email or password is incorrect.",
+      "network": "Could not reach the server. Check your network.",
+      "auth_failed": "Sign-in failed. Please try again."
+    }
+  },
+  "onboarding": {
+    "title": "Almost there!",
+    "subtitle": "Set up your profile in a few seconds",
+    "step": {
+      "nickname": {
+        "label": "What should we call you?",
+        "placeholder": "Your name or nickname",
+        "hint": "This shows to other participants. It doesn't need to be unique."
+      },
+      "motherLang": {
+        "label": "Your native language",
+        "hint": "This is the language you speak. Rooms you create will default to this."
+      },
+      "targetLang": {
+        "label": "Preferred translation language",
+        "hint": "When others speak, you'll see translations in this language by default.",
+        "pick": "Pick a language",
+        "sameWarning": "⚠ This is the same as your native language. You can change it."
+      }
+    },
+    "finish": "Let's go 🚀"
+  },
+  "create": {
+    "title": "Create Room",
+    "roomType": "Room Type",
+    "mode": {
+      "normal": "Multi-user",
+      "normalSub": "Share a code, each person joins with their language",
+      "solo": "Solo / Duo",
+      "soloSub": "Two languages, one device — flip to switch speaker"
+    },
+    "fields": {
+      "roomName": "Room Name (optional)",
+      "roomNamePlaceholder": "e.g. Team Meeting, Conference…",
+      "yourName": "Your Name",
+      "yourNamePlaceholder": "Enter your name",
+      "yourLanguage": "Your Language",
+      "yourLanguageSub": "I speak in…",
+      "guestLanguage": "Default guest language",
+      "guestLanguageSub": "Guests will read in…",
+      "guestLanguageHint": "Pre-fills the language picker when someone joins with your code. They can still change it.",
+      "soloLanguages": "Choose Two Languages",
+      "personA": "Person A",
+      "personB": "Person B"
+    },
+    "options": {
+      "title": "Options",
+      "textInput": "Text input",
+      "voiceInput": "Voice input",
+      "pipeline": {
+        "stt": "STT then translate",
+        "direct": "Direct voice translation"
+      },
+      "translatedText": "Translated text",
+      "translatedAudio": "Translated audio"
+    },
+    "info": {
+      "soloTitle": "How Solo / Duo works",
+      "soloBody": "A big toggle lets you switch who is speaking. Tap your language side, then speak or type. The translation appears instantly. No sharing needed — it's just the two of you on one device.",
+      "normalTitle": "How it works",
+      "normalBody": "Share the room code with others. Each person selects their language. Messages are translated live — everyone reads in their own language."
+    },
+    "errors": {
+      "nickRequired": "Please enter your name.",
+      "sameLang": "Please choose two different languages."
+    },
+    "cta": "Create Room",
+    "creating": "Creating…"
+  },
+  "join": {
+    "title": "Join Room",
+    "fields": {
+      "code": "Room Code",
+      "codePlaceholder": "ABC123",
+      "yourName": "Your Name",
+      "yourNamePlaceholder": "Enter your name",
+      "yourLanguage": "Your Language",
+      "yourLanguageSub": "I want to read in…",
+      "suggestedByHost": "Suggested by host"
+    },
+    "errors": {
+      "codeRequired": "Please enter the 6-character room code.",
+      "nickRequired": "Please enter your name.",
+      "notFound": "Room not found. Check the code."
+    },
+    "cta": "Join Room",
+    "joining": "Joining…"
+  },
+  "room": {
+    "live": "Live",
+    "connecting": "Connecting…",
+    "reconnected": "Reconnected to room",
+    "recreated": "Room recreated after server restart — share the code again if needed",
+    "error": {
+      "network": "Could not reach the server.",
+      "recreate": "Could not recreate the room."
+    },
+    "gone": "This room no longer exists",
+    "participants": "{{count}} participant",
+    "participants_plural": "{{count}} participants",
+    "joined": "{{nickname}} joined ({{lang}})",
+    "left": "{{nickname}} left",
+    "me": "Me",
+    "micRequired": "Microphone access is required for voice messages.",
+    "inputPlaceholder": "Message in {{lang}}…",
+    "inputPlaceholderSolo": "Type in {{lang}}…",
+    "stopRecording": "Stop recording",
+    "holdToRecord": "Hold to record",
+    "sendMessage": "Send message",
+    "autoplayVoice": "Autoplay voice",
+    "emptyState": {
+      "solo": "Tap your language side above, then speak or type.\nThe translation appears here instantly.",
+      "normal": "Send a message or hold the mic button to speak.\nEveryone gets it in their own language."
+    },
+    "config": {
+      "textIn": "Text",
+      "voiceIn": "Voice",
+      "directVoice": "Direct voice",
+      "textOut": "Text out",
+      "audioOut": "Audio out"
+    },
+    "alert": {
+      "tooShortTitle": "Voice message too short",
+      "tooShortBody": "Record at least 1 second before sending.",
+      "dismiss": "Dismiss voice message alert"
+    },
+    "solo": {
+      "speaking": "speaking"
+    }
+  },
+  "settings": {
+    "title": "Account settings",
+    "avatar": "Profile photo",
+    "avatarChange": "Change photo",
+    "avatarHint": "JPG, PNG or GIF · max 5 MB",
+    "nickname": "Your name",
+    "nicknamePlaceholder": "Your name or nickname",
+    "motherLang": "Native language",
+    "targetLang": "Preferred translation language",
+    "uiLanguage": "App language",
+    "save": "Save changes",
+    "saved": "Saved!",
+    "signOutConfirm": "Are you sure you want to sign out?"
+  }
+}

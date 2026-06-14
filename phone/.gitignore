@@ -1,0 +1,20 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Generated platform folders are recreated by `flutter create .`
+# (keep them if you commit native config; remove the lines below to track them)
+# /android/
+# /ios/
+
+# Secrets
+.env

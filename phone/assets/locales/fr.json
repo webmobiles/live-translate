@@ -1,0 +1,179 @@
+{
+  "common": {
+    "back": "← Retour",
+    "continue": "Continuer →",
+    "loading": "Chargement…",
+    "saving": "Enregistrement…",
+    "signOut": "Déconnexion",
+    "uiLanguage": "Choisir la langue",
+    "change": "Modifier →",
+    "error": {
+      "network": "Impossible de joindre le serveur. Vérifiez votre connexion.",
+      "generic": "Une erreur est survenue."
+    }
+  },
+  "home": {
+    "tagline": "Traduction IA en temps réel entre les langues",
+    "poweredBy": "Propulsé par",
+    "createRoom": "Créer un salon",
+    "createRoomSub": "Démarrer une nouvelle session de traduction",
+    "joinRoom": "Rejoindre un salon",
+    "joinRoomSub": "Entrez un code de salon pour rejoindre"
+  },
+  "login": {
+    "title": "Bienvenue",
+    "subtitle": "Connectez-vous pour commencer à traduire",
+    "continueWithGoogle": "Continuer avec Google",
+    "noAccount": "Pas de compte nécessaire — Google crée automatiquement le vôtre.",
+    "terms": "En vous connectant, vous acceptez nos conditions d'utilisation. Vos données ne sont utilisées que pour fournir le service de traduction.",
+    "error": {
+      "oauth_failed": "La connexion Google a échoué. Veuillez réessayer.",
+      "google_not_configured": "La connexion Google n'est pas configurée sur ce serveur.",
+      "too_many_requests": "Trop de tentatives. Veuillez patienter un moment."
+    }
+  },
+  "onboarding": {
+    "title": "Presque prêt !",
+    "subtitle": "Configurez votre profil en quelques secondes",
+    "step": {
+      "nickname": {
+        "label": "Comment devons-nous vous appeler ?",
+        "placeholder": "Votre nom ou surnom",
+        "hint": "Visible par les autres participants. Pas besoin d'être unique."
+      },
+      "motherLang": {
+        "label": "Votre langue maternelle",
+        "hint": "C'est la langue que vous parlez. Les salons que vous créez utiliseront cette langue par défaut."
+      },
+      "targetLang": {
+        "label": "Langue de traduction préférée",
+        "hint": "Quand les autres parlent, vous verrez les traductions dans cette langue par défaut.",
+        "pick": "Choisir une langue",
+        "sameWarning": "⚠ C'est la même que votre langue maternelle. Vous pouvez la modifier."
+      }
+    },
+    "finish": "C'est parti 🚀"
+  },
+  "create": {
+    "title": "Créer un salon",
+    "roomType": "Type de salon",
+    "mode": {
+      "normal": "Multi-utilisateurs",
+      "normalSub": "Partagez un code, chaque personne rejoint avec sa langue",
+      "solo": "Solo / Duo",
+      "soloSub": "Deux langues, un appareil — basculez pour changer d'interlocuteur"
+    },
+    "fields": {
+      "roomName": "Nom du salon (optionnel)",
+      "roomNamePlaceholder": "ex. Réunion d'équipe, Conférence…",
+      "yourName": "Votre nom",
+      "yourNamePlaceholder": "Entrez votre nom",
+      "yourLanguage": "Votre langue",
+      "yourLanguageSub": "Je parle en…",
+      "guestLanguage": "Langue par défaut des invités",
+      "guestLanguageSub": "Les invités liront en…",
+      "guestLanguageHint": "Pré-remplit le sélecteur de langue quand quelqu'un rejoint avec votre code. Ils peuvent toujours le modifier.",
+      "soloLanguages": "Choisissez deux langues",
+      "personA": "Personne A",
+      "personB": "Personne B"
+    },
+    "options": {
+      "title": "Options",
+      "textInput": "Saisie texte",
+      "voiceInput": "Saisie vocale",
+      "pipeline": {
+        "stt": "STT puis traduction",
+        "direct": "Traduction vocale directe"
+      },
+      "translatedText": "Texte traduit",
+      "translatedAudio": "Audio traduit"
+    },
+    "info": {
+      "soloTitle": "Comment fonctionne le mode Solo / Duo",
+      "soloBody": "Un grand bouton permet de choisir qui parle. Appuyez sur votre côté de langue, puis parlez ou tapez. La traduction apparaît instantanément. Pas de partage nécessaire — c'est juste vous deux sur un appareil.",
+      "normalTitle": "Comment ça marche",
+      "normalBody": "Partagez le code du salon avec les autres. Chaque personne choisit sa langue. Les messages sont traduits en direct — tout le monde lit dans sa propre langue."
+    },
+    "errors": {
+      "nickRequired": "Veuillez entrer votre nom.",
+      "sameLang": "Veuillez choisir deux langues différentes."
+    },
+    "cta": "Créer le salon",
+    "creating": "Création…"
+  },
+  "join": {
+    "title": "Rejoindre un salon",
+    "fields": {
+      "code": "Code du salon",
+      "codePlaceholder": "ABC123",
+      "yourName": "Votre nom",
+      "yourNamePlaceholder": "Entrez votre nom",
+      "yourLanguage": "Votre langue",
+      "yourLanguageSub": "Je veux lire en…",
+      "suggestedByHost": "Suggéré par l'hôte"
+    },
+    "errors": {
+      "codeRequired": "Veuillez entrer le code à 6 caractères.",
+      "nickRequired": "Veuillez entrer votre nom.",
+      "notFound": "Salon introuvable. Vérifiez le code."
+    },
+    "cta": "Rejoindre",
+    "joining": "Connexion…"
+  },
+  "room": {
+    "live": "En direct",
+    "connecting": "Connexion…",
+    "reconnected": "Reconnecté au salon",
+    "recreated": "Salon recréé après redémarrage — partagez à nouveau le code si nécessaire",
+    "error": {
+      "network": "Impossible de joindre le serveur.",
+      "recreate": "Impossible de recréer le salon."
+    },
+    "gone": "Ce salon n'existe plus",
+    "participants": "{{count}} participant",
+    "participants_plural": "{{count}} participants",
+    "joined": "{{nickname}} a rejoint ({{lang}})",
+    "left": "{{nickname}} a quitté",
+    "me": "Moi",
+    "micRequired": "L'accès au microphone est requis pour les messages vocaux.",
+    "inputPlaceholder": "Message en {{lang}}…",
+    "inputPlaceholderSolo": "Taper en {{lang}}…",
+    "stopRecording": "Arrêter l'enregistrement",
+    "holdToRecord": "Maintenir pour enregistrer",
+    "sendMessage": "Envoyer le message",
+    "autoplayVoice": "Lecture auto",
+    "emptyState": {
+      "solo": "Appuyez sur votre côté de langue ci-dessus, puis parlez ou tapez.\nLa traduction apparaît ici instantanément.",
+      "normal": "Envoyez un message ou maintenez le bouton micro pour parler.\nTout le monde reçoit le message dans sa propre langue."
+    },
+    "config": {
+      "textIn": "Texte",
+      "voiceIn": "Voix",
+      "directVoice": "Voix directe",
+      "textOut": "Texte traduit",
+      "audioOut": "Audio traduit"
+    },
+    "alert": {
+      "tooShortTitle": "Message vocal trop court",
+      "tooShortBody": "Enregistrez au moins 1 seconde avant d'envoyer.",
+      "dismiss": "Fermer l'alerte"
+    },
+    "solo": {
+      "speaking": "parle"
+    }
+  },
+  "settings": {
+    "title": "Paramètres du compte",
+    "avatar": "Photo de profil",
+    "avatarChange": "Changer la photo",
+    "avatarHint": "JPG, PNG ou GIF · max 5 Mo",
+    "nickname": "Votre nom",
+    "nicknamePlaceholder": "Votre nom ou surnom",
+    "motherLang": "Langue maternelle",
+    "targetLang": "Langue de traduction préférée",
+    "uiLanguage": "Langue de l'application",
+    "save": "Enregistrer",
+    "saved": "Enregistré !",
+    "signOutConfirm": "Êtes-vous sûr de vouloir vous déconnecter ?"
+  }
+}
