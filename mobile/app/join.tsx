@@ -60,6 +60,7 @@ export default function JoinScreen() {
                 language,
                 roomName: res.room.name,
                 isHost:   '0',
+                mode:     res.room.config?.mode ?? 'normal',
               },
             });
           } else {

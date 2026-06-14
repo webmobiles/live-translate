@@ -72,6 +72,7 @@ export default function CreateScreen() {
                 language: isSolo ? soloLangB : language,
                 roomName: res.room?.name ?? res.code,
                 isHost:   '1',
+                mode:     isSolo ? 'solo_multilang' : 'normal',
               },
             });
           } else {

@@ -23,12 +23,15 @@ import type { Message, Participant, Room } from '@/types';
 const MIN_VOICE_MESSAGE_DURATION_MS = 1000;
 
 export default function RoomScreen() {
-  const { code, nickname, language: initialLang, roomName } = useLocalSearchParams<{
+  const { code, nickname, language: initialLang, roomName, mode } = useLocalSearchParams<{
     code: string;
     nickname: string;
     language: string;
     roomName: string;
+    mode: string;
   }>();
+
+  const isSoloMode = mode === 'solo_multilang';
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -215,9 +218,11 @@ export default function RoomScreen() {
             {roomName ?? code}
           </Text>
           <View className="flex-row items-center gap-2">
-            <Pressable onPress={copyCode}>
-              <Text className="text-accent text-xs font-mono font-bold">{code} 📋</Text>
-            </Pressable>
+            {!isSoloMode && (
+              <Pressable onPress={copyCode}>
+                <Text className="text-accent text-xs font-mono font-bold">{code} 📋</Text>
+              </Pressable>
+            )}
             <View className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-accent' : 'bg-danger'}`} />
             <Text className="text-muted text-xs">{isConnected ? 'Live' : 'Reconnecting…'}</Text>
           </View>
