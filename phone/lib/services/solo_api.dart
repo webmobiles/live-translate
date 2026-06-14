@@ -5,6 +5,7 @@ import 'dart:math';
 import '../config.dart';
 import '../models/message.dart';
 import '../models/room_config.dart';
+import 'client_log_service.dart';
 
 /// HTTP client for solo ("Solo / Duo") rooms.
 ///
@@ -15,19 +16,38 @@ import '../models/room_config.dart';
 class SoloApi {
   static Future<Map<String, dynamic>> _post(
     String path,
-    Map<String, dynamic> body,
-  ) async {
-    final client = HttpClient();
+    Map<String, dynamic> body, {
+    required String label,
+  }) async {
+    final uri = Uri.parse('$kServerUrl$path');
+    final startedAt = DateTime.now();
+    ClientLogService.info('client.solo.$label.request', {
+      'url': uri.toString(),
+      'path': path,
+      'bodyKeys': body.keys.toList(),
+    });
+
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 12);
     try {
-      final uri = Uri.parse('$kServerUrl$path');
       final req = await client.postUrl(uri);
       req.headers.contentType = ContentType.json;
       req.write(jsonEncode(body));
       final res = await req.close();
       final text = await utf8.decoder.bind(res).join();
+      final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
       final decoded = text.isNotEmpty
           ? jsonDecode(text) as Map<String, dynamic>
           : <String, dynamic>{};
+
+      ClientLogService.info('client.solo.$label.response', {
+        'url': uri.toString(),
+        'statusCode': res.statusCode,
+        'ok': decoded['ok'],
+        'durationMs': durationMs,
+        'error': decoded['error']?.toString(),
+      });
+
       if (res.statusCode < 200 ||
           res.statusCode >= 300 ||
           decoded['ok'] != true) {
@@ -36,6 +56,13 @@ class SoloApi {
         );
       }
       return decoded;
+    } catch (err) {
+      ClientLogService.error('client.solo.$label.exception', {
+        'url': uri.toString(),
+        'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        'error': err.toString(),
+      });
+      rethrow;
     } finally {
       client.close(force: true);
     }
@@ -49,7 +76,7 @@ class SoloApi {
     final res = await _post('/api/solo/rooms', {
       if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
       'config': config.toJson(),
-    });
+    }, label: 'create');
     final room = res['room'] as Map?;
     final code = res['code'] as String;
     return SoloRoom(code: code, name: (room?['name'] as String?) ?? code);
@@ -70,7 +97,7 @@ class SoloApi {
       'sender': sender,
       'senderLang': senderLang,
       'targetLang': targetLang,
-    });
+    }, label: 'text');
     return Message.fromJson(Map<String, dynamic>.from(res['message'] as Map));
   }
 
@@ -92,7 +119,7 @@ class SoloApi {
       'sender': sender,
       'senderLang': senderLang,
       'targetLang': targetLang,
-    });
+    }, label: 'audio');
     return Message.fromJson(Map<String, dynamic>.from(res['message'] as Map));
   }
 

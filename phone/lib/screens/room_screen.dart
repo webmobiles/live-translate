@@ -10,6 +10,7 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 import '../models/language.dart';
 import '../models/message.dart';
 import '../models/participant.dart';
+import '../services/client_log_service.dart';
 import '../services/socket_service.dart';
 import '../services/solo_api.dart';
 import '../theme.dart';
@@ -60,6 +61,9 @@ class _RoomScreenState extends State<RoomScreen> {
   String _mySocketId = '';
   String? _recordingPath;
   int _recordingStartedAt = 0;
+
+  // Failed solo sends kept for one-tap retry (message id → payload).
+  final Map<String, _RetryPayload> _retry = {};
 
   io.Socket? _socket;
 
@@ -330,11 +334,18 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   // ── Solo send (HTTP, no socket) ─────────────────────────────────────────────
-  Future<void> _sendTextSolo(String text) async {
+  Future<void> _sendTextSolo(String text, {String? senderLangOverride}) async {
     final id = SoloApi.newId();
-    final senderLang = _soloActiveLanguage ?? _soloLanguages.first;
+    final senderLang =
+        senderLangOverride ?? _soloActiveLanguage ?? _soloLanguages.first;
     final targetLang = _otherSoloLanguage(senderLang);
     final now = DateTime.now().millisecondsSinceEpoch;
+    ClientLogService.info('client.solo.text.send', {
+      'code': widget.code,
+      'senderLang': senderLang,
+      'targetLang': targetLang,
+      'textLength': text.length,
+    });
     // Optimistic bubble showing the typed text while translation runs.
     setState(() {
       _messages.add(Message(
@@ -346,6 +357,7 @@ class _RoomScreenState extends State<RoomScreen> {
         targetLang: targetLang,
         isMine: true,
         timestamp: now,
+        isTranslating: true,
       ));
     });
     _scrollToEnd();
@@ -359,6 +371,11 @@ class _RoomScreenState extends State<RoomScreen> {
         targetLang: targetLang,
       );
       if (!mounted) return;
+      ClientLogService.info('client.solo.text.translated', {
+        'code': widget.code,
+        'id': msg.id,
+        'translatedLength': msg.translated.length,
+      });
       setState(() {
         _messages.removeWhere((m) => m.id == id);
         _messages.add(msg);
@@ -366,16 +383,41 @@ class _RoomScreenState extends State<RoomScreen> {
       _scrollToEnd();
     } catch (e) {
       if (!mounted) return;
-      setState(() => _messages.removeWhere((m) => m.id == id));
-      _snack('Could not translate message');
+      ClientLogService.error('client.solo.text.error', {
+        'code': widget.code,
+        'error': e.toString(),
+      });
+      _retry[id] = _RetryPayload(
+        isAudio: false,
+        text: text,
+        senderLang: senderLang,
+        targetLang: targetLang,
+      );
+      setState(() {
+        final i = _messages.indexWhere((m) => m.id == id);
+        if (i >= 0) {
+          _messages[i] = _messages[i]
+              .copyWith(isTranslating: false, failed: true, error: e.toString());
+        }
+      });
+      _snack('Translation failed: $e');
     }
   }
 
-  Future<void> _sendAudioSolo(String audioBase64, int durationMs) async {
+  Future<void> _sendAudioSolo(String audioBase64, int durationMs,
+      {String? senderLangOverride}) async {
     final id = SoloApi.newId();
-    final senderLang = _soloActiveLanguage ?? _soloLanguages.first;
+    final senderLang =
+        senderLangOverride ?? _soloActiveLanguage ?? _soloLanguages.first;
     final targetLang = _otherSoloLanguage(senderLang);
     final now = DateTime.now().millisecondsSinceEpoch;
+    ClientLogService.info('client.solo.audio.send', {
+      'code': widget.code,
+      'senderLang': senderLang,
+      'targetLang': targetLang,
+      'durationMs': durationMs,
+      'audioBytesApprox': (audioBase64.length * 0.75).round(),
+    });
     // Optimistic "…" bubble until transcription + translation return.
     setState(() {
       _messages.add(Message(
@@ -403,6 +445,12 @@ class _RoomScreenState extends State<RoomScreen> {
         targetLang: targetLang,
       );
       if (!mounted) return;
+      ClientLogService.info('client.solo.audio.translated', {
+        'code': widget.code,
+        'id': msg.id,
+        'originalLength': msg.original.length,
+        'translatedLength': msg.translated.length,
+      });
       setState(() {
         _messages.removeWhere((m) => m.id == id);
         _messages.add(msg);
@@ -410,8 +458,37 @@ class _RoomScreenState extends State<RoomScreen> {
       _scrollToEnd();
     } catch (e) {
       if (!mounted) return;
-      setState(() => _messages.removeWhere((m) => m.id == id));
-      _snack('Could not process voice message');
+      ClientLogService.error('client.solo.audio.error', {
+        'code': widget.code,
+        'error': e.toString(),
+      });
+      _retry[id] = _RetryPayload(
+        isAudio: true,
+        audioBase64: audioBase64,
+        durationMs: durationMs,
+        senderLang: senderLang,
+        targetLang: targetLang,
+      );
+      setState(() {
+        final i = _messages.indexWhere((m) => m.id == id);
+        if (i >= 0) {
+          _messages[i] = _messages[i]
+              .copyWith(isTranslating: false, failed: true, error: e.toString());
+        }
+      });
+      _snack('Voice translation failed: $e');
+    }
+  }
+
+  void _retrySolo(String id) {
+    final payload = _retry.remove(id);
+    if (payload == null) return;
+    setState(() => _messages.removeWhere((m) => m.id == id));
+    if (payload.isAudio) {
+      _sendAudioSolo(payload.audioBase64, payload.durationMs,
+          senderLangOverride: payload.senderLang);
+    } else {
+      _sendTextSolo(payload.text, senderLangOverride: payload.senderLang);
     }
   }
 
@@ -455,7 +532,10 @@ class _RoomScreenState extends State<RoomScreen> {
                             ),
                           );
                         }
-                        return MessageBubble(message: m);
+                        return MessageBubble(
+                          message: m,
+                          onRetry: m.failed ? () => _retrySolo(m.id) : null,
+                        );
                       },
                     ),
             ),
@@ -779,4 +859,22 @@ class _RoomScreenState extends State<RoomScreen> {
       ),
     );
   }
+}
+
+/// Stored details for retrying a failed solo send.
+class _RetryPayload {
+  final bool isAudio;
+  final String text;
+  final String audioBase64;
+  final int durationMs;
+  final String senderLang;
+  final String targetLang;
+  const _RetryPayload({
+    required this.isAudio,
+    this.text = '',
+    this.audioBase64 = '',
+    this.durationMs = 0,
+    required this.senderLang,
+    required this.targetLang,
+  });
 }

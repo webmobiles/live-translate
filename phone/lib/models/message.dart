@@ -10,6 +10,8 @@ class Message {
   final bool isAudio;
   final int timestamp;
   final bool isTranslating;
+  final bool failed;
+  final String? error;
 
   const Message({
     required this.id,
@@ -22,6 +24,8 @@ class Message {
     this.isAudio = false,
     required this.timestamp,
     this.isTranslating = false,
+    this.failed = false,
+    this.error,
   });
 
   bool get isSystem => sender == 'system';
@@ -40,7 +44,8 @@ class Message {
         isTranslating: j['isTranslating'] as bool? ?? false,
       );
 
-  Message copyWith({bool? isTranslating}) => Message(
+  Message copyWith({bool? isTranslating, bool? failed, String? error}) =>
+      Message(
         id: id,
         original: original,
         translated: translated,
@@ -51,5 +56,7 @@ class Message {
         isAudio: isAudio,
         timestamp: timestamp,
         isTranslating: isTranslating ?? this.isTranslating,
+        failed: failed ?? this.failed,
+        error: error ?? this.error,
       );
 }
