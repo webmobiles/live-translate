@@ -4,6 +4,12 @@ import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
+import session from 'express-session';
+import connectPgSimple from 'connect-pg-simple';
+import passport from 'passport';
+import { connectAuthDb, pool as authPool } from './auth/db';
+import { configurePassport } from './auth/passport';
+import { authRouter } from './auth/routes';
 import { logger, flushLogs } from './observability/logger';
 import { severity } from './observability/severity';
 import * as appMetrics from './observability/metrics';
@@ -18,9 +24,41 @@ import * as realtime from './facades/realtime';
 import { healthRouter } from './startup/healthEndpoint';
 import { runHealthChecks } from './startup/healthCheck';
 
+const PgSession = connectPgSimple(session);
+
 const app = express();
-app.use(cors());
+app.set('trust proxy', 1);
+app.use(cors({
+  origin:      process.env.FRONTEND_URL ?? 'http://localhost:5173',
+  credentials: true,
+}));
 app.use(express.json({ limit: '50mb' }));
+
+// ── Session + Passport (must be before routes) ─────────────────────────────
+// Session is configured after connectAuthDb() so authPool is ready.
+// We do a lazy-init pattern: the middleware references authPool by closure.
+app.use((req, res, next) => {
+  // Inline session setup so we can reference authPool after it's initialised.
+  const sessionMiddleware = session({
+    store: new PgSession({ pool: authPool, tableName: 'session' }),
+    name:             'lt.sid',
+    secret:           process.env.SESSION_SECRET ?? 'change-me-in-production',
+    resave:           false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure:   process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge:   30 * 24 * 60 * 60 * 1000, // 30 days
+    },
+  });
+  sessionMiddleware(req, res, next);
+});
+app.use(passport.initialize());
+app.use(passport.session());
+
+// ── Auth routes ─────────────────────────────────────────────────────────────
+app.use('/auth', authRouter);
 app.use((req, res, next) => {
   const startedAt = Date.now();
   res.on('finish', () => {
@@ -509,6 +547,10 @@ async function start() {
 
   // Verify all external services are reachable before accepting traffic
   await runHealthChecks();
+
+  // Auth DB must connect before session middleware uses authPool
+  await connectAuthDb();
+  configurePassport();
 
   // Connect to the selected database provider
   await db.connect();

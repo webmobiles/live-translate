@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { connectSocket } from '@/lib/socket'
 import { LanguageSelector, LanguageBadge } from '@/components/LanguageSelector'
-import type { RoomConfig } from '@/types'
+import type { RoomConfig, User } from '@/types'
 
 export const Route = createFileRoute('/create')({
   component: CreateScreen,
@@ -11,20 +12,22 @@ export const Route = createFileRoute('/create')({
 type RoomMode = 'normal' | 'solo_multilang'
 
 function CreateScreen() {
-  const navigate = useNavigate()
+  const navigate     = useNavigate()
+  const queryClient  = useQueryClient()
+  const me = queryClient.getQueryData<User | null>(['auth-me'])
 
   // ── mode ──────────────────────────────────────────────────────────────
   const [roomMode, setRoomMode] = useState<RoomMode>('normal')
 
   // ── normal mode fields ─────────────────────────────────────────────────
   const [roomName, setRoomName]       = useState('')
-  const [nickname, setNickname]       = useState('')
-  const [language, setLanguage]       = useState('en')
+  const [nickname, setNickname]       = useState(me?.nickname ?? '')
+  const [language, setLanguage]       = useState(me?.mother_language ?? 'en')
   const [showLangPicker, setShowLangPicker] = useState(false)
 
   // ── solo mode fields ───────────────────────────────────────────────────
-  const [soloLangA, setSoloLangA] = useState('es')
-  const [soloLangB, setSoloLangB] = useState('en')
+  const [soloLangA, setSoloLangA] = useState(me?.mother_language ?? 'es')
+  const [soloLangB, setSoloLangB] = useState(me?.target_language ?? 'en')
   const [showSoloPickerA, setShowSoloPickerA] = useState(false)
   const [showSoloPickerB, setShowSoloPickerB] = useState(false)
 

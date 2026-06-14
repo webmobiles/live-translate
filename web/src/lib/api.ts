@@ -1,0 +1,37 @@
+import type { User } from '@/types'
+
+// All /auth calls go through the Vite proxy → Express server
+// so cookies are same-origin and no CORS header is needed.
+
+export async function fetchUser(): Promise<User | null> {
+  try {
+    const res = await fetch('/auth/me', { credentials: 'include' })
+    if (res.status === 401) return null
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return res.json()
+  } catch {
+    return null
+  }
+}
+
+export async function saveProfile(data: {
+  nickname: string
+  motherLanguage: string
+  targetLanguage: string
+}): Promise<User> {
+  const res = await fetch('/auth/profile', {
+    method:      'PATCH',
+    credentials: 'include',
+    headers:     { 'Content-Type': 'application/json' },
+    body:        JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error ?? `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function logout(): Promise<void> {
+  await fetch('/auth/logout', { method: 'POST', credentials: 'include' })
+}

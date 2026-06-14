@@ -187,9 +187,23 @@ The server sends Pino logs to Loki and OpenTelemetry traces/metrics to the local
 ```bash
 cd server
 npm install
-cp .env.example .env    # add your OPENAI_API_KEY
+cp .env.example .env    # add your OPENAI_API_KEY and Google OAuth credentials (see below)
 npm run dev
 ```
+
+#### Google OAuth setup
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com/) → **APIs & Services → Credentials**
+2. **Create credentials → OAuth 2.0 Client ID** → Application type: **Web application**
+3. Under **Authorized redirect URIs** add: `http://localhost:4000/auth/google/callback`
+4. Copy the credentials into your `.env`:
+
+```env
+GOOGLE_CLIENT_ID=your-client-id-here.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-secret-here
+```
+
+> The server starts without these values (Google login is disabled with a warning). Set them when you are ready to enable authentication.
 
 In a second terminal start the Inngest dev runner:
 ```bash

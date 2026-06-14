@@ -1,3 +1,13 @@
+export interface User {
+  id: string
+  name: string
+  nickname: string | null
+  email: string | null
+  avatar_url: string | null
+  mother_language: string | null
+  target_language: string | null
+}
+
 export interface Participant {
   socketId: string;
   nickname: string;

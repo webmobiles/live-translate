@@ -6,6 +6,7 @@ BASE_DIR="${1:-${SCRIPT_DIR}/../data}"
 MODE="${LIVE_TRANSLATE_DATA_MODE:-777}"
 
 DIRS=(
+  postgres
   nats
   redpanda
   scylla

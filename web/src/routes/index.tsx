@@ -1,4 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
+import { logout } from '@/lib/api'
+import type { User } from '@/types'
 
 export const Route = createFileRoute('/')({
   component: HomeScreen,
@@ -7,7 +10,15 @@ export const Route = createFileRoute('/')({
 const LANG_CHIPS = ['🇺🇸 EN', '🇪🇸 ES', '🇫🇷 FR', '🇩🇪 DE', '🇨🇳 ZH', '🇯🇵 JA', '🇧🇷 PT', '🇷🇺 RU']
 
 function HomeScreen() {
-  const navigate = useNavigate()
+  const navigate     = useNavigate()
+  const queryClient  = useQueryClient()
+  const me = queryClient.getQueryData<User | null>(['auth-me'])
+
+  const handleLogout = async () => {
+    await logout()
+    queryClient.setQueryData(['auth-me'], null)
+    navigate({ to: '/login' })
+  }
 
   return (
     <div className="min-h-screen bg-lt-bg flex items-center justify-center px-6">
@@ -25,6 +36,26 @@ function HomeScreen() {
             </p>
           </div>
         </div>
+
+        {/* User bar */}
+        {me && (
+          <div className="flex items-center justify-between bg-lt-card border border-lt-border rounded-xl px-4 py-3">
+            <div className="flex items-center gap-3 min-w-0">
+              {me.avatar_url && (
+                <img src={me.avatar_url} alt="" className="w-8 h-8 rounded-full flex-shrink-0" />
+              )}
+              <span className="text-white text-sm font-medium truncate">
+                {me.nickname ?? me.name}
+              </span>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="text-lt-muted text-xs hover:text-white transition-colors flex-shrink-0 ml-3"
+            >
+              Sign out
+            </button>
+          </div>
+        )}
 
         {/* Powered by */}
         <div className="flex items-center justify-center gap-2 bg-lt-card rounded-xl px-4 py-3 border border-lt-border">
