@@ -7,7 +7,7 @@ export const DEFAULT_ROOM_CONFIG = {
   translationProvider: 'ollama' as 'ollama' | 'openai',
   output: {
     translatedText: true,
-    translatedAudio: false,
+    translatedAudio: true,
   },
 };
 

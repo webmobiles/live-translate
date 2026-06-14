@@ -10,7 +10,7 @@ import type { Message, Participant, RoomConfig } from '@/types'
 const DEFAULT_ROOM_CONFIG: RoomConfig = {
   input: { text: true, voice: true },
   voicePipeline: 'stt-text-translate',
-  output: { translatedText: true, translatedAudio: false },
+  output: { translatedText: true, translatedAudio: true },
 }
 const MIN_VOICE_MESSAGE_DURATION_MS = 1000
 
