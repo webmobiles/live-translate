@@ -22,6 +22,9 @@ import * as db from './facades/db';
 import * as queue from './facades/queue';
 import * as workflows from './facades/workflows';
 import * as translation from './facades/translation';
+import * as stt from './facades/stt';
+import * as tts from './facades/tts';
+import * as voiceTranslation from './facades/voiceTranslation';
 import * as realtime from './facades/realtime';
 import { healthRouter } from './startup/healthEndpoint';
 import { runHealthChecks } from './startup/healthCheck';
@@ -134,6 +137,255 @@ app.use('/api/inngest', workflows.httpHandler());
 app.use('/health', healthRouter);
 app.get('/metrics', metricsHandler);
 
+app.get('/api/rooms/:code', async (req, res) => {
+  try {
+    const room = await roomManager.getOrRestore(req.params.code);
+    if (!room) {
+      res.status(404).json({ ok: false, error: 'Room not found.' });
+      return;
+    }
+
+    const language = String(req.query.language || 'en');
+    let history: any[] = [];
+
+    if (room.config?.mode === 'solo_multilang') {
+      const stored = await db.getRecentMessages(room.id, 100);
+      const provider = room.config?.translationProvider;
+      const missing = (stored as any[]).filter(msg => !msg.translations?.[language]);
+
+      await Promise.all(missing.map(async (msg: any) => {
+        const translated = await translateForRoom(msg.original, msg.senderLang, language, provider);
+        msg.translations = { ...(msg.translations || {}), [language]: translated };
+        db.addMessageTranslations(room.id, msg.id, msg.timestamp, { [language]: translated }).catch(
+          (err: Error) => logger.warn({ event: 'solo.history.persist_failed', msgId: msg.id, err }, 'Failed to persist solo history translation'),
+        );
+      }));
+
+      history = (stored as any[]).map(msg => formatStoredMessageForLanguage(msg, language, false));
+    }
+
+    res.json({ ok: true, room: roomManager.getPublic(room.code), history });
+  } catch (err: any) {
+    logger.error({ event: 'room.fetch_failed', severity: severity.P2, roomCode: req.params.code, err }, 'Room fetch failed');
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/solo/rooms', async (req, res) => {
+  try {
+    const config = normalizeRoomConfig({
+      ...req.body?.config,
+      mode: 'solo_multilang',
+    });
+    if (config.mode !== 'solo_multilang' || !config.soloLanguages) {
+      res.status(400).json({ ok: false, error: 'Solo rooms require two different languages.' });
+      return;
+    }
+
+    const room = await roomManager.create({
+      name: req.body?.name,
+      config,
+    });
+
+    logger.info({
+      event: 'solo.room.created',
+      roomCode: room.code,
+      roomId: room.id,
+      soloLanguages: config.soloLanguages,
+    }, 'Solo room created');
+
+    res.json({ ok: true, code: room.code, room: roomManager.getPublic(room.code) });
+  } catch (err: any) {
+    logger.error({ event: 'solo.room.create_failed', severity: severity.P2, err }, 'Solo room creation failed');
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.patch('/api/solo/rooms/:code/config', async (req, res) => {
+  try {
+    const room = await getSoloRoomOr404(req.params.code, res);
+    if (!room) return;
+    const config = await roomManager.updateConfig(room.code, {
+      ...room.config,
+      ...req.body?.config,
+      mode: 'solo_multilang',
+      soloLanguages: room.config?.soloLanguages,
+    });
+    res.json({ ok: true, config });
+  } catch (err: any) {
+    logger.error({ event: 'solo.config_failed', severity: severity.P2, roomCode: req.params.code, err }, 'Solo config update failed');
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/solo/rooms/:code/text', async (req, res) => {
+  const msgId = isUuid(req.body?.clientMsgId) ? req.body.clientMsgId : makeMsgId();
+
+  try {
+    const room = await getSoloRoomOr404(req.params.code, res);
+    if (!room) return;
+    if (!room.config?.input?.text) {
+      res.status(400).json({ ok: false, id: msgId, error: 'Text input is disabled for this room.' });
+      return;
+    }
+
+    const text = String(req.body?.text || '').trim();
+    const senderLang = String(req.body?.senderLang || room.config.soloLanguages?.[0] || 'en');
+    const targetLang = String(req.body?.targetLang || room.config.soloLanguages?.find((lang: string) => lang !== senderLang) || 'en');
+    const sender = String(req.body?.sender || 'Solo');
+    if (!text) {
+      res.status(400).json({ ok: false, id: msgId, error: 'Message text is required.' });
+      return;
+    }
+
+    appMetrics.recordMessage({ type: 'text', roomCode: room.code, roomId: room.id, language: senderLang, text });
+    logger.info({
+      event: 'solo.message.text.received',
+      roomCode: room.code,
+      roomId: room.id,
+      msgId,
+      senderLang,
+      targetLang,
+      textLength: text.length,
+    }, 'Solo text message received');
+
+    const translated = await translateForRoom(text, senderLang, targetLang, room.config?.translationProvider);
+    const translations = { [senderLang]: text, [targetLang]: translated };
+    const audioOutputs = room.config?.output?.translatedAudio
+      ? Object.fromEntries([[targetLang, await synthesizeForRoom(translated, targetLang)]].filter(([, audio]) => audio))
+      : {};
+
+    await db.saveMessage({ roomId: room.id, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: false });
+
+    res.json({
+      ok: true,
+      id: msgId,
+      message: {
+        id: msgId,
+        original: text,
+        translated,
+        sender,
+        senderLang,
+        targetLang,
+        isMine: true,
+        isAudio: false,
+        originalAudio: null,
+        translatedAudio: (audioOutputs as any)[targetLang] ?? null,
+        timestamp: Date.now(),
+      },
+    });
+  } catch (err: any) {
+    logger.error({ event: 'solo.message.text_failed', severity: severity.P2, roomCode: req.params.code, msgId, err }, 'Solo text message failed');
+    res.status(500).json({ ok: false, id: msgId, error: err.message });
+  }
+});
+
+app.post('/api/solo/rooms/:code/audio', async (req, res) => {
+  const msgId = makeMsgId();
+
+  try {
+    const room = await getSoloRoomOr404(req.params.code, res);
+    if (!room) return;
+    if (!room.config?.input?.voice) {
+      res.status(400).json({ ok: false, id: msgId, error: 'Voice input is disabled for this room.' });
+      return;
+    }
+
+    const audioBase64 = String(req.body?.audioBase64 || '');
+    const mimeType = String(req.body?.mimeType || 'audio/webm');
+    const senderLang = String(req.body?.senderLang || room.config.soloLanguages?.[0] || 'en');
+    const targetLang = String(req.body?.targetLang || room.config.soloLanguages?.find((lang: string) => lang !== senderLang) || 'en');
+    const sender = String(req.body?.sender || 'Solo');
+    if (!audioBase64) {
+      res.status(400).json({ ok: false, id: msgId, error: 'Audio is required.' });
+      return;
+    }
+
+    const audioDuration = appMetrics.getAudioDurationSeconds({
+      audioBase64,
+      durationMs: req.body?.durationMs,
+      durationSeconds: req.body?.durationSeconds,
+      audioDurationMs: req.body?.audioDurationMs,
+      audioDurationSeconds: req.body?.audioDurationSeconds,
+    });
+    appMetrics.recordMessage({ type: 'audio', roomCode: room.code, roomId: room.id, language: senderLang });
+    appMetrics.recordAudioInput({
+      roomCode: room.code,
+      roomId: room.id,
+      language: senderLang,
+      seconds: audioDuration.seconds,
+      source: audioDuration.source,
+    });
+
+    logger.info({
+      event: 'solo.message.audio.received',
+      roomCode: room.code,
+      roomId: room.id,
+      msgId,
+      senderLang,
+      targetLang,
+      mimeType,
+      audioDurationSeconds: audioDuration.seconds,
+      audioDurationSource: audioDuration.source,
+      audioBytesApprox: Math.round(audioBase64.length * 0.75),
+    }, 'Solo audio message received');
+
+    let text: string;
+    let translations: Record<string, string>;
+    let audioOutputs: Record<string, any>;
+
+    if (room.config.voicePipeline === 'direct-voice-translation') {
+      const direct = await voiceTranslation.translateVoice(audioBase64, mimeType, senderLang, [targetLang], room.config);
+      text = direct.text?.trim() || '[voice message]';
+      translations = { [senderLang]: text, ...(direct.translations || {}) };
+      if (!translations[targetLang]) {
+        translations[targetLang] = await translateForRoom(text, senderLang, targetLang, room.config?.translationProvider);
+      }
+      audioOutputs = direct.audioOutputs || {};
+    } else {
+      text = (await stt.transcribe(audioBase64, mimeType, senderLang)).trim();
+      if (!text) throw new Error('Empty transcription');
+      const translated = await translateForRoom(text, senderLang, targetLang, room.config?.translationProvider);
+      translations = { [senderLang]: text, [targetLang]: translated };
+      audioOutputs = room.config?.output?.translatedAudio
+        ? Object.fromEntries([[targetLang, await synthesizeForRoom(translated, targetLang)]].filter(([, audio]) => audio))
+        : {};
+    }
+
+    appMetrics.recordWords({
+      type: 'audio',
+      stage: 'transcribed',
+      roomCode: room.code,
+      roomId: room.id,
+      language: senderLang,
+      text,
+    });
+
+    await db.saveMessage({ roomId: room.id, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true });
+
+    res.json({
+      ok: true,
+      id: msgId,
+      message: {
+        id: msgId,
+        original: text,
+        translated: translations[targetLang] ?? translations[senderLang] ?? text,
+        sender,
+        senderLang,
+        targetLang,
+        isMine: true,
+        isAudio: true,
+        originalAudio: { audioBase64, mimeType },
+        translatedAudio: audioOutputs[targetLang] ?? null,
+        timestamp: Date.now(),
+      },
+    });
+  } catch (err: any) {
+    logger.error({ event: 'solo.message.audio_failed', severity: severity.P2, roomCode: req.params.code, msgId, err }, 'Solo audio message failed');
+    res.status(500).json({ ok: false, id: msgId, error: err.message });
+  }
+});
+
 function makeMsgId() {
   return randomUUID();
 }
@@ -141,6 +393,61 @@ function makeMsgId() {
 function isUuid(value: any) {
   return typeof value === 'string'
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+async function translateForRoom(text: string, senderLang: string, targetLang: string, provider?: string) {
+  if (senderLang === targetLang) return text;
+  try {
+    return await translation.translate(text, senderLang, targetLang, provider);
+  } catch (err) {
+    logger.warn({
+      event: 'solo.translation_failed',
+      severity: severity.P3,
+      senderLang,
+      targetLang,
+      provider,
+      err,
+    }, 'Solo translation failed');
+    return `${text} (not translated)`;
+  }
+}
+
+async function synthesizeForRoom(text: string, language: string) {
+  try {
+    return await tts.synthesize(text, language);
+  } catch (err) {
+    logger.warn({ event: 'solo.tts_failed', severity: severity.P3, language, err }, 'Solo TTS failed');
+    return null;
+  }
+}
+
+function formatStoredMessageForLanguage(msg: any, targetLang: string, isMine = false) {
+  return {
+    id:              msg.id,
+    original:        msg.original,
+    translated:      msg.translations?.[targetLang] ?? msg.translations?.[msg.senderLang] ?? msg.original,
+    sender:          msg.sender,
+    senderLang:      msg.senderLang,
+    targetLang,
+    isMine,
+    isAudio:         msg.isAudio,
+    originalAudio:   null,
+    translatedAudio: msg.audioOutputs?.[targetLang] ?? null,
+    timestamp:       msg.timestamp,
+  };
+}
+
+async function getSoloRoomOr404(code: string, res: express.Response) {
+  const room = await roomManager.getOrRestore(code);
+  if (!room) {
+    res.status(404).json({ ok: false, error: 'Room not found.' });
+    return null;
+  }
+  if (room.config?.mode !== 'solo_multilang') {
+    res.status(409).json({ ok: false, error: 'Room is not a solo room.' });
+    return null;
+  }
+  return room;
 }
 
 function startProcessMemoryLogger() {

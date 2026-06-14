@@ -32,6 +32,11 @@ export default defineConfig({
         changeOrigin: true,
         secure:      false,
       },
+      '/api': {
+        target:      SERVER_URL,
+        changeOrigin: true,
+        secure:      false,
+      },
     },
   },
 })

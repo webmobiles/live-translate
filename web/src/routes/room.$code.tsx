@@ -2,12 +2,13 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { CircleAlert, Mic, Pause, Play, Send, Square, X } from 'lucide-react'
-import { connectSocket } from '@/lib/socket'
+import { connectSocket, disconnectSocket } from '@/lib/socket'
 import { getLang } from '@/lib/languages'
 import { LanguageSelector, LanguageBadge } from '@/components/LanguageSelector'
 import { SoloLanguageToggle } from '@/components/SoloLanguageToggle'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import type { Message, Participant, RoomConfig } from '@/types'
+import type { Socket } from 'socket.io-client'
 
 const DEFAULT_ROOM_CONFIG: RoomConfig = {
   input: { text: true, voice: true },
@@ -30,6 +31,7 @@ type SharedAudioSnapshot = {
   duration: number;
 }
 type MessageAudioPayload = NonNullable<Message['translatedAudio']>
+type RoomTransport = 'loading' | 'solo-http' | 'socket'
 
 function isPlayableAudioPayload(audio?: MessageAudioPayload | null): audio is MessageAudioPayload {
   return Boolean(audio?.audioBase64 && audio.mimeType?.startsWith('audio/'))
@@ -253,6 +255,7 @@ function RoomScreen() {
   const [roomLost, setRoomLost] = useState(false)
   const [connectionError, setConnectionError] = useState('')
   const [roomConfig, setRoomConfig] = useState<RoomConfig>(DEFAULT_ROOM_CONFIG)
+  const [roomTransport, setRoomTransport] = useState<RoomTransport>('loading')
   const [countdown, setCountdown] = useState(4)
   const [isRecording, setIsRecording] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -267,12 +270,15 @@ function RoomScreen() {
 
   const myLanguageRef = useRef(initialLang)
   const voiceAutoPlayEnabledRef = useRef(true)
+  const socketRef = useRef<Socket | null>(null)
 
   const updateLanguage = useCallback((lang: string) => {
     myLanguageRef.current = lang
     setMyLanguage(lang)
-    socketRef.current.emit('room:update-language', { language: lang })
-  }, [])
+    if (roomTransport === 'socket') {
+      socketRef.current?.emit('room:update-language', { language: lang })
+    }
+  }, [roomTransport])
 
   // Seed soloActiveLang as soon as roomConfig resolves to solo mode
   useEffect(() => {
@@ -300,7 +306,6 @@ function RoomScreen() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const recordingStartedAtRef = useRef(0)
-  const socketRef = useRef(connectSocket())
   const mySocketId = useRef('')
   const hasSyncedRoom = useRef(false)
   const syncInFlight = useRef(false)
@@ -352,7 +357,79 @@ function RoomScreen() {
   }, [])
 
   useEffect(() => {
+    const abort = new AbortController()
+
+    async function loadRoomTransport() {
+      setRoomTransport('loading')
+      setConnectionError('')
+
+      try {
+        const res = await fetch(`/api/rooms/${encodeURIComponent(code)}?language=${encodeURIComponent(myLanguageRef.current)}`, {
+          credentials: 'include',
+          signal: abort.signal,
+        })
+
+        if (abort.signal.aborted) return
+
+        if (res.status === 404) {
+          if (isHost) {
+            setRoomTransport('socket')
+          } else {
+            setRoomLost(true)
+            setIsConnected(false)
+          }
+          return
+        }
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+        const data = await res.json() as {
+          ok: boolean;
+          room?: { config?: RoomConfig; participants?: Participant[] };
+          history?: Message[];
+          error?: string;
+        }
+        if (!data.ok || !data.room) throw new Error(data.error || 'Room not found')
+
+        const resolvedConfig = data.room.config ?? DEFAULT_ROOM_CONFIG
+        setRoomConfig(resolvedConfig)
+
+        if (resolvedConfig.mode === 'solo_multilang') {
+          disconnectSocket()
+          const [langA, langB] = resolvedConfig.soloLanguages ?? [initialLang, myLanguageRef.current]
+          const targetLang = langB || myLanguageRef.current
+          soloActiveLangRef.current = langA
+          setSoloActiveLang(langA)
+          myLanguageRef.current = targetLang
+          setMyLanguage(targetLang)
+          setParticipants([])
+          setMessages(data.history ?? [])
+          setRoomLost(false)
+          setIsConnected(true)
+          setRoomTransport('solo-http')
+          setTimeout(scrollToBottom, 100)
+          return
+        }
+
+        setParticipants(data.room.participants ?? [])
+        setRoomTransport('socket')
+      } catch (error) {
+        if (abort.signal.aborted) return
+        setConnectionError(t('room.error.network'))
+        setIsConnected(false)
+        setRoomTransport(isHost ? 'socket' : 'loading')
+      }
+    }
+
+    void loadRoomTransport()
+
+    return () => abort.abort()
+  }, [code, initialLang, isHost, scrollToBottom, t])
+
+  useEffect(() => {
+    if (roomTransport !== 'socket') return
     const socket = socketRef.current
+      ?? (socketRef.current = connectSocket())
     mySocketId.current = socket.id ?? ''
 
     const syncRoom = (mode: 'initial' | 'reconnect') => {
@@ -605,7 +682,7 @@ function RoomScreen() {
       window.removeEventListener('online', recoverActiveTab)
       document.removeEventListener('visibilitychange', recoverActiveTab)
     }
-  }, [addSystemMsg, code, isHost, navigate, nickname, roomName, scrollToBottom])
+  }, [addSystemMsg, code, isHost, navigate, nickname, roomName, roomTransport, scrollToBottom, t])
 
   useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
 
@@ -659,9 +736,45 @@ function RoomScreen() {
       isTranslating: false,
       deliveryStatus: 'sending',
     }])
-    socketRef.current.timeout(8000).emit(
+    if (isSolo) {
+      setInputText('')
+      void (async () => {
+        try {
+          const res = await fetch(`/api/solo/rooms/${encodeURIComponent(code)}/text`, {
+            method:      'POST',
+            credentials: 'include',
+            headers:     { 'Content-Type': 'application/json' },
+            body:        JSON.stringify({
+              text,
+              clientMsgId: id,
+              sender: nickname || t('room.me'),
+              senderLang: effectiveSenderLang,
+              targetLang: myLanguageRef.current,
+            }),
+          })
+          const data = await res.json().catch(() => ({})) as { ok?: boolean; message?: Message }
+          if (!res.ok || !data.ok || !data.message) throw new Error('Solo text failed')
+          setMessages(prev => prev.map(m =>
+            m.id === id
+              ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: Boolean(voiceAutoPlayEnabledRef.current && messageHasPlayableAudio(data.message!)) }
+              : m
+          ))
+          setTimeout(scrollToBottom, 100)
+        } catch {
+          setMessages(prev => prev.map(m => m.id === id ? { ...m, deliveryStatus: 'failed' as const } : m))
+        }
+      })()
+      return
+    }
+    const socket = socketRef.current
+    if (!socket) {
+      setMessages(prev => prev.map(m => m.id === id ? { ...m, deliveryStatus: 'failed' as const } : m))
+      setInputText('')
+      return
+    }
+    socket.timeout(8000).emit(
       'message:text',
-      { text, clientMsgId: id, ...(isSolo && { senderLang: effectiveSenderLang }) },
+      { text, clientMsgId: id, ...(isSolo ? { senderLang: effectiveSenderLang } : {}) },
       (err: Error | null, res?: { ok: boolean; id?: string; error?: string }) => {
         setMessages(prev => prev.map(m => {
           if (m.id !== id) return m
@@ -671,7 +784,7 @@ function RoomScreen() {
       },
     )
     setInputText('')
-  }, [inputText, isConnected, nickname, roomConfig.input.text, roomConfig.mode])
+  }, [code, inputText, isConnected, nickname, roomConfig.input.text, roomConfig.mode, scrollToBottom, t])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText() }
@@ -712,14 +825,58 @@ function RoomScreen() {
         const base64 = (reader.result as string).split(',')[1]
         const isSolo = roomConfig.mode === 'solo_multilang'
         const payload: Record<string, unknown> = { audioBase64: base64, mimeType: 'audio/webm', durationMs }
-        if (isSolo && soloActiveLangRef.current) payload.senderLang = soloActiveLangRef.current
-        socketRef.current.emit('message:audio', payload)
+        if (isSolo && soloActiveLangRef.current) {
+          const id = crypto.randomUUID()
+          const senderLang = soloActiveLangRef.current
+          payload.senderLang = senderLang
+          setMessages(prev => [...prev, {
+            id,
+            original: '…',
+            translated: '…',
+            sender: nickname || t('room.me'),
+            senderLang,
+            targetLang: myLanguageRef.current,
+            isMine: true,
+            isAudio: true,
+            timestamp: Date.now(),
+            isTranslating: true,
+            deliveryStatus: 'sending',
+          }])
+          void (async () => {
+            try {
+              const res = await fetch(`/api/solo/rooms/${encodeURIComponent(code)}/audio`, {
+                method:      'POST',
+                credentials: 'include',
+                headers:     { 'Content-Type': 'application/json' },
+                body:        JSON.stringify({
+                  ...payload,
+                  sender: nickname || t('room.me'),
+                  targetLang: myLanguageRef.current,
+                }),
+              })
+              const data = await res.json().catch(() => ({})) as { ok?: boolean; message?: Message }
+              if (!res.ok || !data.ok || !data.message) throw new Error('Solo audio failed')
+              setMessages(prev => prev.map(m =>
+                m.id === id
+                  ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: Boolean(voiceAutoPlayEnabledRef.current && messageHasPlayableAudio(data.message!)) }
+                  : m
+              ))
+              setTimeout(scrollToBottom, 100)
+            } catch {
+              setMessages(prev => prev.map(m =>
+                m.id === id ? { ...m, isTranslating: false, deliveryStatus: 'failed' as const } : m
+              ))
+            }
+          })()
+          return
+        }
+        socketRef.current?.emit('message:audio', payload)
       }
       reader.readAsDataURL(blob)
     }
     mr.stop()
     setIsRecording(false)
-  }, [roomConfig.mode])
+  }, [code, nickname, roomConfig.mode, scrollToBottom, t])
 
   const copyCode = () => {
     navigator.clipboard.writeText(code)
@@ -729,7 +886,31 @@ function RoomScreen() {
 
   const updateRoomConfig = (next: RoomConfig) => {
     setRoomConfig(next)
-    socketRef.current.timeout(8000).emit(
+    if (roomConfig.mode === 'solo_multilang') {
+      void (async () => {
+        try {
+          const res = await fetch(`/api/solo/rooms/${encodeURIComponent(code)}/config`, {
+            method:      'PATCH',
+            credentials: 'include',
+            headers:     { 'Content-Type': 'application/json' },
+            body:        JSON.stringify({ config: next }),
+          })
+          const data = await res.json().catch(() => ({})) as { ok?: boolean; config?: RoomConfig }
+          if (!res.ok || !data.ok) throw new Error('Solo config failed')
+          setRoomConfig(data.config ?? next)
+        } catch {
+          setRoomConfig(roomConfig)
+        }
+      })()
+      return
+    }
+
+    const socket = socketRef.current
+    if (!socket) {
+      setRoomConfig(roomConfig)
+      return
+    }
+    socket.timeout(8000).emit(
       'room:update-config',
       { config: next },
       (err: Error | null, res?: { ok: boolean; config?: RoomConfig }) => {

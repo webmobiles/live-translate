@@ -50,7 +50,6 @@ function CreateScreen() {
     setError('')
     setLoading(true)
 
-    const socket = connectSocket()
     const fullConfig: RoomConfig = {
       ...config,
       mode: roomMode,
@@ -58,6 +57,50 @@ function CreateScreen() {
       guestDefaultLanguage: isSolo ? null : guestLang,
     }
 
+    if (isSolo) {
+      void (async () => {
+        try {
+          const res = await fetch('/api/solo/rooms', {
+            method:      'POST',
+            credentials: 'include',
+            headers:     { 'Content-Type': 'application/json' },
+            body:        JSON.stringify({
+              name: undefined,
+              nickname: 'Solo',
+              language: soloLangB,
+              config: fullConfig,
+            }),
+          })
+          const data = await res.json().catch(() => ({})) as {
+            ok?: boolean;
+            code?: string;
+            room?: { name?: string };
+            error?: string;
+          }
+          setLoading(false)
+          if (!res.ok || !data.ok || !data.code) {
+            setError(data.error ?? t('common.error.generic'))
+            return
+          }
+          navigate({
+            to: '/room/$code',
+            params: { code: data.code },
+            search: {
+              nickname: 'Solo',
+              language: soloLangB,
+              roomName: data.room?.name ?? data.code,
+              isHost: true,
+            },
+          })
+        } catch {
+          setLoading(false)
+          setError(t('common.error.network'))
+        }
+      })()
+      return
+    }
+
+    const socket = connectSocket()
     const doCreate = () => {
       socket.emit(
         'room:create',
