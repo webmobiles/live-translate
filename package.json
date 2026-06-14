@@ -1,7 +1,7 @@
 {
   "name": "live-translate",
   "private": true,
-  "workspaces": ["shared", "web", "mobile"],
+  "workspaces": ["shared", "web"],
   "devDependencies": {
     "react-native": "0.81.5"
   },

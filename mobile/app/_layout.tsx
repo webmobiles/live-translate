@@ -1,3 +1,4 @@
+import '../src/polyfills';
 import '../global.css';
 import '../src/lib/i18n';
 import { Stack } from 'expo-router';

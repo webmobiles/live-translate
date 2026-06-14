@@ -3,6 +3,14 @@
 React Native app built with Expo. Connects to `https://translate.hellovia.app`.
 
 ---
+## Install
+
+cd /Users/dave/projects/live-translate/mobile
+rm -rf node_modules
+#The root cause was one thing: expo package installed without its JS build files. Everything else was a symptom of that.
+npm install expo@54 --legacy-peer-deps
+npm install --legacy-peer-deps
+npx expo start --clear
 
 ## Development
 
