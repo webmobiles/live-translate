@@ -21,7 +21,9 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@live-translate/shared": ["../shared/src/index.ts"],
+      "@live-translate/shared/locales": ["../shared/src/locales.ts"]
     }
   },
   "include": ["src"]

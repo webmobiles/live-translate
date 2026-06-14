@@ -13,9 +13,12 @@ export default defineConfig({
     tailwindcss(),
   ],
   resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
+    alias: [
+      // More-specific subpath must come before the bare package name
+      { find: '@live-translate/shared/locales', replacement: path.resolve(__dirname, '../shared/src/locales.ts') },
+      { find: '@live-translate/shared',         replacement: path.resolve(__dirname, '../shared/src/index.ts') },
+      { find: '@',                               replacement: path.resolve(__dirname, './src') },
+    ],
   },
   server: {
     proxy: {

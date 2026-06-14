@@ -1,9 +1,14 @@
 import React from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+import { Button } from '@/components/ui';
+import { Card } from '@/components/ui';
 
 export default function HomeScreen() {
+  const { t } = useTranslation();
+
   return (
     <SafeAreaView className="flex-1 bg-bg">
       <View className="flex-1 px-6 justify-center gap-8">
@@ -15,35 +20,34 @@ export default function HomeScreen() {
           </View>
           <View className="items-center gap-1">
             <Text className="text-white text-4xl font-bold tracking-tight">LiveTranslate</Text>
-            <Text className="text-muted text-base text-center">
-              Real-time AI translation across languages
-            </Text>
+            <Text className="text-muted text-base text-center">{t('home.tagline')}</Text>
           </View>
         </View>
 
         {/* Powered by */}
-        <View className="flex-row items-center justify-center gap-2 bg-card rounded-xl px-4 py-3 border border-border">
-          <Text className="text-muted text-sm">Powered by</Text>
+        <Card className="flex-row items-center justify-center gap-2 px-4 py-3">
+          <Text className="text-muted text-sm">{t('home.poweredBy')}</Text>
           <Text className="text-accent font-semibold text-sm">OpenAI GPT-4o-mini + Whisper</Text>
-        </View>
+        </Card>
 
         {/* Buttons */}
         <View className="gap-4">
-          <Pressable
+          <Button
             onPress={() => router.push('/create')}
-            className="bg-primary rounded-2xl py-4 items-center active:opacity-80"
+            className="items-center"
           >
-            <Text className="text-white text-lg font-bold">Create Room</Text>
-            <Text className="text-white/60 text-sm mt-0.5">Start a new translation session</Text>
-          </Pressable>
+            <Text className="text-white text-lg font-bold">{t('home.createRoom')}</Text>
+            <Text className="text-white/60 text-sm mt-0.5">{t('home.createRoomSub')}</Text>
+          </Button>
 
-          <Pressable
+          <Button
+            variant="outline"
             onPress={() => router.push('/join')}
-            className="border-2 border-primary rounded-2xl py-4 items-center active:opacity-80"
+            className="border-2 border-primary items-center"
           >
-            <Text className="text-primary text-lg font-bold">Join Room</Text>
-            <Text className="text-muted text-sm mt-0.5">Enter a room code to join</Text>
-          </Pressable>
+            <Text className="text-primary text-lg font-bold">{t('home.joinRoom')}</Text>
+            <Text className="text-muted text-sm mt-0.5">{t('home.joinRoomSub')}</Text>
+          </Button>
         </View>
 
         {/* Language chips */}
@@ -54,7 +58,7 @@ export default function HomeScreen() {
             </View>
           ))}
           <View className="bg-card border border-border px-3 py-1.5 rounded-full">
-            <Text className="text-muted text-xs">+8 more</Text>
+            <Text className="text-muted text-xs">+13 more</Text>
           </View>
         </View>
 

@@ -1,12 +1,8 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import * as Localization from 'expo-localization';
+import { en, fr, es } from '@live-translate/shared/locales';
 
-import en from '../locales/en.json';
-import fr from '../locales/fr.json';
-import es from '../locales/es.json';
-
-// Strips region: 'fr-FR' → 'fr'
 function deviceLocale(): string {
   const raw = Localization.getLocales()?.[0]?.languageCode ?? 'en';
   return raw.split('-')[0].toLowerCase();
@@ -25,9 +21,7 @@ i18n
     lng: SUPPORTED.includes(deviceLocale()) ? deviceLocale() : 'en',
     fallbackLng: 'en',
     supportedLngs: SUPPORTED,
-    interpolation: {
-      escapeValue: false,
-    },
+    interpolation: { escapeValue: false },
   });
 
 export default i18n;

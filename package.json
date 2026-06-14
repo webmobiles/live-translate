@@ -1,0 +1,5 @@
+{
+  "name": "live-translate",
+  "private": true,
+  "workspaces": ["shared", "web", "mobile"]
+}

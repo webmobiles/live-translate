@@ -4,9 +4,9 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"],
+      "@live-translate/shared": ["../shared/src/index.ts"],
+      "@live-translate/shared/locales": ["../shared/src/locales.ts"]
     }
   },
   "include": [
@@ -15,6 +15,7 @@
     ".expo/types/**/*.d.ts",
     "nativewind-env.d.ts",
     ".expo/types/**/*.ts",
-    "expo-env.d.ts"
+    "expo-env.d.ts",
+    "../shared/src/**/*.ts"
   ]
 }

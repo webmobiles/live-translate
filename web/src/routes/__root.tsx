@@ -28,7 +28,7 @@ function RootLayout() {
     if (isLoading) return
 
     if (!user && !isPublic) {
-      navigate({ to: '/login' })
+      navigate({ to: '/login', search: { error: undefined } })
       return
     }
 

@@ -19,7 +19,7 @@ function HomeScreen() {
   const handleLogout = async () => {
     await logout()
     queryClient.setQueryData(['auth-me'], null)
-    navigate({ to: '/login' })
+    navigate({ to: '/login', search: { error: undefined } })
   }
 
   return (
