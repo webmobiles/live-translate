@@ -36,7 +36,7 @@ function CreateScreen() {
   const [config, setConfig] = useState<Omit<RoomConfig, 'mode' | 'soloLanguages'>>({
     input: { text: true, voice: true },
     voicePipeline: 'stt-text-translate',
-    output: { translatedText: true, translatedAudio: false },
+    output: { translatedText: true, translatedAudio: true },
   })
 
   const [loading, setLoading] = useState(false)
@@ -243,16 +243,6 @@ function CreateScreen() {
             {t('create.options.title')}
           </label>
           <div className="bg-lt-card border border-lt-border rounded-xl p-4 flex flex-col gap-3">
-            <label className="flex items-center justify-between gap-3 text-white text-sm">
-              <span>{t('create.options.textInput')}</span>
-              <input type="checkbox" checked={config.input.text}
-                onChange={e => setConfig(prev => ({ ...prev, input: { ...prev.input, text: e.target.checked } }))} />
-            </label>
-            <label className="flex items-center justify-between gap-3 text-white text-sm">
-              <span>{t('create.options.voiceInput')}</span>
-              <input type="checkbox" checked={config.input.voice}
-                onChange={e => setConfig(prev => ({ ...prev, input: { ...prev.input, voice: e.target.checked } }))} />
-            </label>
             <select
               className="bg-lt-bg border border-lt-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-lt-primary"
               value={config.voicePipeline}
@@ -261,11 +251,6 @@ function CreateScreen() {
               <option value="stt-text-translate">STT then translate</option>
               <option value="direct-voice-translation">{t('create.options.pipeline.direct')}</option>
             </select>
-            <label className="flex items-center justify-between gap-3 text-white text-sm">
-              <span>{t('create.options.translatedText')}</span>
-              <input type="checkbox" checked={config.output.translatedText}
-                onChange={e => setConfig(prev => ({ ...prev, output: { ...prev.output, translatedText: e.target.checked } }))} />
-            </label>
             <label className="flex items-center justify-between gap-3 text-white text-sm">
               <span>{t('create.options.translatedAudio')}</span>
               <input type="checkbox" checked={config.output.translatedAudio}

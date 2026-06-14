@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
+import { View, Text, Pressable, Switch, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -24,6 +24,8 @@ export default function CreateScreen() {
   const [showGuestPicker, setShowGuestPicker]     = useState(false);
   const [showSoloPickerA, setShowSoloPickerA]     = useState(false);
   const [showSoloPickerB, setShowSoloPickerB]     = useState(false);
+  const [voicePipeline, setVoicePipeline] = useState<RoomConfig['voicePipeline']>('stt-text-translate');
+  const [translatedAudio, setTranslatedAudio]     = useState(true);
   const [loading, setLoading] = useState(false);
 
   const isSolo = roomMode === 'solo_multilang';
@@ -46,8 +48,8 @@ export default function CreateScreen() {
       soloLanguages: isSolo ? [soloLangA, soloLangB] : null,
       guestDefaultLanguage: isSolo ? null : guestLang,
       input: { text: true, voice: true },
-      voicePipeline: 'stt-text-translate',
-      output: { translatedText: true, translatedAudio: false },
+      voicePipeline,
+      output: { translatedText: true, translatedAudio },
     };
 
     const doCreate = () => {
@@ -213,6 +215,53 @@ export default function CreateScreen() {
                 )}
               </View>
             )}
+
+            {/* Options */}
+            <View className="gap-2">
+              <Text className="text-muted text-xs font-medium uppercase tracking-wider">
+                {t('create.options.title')}
+              </Text>
+              <Card className="p-4 gap-4">
+                {/* Pipeline segmented control */}
+                <View className="flex-row rounded-xl overflow-hidden border border-border">
+                  <Pressable
+                    onPress={() => setVoicePipeline('stt-text-translate')}
+                    className={`flex-1 py-2.5 items-center ${
+                      voicePipeline === 'stt-text-translate' ? 'bg-primary' : 'bg-card'
+                    }`}
+                  >
+                    <Text className={`text-xs font-medium ${
+                      voicePipeline === 'stt-text-translate' ? 'text-white' : 'text-muted'
+                    }`}>
+                      STT + Translate
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setVoicePipeline('direct-voice-translation')}
+                    className={`flex-1 py-2.5 items-center ${
+                      voicePipeline === 'direct-voice-translation' ? 'bg-primary' : 'bg-card'
+                    }`}
+                  >
+                    <Text className={`text-xs font-medium ${
+                      voicePipeline === 'direct-voice-translation' ? 'text-white' : 'text-muted'
+                    }`}>
+                      {t('create.options.pipeline.direct')}
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {/* Audio out toggle */}
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-white text-sm">{t('create.options.translatedAudio')}</Text>
+                  <Switch
+                    value={translatedAudio}
+                    onValueChange={setTranslatedAudio}
+                    trackColor={{ false: '#2A2A3E', true: '#7C6EFF' }}
+                    thumbColor="white"
+                  />
+                </View>
+              </Card>
+            </View>
 
             {/* Info box */}
             <Card className="p-4 bg-primary-muted border-primary gap-2">
