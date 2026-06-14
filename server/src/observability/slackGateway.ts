@@ -113,8 +113,9 @@ function buildSlackMessage(log: Record<string, unknown>): unknown {
 
 export function createSlackAlertStream() {
   const webhookUrl = process.env.SLACK_ALERT_WEBHOOK_URL || process.env.SLACK_WEBHOOK_URL;
+  const alertEnabled = (process.env.SLACK_ALERT ?? 'off').toLowerCase() === 'on';
 
-  if (!webhookUrl) return null;
+  if (!webhookUrl || !alertEnabled) return null;
 
   const pending = new Set<Promise<void>>();
 
