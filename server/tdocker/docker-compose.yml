@@ -12,6 +12,7 @@
 #    valkey        → Optional Redis-compatible Socket.IO adapter
 #    inngest       → AI workflow orchestrator (http://localhost:8288)
 #    ollama        → Local LLM runtime for offline translation (http://localhost:11434)
+#    faster-whisper → Local STT via faster-whisper-server (http://localhost:8100)
 #    grafana/loki/tempo/prometheus → Optional OSS observability stack
 #
 #  Start:
@@ -287,6 +288,32 @@ services:
       - "8288:8288"     # Dev UI → http://localhost:8288
     networks:
       - live-translate
+
+  # ── faster-whisper-server (local STT) ───────────────────────────────────
+  # OpenAI-compatible /v1/audio/transcriptions endpoint, runs fully offline.
+  # Start with:
+  #   docker-compose --profile local-stt up -d faster-whisper
+  # First start downloads the model from Hugging Face (~150 MB for small,
+  # ~3 GB for large-v3). Set STT_PROVIDER=faster-whisper-http in .env.
+  faster-whisper:
+    image: fedirz/faster-whisper-server:latest-cpu
+    container_name: live-translate-faster-whisper
+    profiles: ["local-stt"]
+    ports:
+      - "8100:8000"   # OpenAI-compatible API → http://localhost:8100/v1
+    environment:
+      WHISPER__MODEL: ${FASTER_WHISPER_MODEL:-Systran/faster-whisper-small}
+      WHISPER__INFERENCE_DEVICE: cpu
+    volumes:
+      - ../data/faster-whisper:/root/.cache/huggingface
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 120s  # model download on first start can take a minute
 
   # ── Ollama (local LLM) ───────────────────────────────────────────────────
   # Start with:

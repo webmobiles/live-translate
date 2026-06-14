@@ -15,6 +15,7 @@ DIRS=(
   dragonfly
   valkey
   ollama
+  faster-whisper
   openobserve
   grafana
   loki

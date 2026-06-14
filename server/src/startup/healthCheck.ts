@@ -153,6 +153,16 @@ async function checkOllamaModel() {
   return { ok: true };
 }
 
+async function checkFasterWhisperServer() {
+  const baseUrl = (process.env.FASTER_WHISPER_BASE_URL || 'http://localhost:8100').replace(/\/+$/, '');
+  const res = await withTimeout(
+    fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(TIMEOUT_MS) }),
+    'faster-whisper-server /health',
+  );
+  if (!res.ok) throw new Error(`faster-whisper-server unreachable — HTTP ${res.status}. Is the container running? docker-compose --profile local-stt up -d faster-whisper`);
+  return { ok: true };
+}
+
 async function checkOpenAI() {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error('OPENAI_API_KEY is not set in .env');
@@ -210,6 +220,10 @@ function checksForProvider() {
     || ttsProvider === 'openai'
     || voiceTranslationProvider === 'openai-realtime';
 
+  const sttChecks = sttProvider === 'faster-whisper-http'
+    ? [{ name: 'faster-whisper-server', fn: checkFasterWhisperServer, required: true }]
+    : [];
+
   const openAiRequired = envFlag('STARTUP_OPENAI_REQUIRED');
 
   const translationChecks = activeTranslationProviders.flatMap(provider => {
@@ -223,6 +237,7 @@ function checksForProvider() {
     { name: 'Realtime', fn: checkRealtime, required: true },
     { name: 'Inngest', fn: checkInngest, required: true },
     ...translationChecks,
+    ...sttChecks,
     ...(requiresOpenAI ? [{ name: 'OpenAI', fn: checkOpenAI, required: openAiRequired }] : []),
   ];
 }
