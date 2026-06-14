@@ -1,0 +1,136 @@
+{
+  "common": {
+    "back": "← Volver",
+    "continue": "Continuar →",
+    "loading": "Cargando…",
+    "saving": "Guardando…",
+    "signOut": "Cerrar sesión",
+    "change": "Cambiar →",
+    "error": {
+      "network": "No se puede conectar al servidor. Comprueba tu conexión.",
+      "generic": "Algo salió mal."
+    }
+  },
+  "home": {
+    "tagline": "Traducción IA en tiempo real entre idiomas",
+    "poweredBy": "Desarrollado por",
+    "createRoom": "Crear sala",
+    "createRoomSub": "Iniciar una nueva sesión de traducción",
+    "joinRoom": "Unirse a sala",
+    "joinRoomSub": "Introduce un código de sala para unirte"
+  },
+  "login": {
+    "title": "Bienvenido",
+    "subtitle": "Inicia sesión para empezar a traducir",
+    "continueWithGoogle": "Continuar con Google",
+    "noAccount": "No necesitas cuenta — Google la crea automáticamente.",
+    "terms": "Al iniciar sesión, aceptas nuestros términos de servicio. Tus datos solo se usan para proporcionar el servicio de traducción.",
+    "error": {
+      "oauth_failed": "Error al iniciar sesión con Google. Inténtalo de nuevo.",
+      "google_not_configured": "El inicio de sesión con Google no está configurado en este servidor.",
+      "too_many_requests": "Demasiados intentos. Por favor, espera un momento."
+    }
+  },
+  "onboarding": {
+    "title": "¡Casi listo!",
+    "subtitle": "Configura tu perfil en unos segundos",
+    "step": {
+      "nickname": {
+        "label": "¿Cómo debemos llamarte?",
+        "placeholder": "Tu nombre o apodo",
+        "hint": "Es visible para otros participantes. No necesita ser único."
+      },
+      "motherLang": {
+        "label": "Tu idioma nativo",
+        "hint": "Es el idioma que hablas. Las salas que crees usarán este idioma por defecto."
+      },
+      "targetLang": {
+        "label": "Idioma de traducción preferido",
+        "hint": "Cuando otros hablen, verás las traducciones en este idioma por defecto.",
+        "pick": "Elige un idioma",
+        "sameWarning": "⚠ Es el mismo que tu idioma nativo. Puedes cambiarlo."
+      }
+    },
+    "finish": "¡Vamos! 🚀"
+  },
+  "create": {
+    "title": "Crear sala",
+    "roomType": "Tipo de sala",
+    "mode": {
+      "normal": "Multiusuario",
+      "normalSub": "Comparte un código, cada persona se une con su idioma",
+      "solo": "Solo / Dúo",
+      "soloSub": "Dos idiomas, un dispositivo — cambia para alternar hablante"
+    },
+    "fields": {
+      "roomName": "Nombre de sala (opcional)",
+      "roomNamePlaceholder": "ej. Reunión de equipo, Conferencia…",
+      "yourName": "Tu nombre",
+      "yourNamePlaceholder": "Introduce tu nombre",
+      "yourLanguage": "Tu idioma",
+      "yourLanguageSub": "Hablo en…",
+      "guestLanguage": "Idioma por defecto de invitados",
+      "guestLanguageSub": "Los invitados leerán en…",
+      "guestLanguageHint": "Rellena previamente el selector de idioma cuando alguien se une con tu código. Pueden cambiarlo.",
+      "soloLanguages": "Elige dos idiomas",
+      "personA": "Persona A",
+      "personB": "Persona B"
+    },
+    "options": {
+      "title": "Opciones",
+      "textInput": "Entrada de texto",
+      "voiceInput": "Entrada de voz",
+      "pipeline": {
+        "stt": "STT y luego traducir",
+        "direct": "Traducción de voz directa"
+      },
+      "translatedText": "Texto traducido",
+      "translatedAudio": "Audio traducido"
+    },
+    "info": {
+      "soloTitle": "Cómo funciona el modo Solo / Dúo",
+      "soloBody": "Un gran botón permite cambiar quién habla. Toca tu lado del idioma, luego habla o escribe. La traducción aparece al instante. No necesitas compartir nada — solo vosotros dos en un dispositivo.",
+      "normalTitle": "Cómo funciona",
+      "normalBody": "Comparte el código de sala con otros. Cada persona elige su idioma. Los mensajes se traducen en vivo — todos leen en su propio idioma."
+    },
+    "errors": {
+      "nickRequired": "Por favor, introduce tu nombre.",
+      "sameLang": "Por favor, elige dos idiomas diferentes."
+    },
+    "cta": "Crear sala",
+    "creating": "Creando…"
+  },
+  "join": {
+    "title": "Unirse a sala",
+    "fields": {
+      "code": "Código de sala",
+      "codePlaceholder": "ABC123",
+      "yourName": "Tu nombre",
+      "yourNamePlaceholder": "Introduce tu nombre",
+      "yourLanguage": "Tu idioma",
+      "yourLanguageSub": "Quiero leer en…",
+      "suggestedByHost": "Sugerido por el anfitrión"
+    },
+    "errors": {
+      "codeRequired": "Por favor, introduce el código de 6 caracteres.",
+      "nickRequired": "Por favor, introduce tu nombre.",
+      "notFound": "Sala no encontrada. Comprueba el código."
+    },
+    "cta": "Unirse",
+    "joining": "Conectando…"
+  },
+  "room": {
+    "connecting": "Conectando…",
+    "connected": "Conectado",
+    "disconnected": "Desconectado",
+    "reconnecting": "Reconectando…",
+    "participants": "{{count}} participante",
+    "participants_plural": "{{count}} participantes",
+    "inputPlaceholder": "Escribe un mensaje…",
+    "listening": "Escuchando…",
+    "translating": "Traduciendo…",
+    "solo": {
+      "speaking": "habla"
+    }
+  }
+}
