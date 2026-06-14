@@ -5,6 +5,7 @@ import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config.dart';
+import 'client_log_service.dart';
 
 /// Port of the Google-sign-in flow in mobile/app/index.tsx.
 /// Opens `$SERVER_URL/auth/google` in a web session and waits for the
@@ -26,24 +27,41 @@ class AuthService {
   static Future<AuthResult> signInWithGoogle() async {
     final authUrl =
         '$kServerUrl/auth/google?returnTo=${Uri.encodeComponent(kAuthCallbackUrl)}';
+    ClientLogService.info('client.auth.google.start', {
+      'url': '$kServerUrl/auth/google',
+      'returnToScheme': kAuthCallbackScheme,
+    });
 
     try {
+      final startedAt = DateTime.now();
       final resultUrl = await FlutterWebAuth2.authenticate(
         url: authUrl,
         callbackUrlScheme: kAuthCallbackScheme,
       );
+      final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
 
       final uri = Uri.parse(resultUrl);
       final error = uri.queryParameters['error'];
       if (error != null) {
+        ClientLogService.warn('client.auth.google.failed', {
+          'error': error,
+          'durationMs': durationMs,
+        });
         return AuthResult(success: false, error: error);
       }
 
       await _setSignedIn(true);
       final needsOnboarding = uri.queryParameters['onboarding'] == '1';
+      ClientLogService.info('client.auth.google.ok', {
+        'needsOnboarding': needsOnboarding,
+        'durationMs': durationMs,
+      });
       return AuthResult(success: true, needsOnboarding: needsOnboarding);
-    } catch (_) {
+    } catch (err) {
       // User cancelled or the web session failed.
+      ClientLogService.warn('client.auth.google.exception', {
+        'error': err.toString(),
+      });
       return const AuthResult(success: false, error: 'oauth_failed');
     }
   }
@@ -76,9 +94,16 @@ class AuthService {
     required String password,
     String? name,
   }) async {
+    final startedAt = DateTime.now();
+    final uri = Uri.parse('$kServerUrl$path');
+    ClientLogService.info('client.http.request', {
+      'method': 'POST',
+      'url': uri.toString(),
+      'path': path,
+    });
+
     try {
       final client = HttpClient();
-      final uri = Uri.parse('$kServerUrl$path');
       final req = await client.postUrl(uri);
       req.headers.contentType = ContentType.json;
       req.write(jsonEncode({
@@ -90,6 +115,16 @@ class AuthService {
       final body = await utf8.decoder.bind(res).join();
       final decoded = body.isNotEmpty ? jsonDecode(body) : null;
       client.close(force: true);
+      final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
+
+      ClientLogService.info('client.http.response', {
+        'method': 'POST',
+        'url': uri.toString(),
+        'path': path,
+        'statusCode': res.statusCode,
+        'durationMs': durationMs,
+        'error': decoded is Map ? decoded['error']?.toString() : null,
+      });
 
       if (res.statusCode < 200 || res.statusCode >= 300) {
         final error = decoded is Map ? decoded['error']?.toString() : null;
@@ -100,12 +135,22 @@ class AuthService {
       final needsOnboarding =
           decoded is Map && decoded['needsOnboarding'] == true;
       return AuthResult(success: true, needsOnboarding: needsOnboarding);
-    } catch (_) {
+    } catch (err) {
+      ClientLogService.error('client.http.exception', {
+        'method': 'POST',
+        'url': uri.toString(),
+        'path': path,
+        'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        'error': err.toString(),
+      });
       return const AuthResult(success: false, error: 'network');
     }
   }
 
-  static Future<void> signOut() => _setSignedIn(false);
+  static Future<void> signOut() async {
+    await _setSignedIn(false);
+    await ClientLogService.flush();
+  }
 }
 
 class AuthResult {

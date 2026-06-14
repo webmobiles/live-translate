@@ -59,6 +59,47 @@ app.use((req, res, next) => {
 app.use(passport.initialize());
 app.use(passport.session());
 
+// ── Client logs ─────────────────────────────────────────────────────────────
+// Mobile/web clients can send compact diagnostic events here; the server emits
+// them through the normal logger, which can fan out to Loki/OpenObserve.
+app.post('/client/logs', (req, res) => {
+  const body = req.body as {
+    logs?: Array<Record<string, unknown>>;
+    platform?: string;
+    app?: string;
+    sessionId?: string;
+  };
+  const logs = Array.isArray(body.logs) ? body.logs.slice(0, 50) : [];
+  const user = req.user as any;
+
+  for (const entry of logs) {
+    const level = String(entry.level || 'info').toLowerCase();
+    const payload = {
+      ...entry,
+      event: String(entry.event || 'client.log'),
+      source: 'client',
+      clientPlatform: body.platform,
+      clientApp: body.app,
+      clientSessionId: body.sessionId,
+      userId: user?.id,
+      ip: req.ip,
+      userAgent: req.get('user-agent'),
+    };
+
+    if (level === 'error' || level === 'fatal') {
+      logger.error(payload, 'Client log');
+    } else if (level === 'warn' || level === 'warning') {
+      logger.warn(payload, 'Client log');
+    } else if (level === 'debug') {
+      logger.debug(payload, 'Client log');
+    } else {
+      logger.info(payload, 'Client log');
+    }
+  }
+
+  res.status(204).end();
+});
+
 // ── Auth routes ─────────────────────────────────────────────────────────────
 app.use('/auth', authRouter);
 app.use('/internal', internalRouter);

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 import '../config.dart';
+import 'client_log_service.dart';
 
 /// Port of mobile/src/lib/socket.ts — a lazily-created singleton Socket.IO
 /// client with manual connect/disconnect.
@@ -23,12 +24,34 @@ class SocketService {
     );
 
     // Diagnostic logging — visible in `flutter run` console and `adb logcat`.
-    socket.onConnect((_) =>
-        debugPrint('[socket] ✓ CONNECTED to $kServerUrl  (id=${socket.id})'));
-    socket.onConnectError((e) =>
-        debugPrint('[socket] ✗ CONNECT_ERROR to $kServerUrl  →  $e'));
-    socket.onError((e) => debugPrint('[socket] ✗ ERROR  →  $e'));
-    socket.onDisconnect((_) => debugPrint('[socket] – disconnected'));
+    socket.onConnect((_) {
+      debugPrint('[socket] ✓ CONNECTED to $kServerUrl  (id=${socket.id})');
+      ClientLogService.info('client.socket.connected', {
+        'url': kServerUrl,
+        'socketId': socket.id,
+      });
+    });
+    socket.onConnectError((e) {
+      debugPrint('[socket] ✗ CONNECT_ERROR to $kServerUrl  →  $e');
+      ClientLogService.warn('client.socket.connect_error', {
+        'url': kServerUrl,
+        'error': e.toString(),
+      });
+    });
+    socket.onError((e) {
+      debugPrint('[socket] ✗ ERROR  →  $e');
+      ClientLogService.error('client.socket.error', {
+        'url': kServerUrl,
+        'error': e.toString(),
+      });
+    });
+    socket.onDisconnect((reason) {
+      debugPrint('[socket] – disconnected');
+      ClientLogService.info('client.socket.disconnected', {
+        'url': kServerUrl,
+        'reason': reason?.toString(),
+      });
+    });
 
     _socket = socket;
     return socket;
@@ -36,8 +59,44 @@ class SocketService {
 
   static io.Socket connect() {
     final s = getSocket();
-    if (!s.connected) s.connect();
+    if (!s.connected) {
+      ClientLogService.info('client.socket.connect_start', {'url': kServerUrl});
+      s.connect();
+    }
     return s;
+  }
+
+  static void emitWithAckLogged(
+    String event,
+    Map<String, dynamic> payload, {
+    required void Function(dynamic data) ack,
+  }) {
+    final socket = connect();
+    final startedAt = DateTime.now();
+    ClientLogService.info('client.socket.emit', {
+      'url': kServerUrl,
+      'eventName': event,
+      'payloadKeys': payload.keys.join(','),
+      'connected': socket.connected,
+    });
+
+    socket.emitWithAck(
+      event,
+      payload,
+      ack: (data) {
+        final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
+        final res = unwrapAck(data);
+        ClientLogService.info('client.socket.ack', {
+          'url': kServerUrl,
+          'eventName': event,
+          'durationMs': durationMs,
+          'ok': res['ok'],
+          'error': res['error'],
+          'responseKeys': res.keys.join(','),
+        });
+        ack(data);
+      },
+    );
   }
 
   static void disconnect() {

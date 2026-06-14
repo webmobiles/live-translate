@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/room_config.dart';
+import '../services/client_log_service.dart';
 import '../services/socket_service.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
@@ -67,7 +68,7 @@ class _CreateScreenState extends State<CreateScreen> {
     );
 
     void doCreate() {
-      socket.emitWithAck(
+      SocketService.emitWithAckLogged(
         'room:create',
         {
           'name': _isSolo
@@ -106,6 +107,9 @@ class _CreateScreenState extends State<CreateScreen> {
       socket.once('connect', (_) => doCreate());
       socket.once('connect_error', (_) {
         if (!mounted) return;
+        ClientLogService.warn('client.room.create.connect_error', {
+          'serverUrl': socket.io.uri,
+        });
         setState(() => _loading = false);
         _snack(s.t('common.error.network'));
       });
