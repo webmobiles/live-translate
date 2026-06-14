@@ -10,6 +10,8 @@ import passport from 'passport';
 import { connectAuthDb, pool as authPool } from './auth/db';
 import { configurePassport } from './auth/passport';
 import { authRouter } from './auth/routes';
+import { internalRouter } from './auth/internalRoutes';
+import { rateLimitApi } from './auth/rateLimiter';
 import { logger, flushLogs } from './observability/logger';
 import { severity } from './observability/severity';
 import * as appMetrics from './observability/metrics';
@@ -59,6 +61,8 @@ app.use(passport.session());
 
 // ── Auth routes ─────────────────────────────────────────────────────────────
 app.use('/auth', authRouter);
+app.use('/internal', internalRouter);
+app.use('/api/inngest', rateLimitApi);
 app.use((req, res, next) => {
   const startedAt = Date.now();
   res.on('finish', () => {
@@ -205,6 +209,17 @@ async function startQueueConsumer() {
 
 io.on('connection', (socket) => {
   logger.info({ event: 'socket.connected', socketId: socket.id }, 'Socket connected');
+
+  // ── Peek room (for join pre-fill — no auth required) ────────────────────
+  socket.on('room:peek', ({ code }: any = {}, cb) => {
+    try {
+      const room = roomManager.get(String(code ?? '').toUpperCase());
+      if (!room) return cb({ ok: false });
+      cb({ ok: true, guestDefaultLanguage: room.config?.guestDefaultLanguage ?? null });
+    } catch {
+      cb({ ok: false });
+    }
+  });
 
   // ── Create room ──────────────────────────────────────────────────────────
   socket.on('room:create', async ({ name, nickname, language, config }: any = {}, cb) => {

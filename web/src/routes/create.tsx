@@ -25,6 +25,10 @@ function CreateScreen() {
   const [language, setLanguage]       = useState(me?.mother_language ?? 'en')
   const [showLangPicker, setShowLangPicker] = useState(false)
 
+  // ── guest default language (normal mode) ──────────────────────────────
+  const [guestLang,     setGuestLang]    = useState(me?.target_language ?? 'en')
+  const [showGuestPicker, setShowGuestPicker] = useState(false)
+
   // ── solo mode fields ───────────────────────────────────────────────────
   const [soloLangA, setSoloLangA] = useState(me?.mother_language ?? 'es')
   const [soloLangB, setSoloLangB] = useState(me?.target_language ?? 'en')
@@ -54,6 +58,7 @@ function CreateScreen() {
       ...config,
       mode: roomMode,
       soloLanguages: isSolo ? [soloLangA, soloLangB] : null,
+      guestDefaultLanguage: isSolo ? null : guestLang,
     }
 
     const doCreate = () => {
@@ -194,6 +199,22 @@ function CreateScreen() {
                 <LanguageBadge code={language} />
               </button>
             </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
+                Default guest language
+              </label>
+              <button
+                onClick={() => setShowGuestPicker(true)}
+                className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 flex items-center justify-between hover:border-lt-primary transition-colors"
+              >
+                <span className="text-white/70 text-base">Guests will read in…</span>
+                <LanguageBadge code={guestLang} />
+              </button>
+              <p className="text-lt-muted text-xs">
+                Pre-fills the language picker when someone joins with your code. They can still change it.
+              </p>
+            </div>
           </div>
         )}
 
@@ -321,6 +342,12 @@ function CreateScreen() {
         selected={language}
         onSelect={setLanguage}
         onClose={() => setShowLangPicker(false)}
+      />
+      <LanguageSelector
+        visible={showGuestPicker}
+        selected={guestLang}
+        onSelect={lang => { setGuestLang(lang); setShowGuestPicker(false) }}
+        onClose={() => setShowGuestPicker(false)}
       />
       <LanguageSelector
         visible={showSoloPickerA}

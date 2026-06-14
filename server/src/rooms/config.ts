@@ -1,6 +1,7 @@
 export const DEFAULT_ROOM_CONFIG = {
   mode: 'normal' as 'normal' | 'solo_multilang',
   soloLanguages: null as [string, string] | null,
+  guestDefaultLanguage: null as string | null,
   input: {
     text: true,
     voice: true,
@@ -34,9 +35,15 @@ function normalizeRoomConfig(config: any = {}) {
     ? normalizeSoloLanguages(config.soloLanguages)
     : null;
 
+  const guestDefaultLanguage =
+    mode === 'normal' && typeof config.guestDefaultLanguage === 'string' && config.guestDefaultLanguage
+      ? config.guestDefaultLanguage
+      : null;
+
   const normalized = {
     mode,
     soloLanguages,
+    guestDefaultLanguage,
     input: {
       text: bool(config.input?.text, DEFAULT_ROOM_CONFIG.input.text),
       voice: bool(config.input?.voice, DEFAULT_ROOM_CONFIG.input.voice),

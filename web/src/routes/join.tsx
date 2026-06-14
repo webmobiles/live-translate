@@ -1,20 +1,49 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { connectSocket } from '@/lib/socket'
 import { LanguageSelector, LanguageBadge } from '@/components/LanguageSelector'
+import type { User } from '@/types'
 
 export const Route = createFileRoute('/join')({
   component: JoinScreen,
 })
 
 function JoinScreen() {
-  const navigate = useNavigate()
-  const [code, setCode] = useState('')
-  const [nickname, setNickname] = useState('')
-  const [language, setLanguage] = useState('en')
+  const navigate    = useNavigate()
+  const queryClient = useQueryClient()
+  const me = queryClient.getQueryData<User | null>(['auth-me'])
+
+  const [code, setCode]           = useState('')
+  const [nickname, setNickname]   = useState(me?.nickname ?? '')
+  const [language, setLanguage]   = useState(me?.mother_language ?? 'en')
+  const [langWasAutoSet, setLangWasAutoSet] = useState(false)
   const [showLangPicker, setShowLangPicker] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState('')
+  const peekRef = useRef(false)
+
+  // When 6 chars are entered, peek the room to get guest default language
+  useEffect(() => {
+    if (code.length !== 6 || peekRef.current) return
+    peekRef.current = true
+    const socket = connectSocket()
+    const doPeek = () => {
+      socket.emit('room:peek', { code: code.toUpperCase() }, (res: any) => {
+        if (res?.ok && res.guestDefaultLanguage) {
+          setLanguage(res.guestDefaultLanguage)
+          setLangWasAutoSet(true)
+        }
+      })
+    }
+    if (socket.connected) doPeek()
+    else socket.once('connect', doPeek)
+  }, [code])
+
+  // Reset peek flag when code changes length away from 6
+  useEffect(() => {
+    if (code.length !== 6) peekRef.current = false
+  }, [code])
 
   const handleJoin = () => {
     if (!code.trim()) { setError('Please enter the 6-character room code.'); return; }
@@ -99,9 +128,14 @@ function JoinScreen() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
-              Your Language
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
+                Your Language
+              </label>
+              {langWasAutoSet && (
+                <span className="text-lt-primary text-xs">Suggested by host</span>
+              )}
+            </div>
             <button
               onClick={() => setShowLangPicker(true)}
               className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 flex items-center justify-between hover:border-lt-primary transition-colors"

@@ -19,6 +19,7 @@ async function initSchema() {
   await pool.query(`
     CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+    -- ── Users ────────────────────────────────────────────────────────────────
     CREATE TABLE IF NOT EXISTS users (
       id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
       name             VARCHAR(255) NOT NULL,
@@ -34,7 +35,7 @@ async function initSchema() {
       CONSTRAINT uq_provider UNIQUE (provider, provider_id)
     );
 
-    -- connect-pg-simple session store table
+    -- ── Sessions ─────────────────────────────────────────────────────────────
     CREATE TABLE IF NOT EXISTS session (
       sid    VARCHAR      NOT NULL COLLATE "default",
       sess   JSONB        NOT NULL,
@@ -43,14 +44,149 @@ async function initSchema() {
     );
     CREATE INDEX IF NOT EXISTS session_expire_idx ON session (expire);
 
-    -- rate-limiter-flexible store
+    -- ── Rate limits ───────────────────────────────────────────────────────────
     CREATE TABLE IF NOT EXISTS rate_limits (
       key        VARCHAR(255) PRIMARY KEY,
       points     INTEGER      NOT NULL DEFAULT 0,
       expire     BIGINT
     );
     CREATE INDEX IF NOT EXISTS rate_limits_expire_idx ON rate_limits (expire);
+
+    -- ── Language credit defaults (one row per supported language) ─────────────
+    CREATE TABLE IF NOT EXISTS language_credits_defaults (
+      language_code   VARCHAR(10)   PRIMARY KEY,
+      language_name   VARCHAR(100)  NOT NULL,
+      free_words      INTEGER       NOT NULL DEFAULT 10000,
+      free_seconds    INTEGER       NOT NULL DEFAULT 7200,
+      updated_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+    );
+
+    -- ── Per-user per-language credits ─────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS user_language_credits (
+      id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id           UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      language_code     VARCHAR(10) NOT NULL,
+      words_remaining   INTEGER     NOT NULL DEFAULT 0,
+      seconds_remaining INTEGER     NOT NULL DEFAULT 0,
+      created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CONSTRAINT uq_user_lang_credits UNIQUE (user_id, language_code)
+    );
+
+    -- ── Per-user per-language usage stats (running totals) ───────────────────
+    CREATE TABLE IF NOT EXISTS user_language_stats (
+      id                      UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id                 UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      language_code           VARCHAR(10) NOT NULL,
+      words_consumed          BIGINT      NOT NULL DEFAULT 0,
+      seconds_consumed        BIGINT      NOT NULL DEFAULT 0,
+      guest_words_consumed    BIGINT      NOT NULL DEFAULT 0,
+      guest_seconds_consumed  BIGINT      NOT NULL DEFAULT 0,
+      created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CONSTRAINT uq_user_lang_stats UNIQUE (user_id, language_code)
+    );
+
+    -- ── Detailed usage log ────────────────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS usage_log (
+      id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id        UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      room_code      VARCHAR(20),
+      language_code  VARCHAR(10) NOT NULL,
+      usage_type     VARCHAR(10) NOT NULL CHECK (usage_type IN ('words','audio')),
+      amount         INTEGER     NOT NULL CHECK (amount > 0),
+      is_guest       BOOLEAN     NOT NULL DEFAULT FALSE,
+      created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS usage_log_user_idx ON usage_log (user_id, created_at DESC);
+
+    -- ── Billing per user ──────────────────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS user_billing (
+      id              UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id         UUID          NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+      balance         NUMERIC(12,4) NOT NULL DEFAULT 0,
+      currency        VARCHAR(3)    NOT NULL DEFAULT 'USD',
+      total_paid      NUMERIC(12,4) NOT NULL DEFAULT 0,
+      total_consumed  NUMERIC(12,4) NOT NULL DEFAULT 0,
+      created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+      updated_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+    );
+
+    -- ── Payment history ───────────────────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS payments (
+      id           UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id      UUID          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      amount       NUMERIC(12,4) NOT NULL CHECK (amount > 0),
+      currency     VARCHAR(3)    NOT NULL DEFAULT 'USD',
+      status       VARCHAR(20)   NOT NULL DEFAULT 'pending'
+                     CHECK (status IN ('pending','completed','failed','refunded')),
+      provider     VARCHAR(50),
+      provider_ref VARCHAR(255),
+      created_at   TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+      updated_at   TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS payments_user_idx ON payments (user_id, created_at DESC);
+
+    -- ── Email verifications (future self-registration) ────────────────────────
+    CREATE TABLE IF NOT EXISTS email_verifications (
+      id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      email      VARCHAR(255) NOT NULL,
+      token      VARCHAR(255) NOT NULL UNIQUE,
+      expires_at TIMESTAMPTZ  NOT NULL,
+      used       BOOLEAN      NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    );
   `);
+
+  await seedLanguageDefaults();
+}
+
+const LANGUAGE_DEFAULTS: [string, string][] = [
+  ['af', 'Afrikaans'],  ['sq', 'Albanian'],    ['am', 'Amharic'],
+  ['ar', 'Arabic'],     ['hy', 'Armenian'],    ['az', 'Azerbaijani'],
+  ['eu', 'Basque'],     ['be', 'Belarusian'],  ['bn', 'Bengali'],
+  ['bs', 'Bosnian'],    ['bg', 'Bulgarian'],   ['ca', 'Catalan'],
+  ['zh', 'Chinese'],    ['hr', 'Croatian'],    ['cs', 'Czech'],
+  ['da', 'Danish'],     ['nl', 'Dutch'],       ['en', 'English'],
+  ['et', 'Estonian'],   ['fi', 'Finnish'],     ['fr', 'French'],
+  ['gl', 'Galician'],   ['ka', 'Georgian'],    ['de', 'German'],
+  ['el', 'Greek'],      ['gu', 'Gujarati'],    ['ht', 'Haitian Creole'],
+  ['ha', 'Hausa'],      ['he', 'Hebrew'],      ['hi', 'Hindi'],
+  ['hu', 'Hungarian'],  ['is', 'Icelandic'],   ['ig', 'Igbo'],
+  ['id', 'Indonesian'], ['ga', 'Irish'],       ['it', 'Italian'],
+  ['ja', 'Japanese'],   ['kn', 'Kannada'],     ['kk', 'Kazakh'],
+  ['km', 'Khmer'],      ['ko', 'Korean'],      ['ku', 'Kurdish'],
+  ['ky', 'Kyrgyz'],     ['lo', 'Lao'],         ['lv', 'Latvian'],
+  ['lt', 'Lithuanian'], ['lb', 'Luxembourgish'],['mk', 'Macedonian'],
+  ['mg', 'Malagasy'],   ['ms', 'Malay'],       ['ml', 'Malayalam'],
+  ['mt', 'Maltese'],    ['mi', 'Maori'],       ['mr', 'Marathi'],
+  ['mn', 'Mongolian'],  ['my', 'Myanmar'],     ['ne', 'Nepali'],
+  ['no', 'Norwegian'],  ['ps', 'Pashto'],      ['fa', 'Persian'],
+  ['pl', 'Polish'],     ['pt', 'Portuguese'],  ['pa', 'Punjabi'],
+  ['ro', 'Romanian'],   ['ru', 'Russian'],     ['sm', 'Samoan'],
+  ['sr', 'Serbian'],    ['st', 'Sesotho'],     ['sn', 'Shona'],
+  ['sd', 'Sindhi'],     ['si', 'Sinhala'],     ['sk', 'Slovak'],
+  ['sl', 'Slovenian'],  ['so', 'Somali'],      ['es', 'Spanish'],
+  ['su', 'Sundanese'],  ['sw', 'Swahili'],     ['sv', 'Swedish'],
+  ['tl', 'Tagalog'],    ['tg', 'Tajik'],       ['ta', 'Tamil'],
+  ['te', 'Telugu'],     ['th', 'Thai'],        ['tr', 'Turkish'],
+  ['uk', 'Ukrainian'],  ['ur', 'Urdu'],        ['uz', 'Uzbek'],
+  ['vi', 'Vietnamese'], ['cy', 'Welsh'],       ['xh', 'Xhosa'],
+  ['yi', 'Yiddish'],    ['yo', 'Yoruba'],      ['zu', 'Zulu'],
+];
+
+async function seedLanguageDefaults() {
+  if (LANGUAGE_DEFAULTS.length === 0) return;
+  const values = LANGUAGE_DEFAULTS
+    .map((_, i) => `($${i * 2 + 1}, $${i * 2 + 2}, 10000, 7200)`)
+    .join(', ');
+  const params = LANGUAGE_DEFAULTS.flat();
+  await pool.query(
+    `INSERT INTO language_credits_defaults (language_code, language_name, free_words, free_seconds)
+     VALUES ${values}
+     ON CONFLICT (language_code) DO NOTHING`,
+    params,
+  );
 }
 
 export async function findOrCreateUser(profile: {
