@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { connectSocket } from '@/lib/socket'
 import { LanguageSelector, LanguageBadge } from '@/components/LanguageSelector'
 import type { User } from '@/types'
@@ -10,6 +11,7 @@ export const Route = createFileRoute('/join')({
 })
 
 function JoinScreen() {
+  const { t }       = useTranslation()
   const navigate    = useNavigate()
   const queryClient = useQueryClient()
   const me = queryClient.getQueryData<User | null>(['auth-me'])
@@ -23,7 +25,6 @@ function JoinScreen() {
   const [error, setError]         = useState('')
   const peekRef = useRef(false)
 
-  // When 6 chars are entered, peek the room to get guest default language
   useEffect(() => {
     if (code.length !== 6 || peekRef.current) return
     peekRef.current = true
@@ -40,14 +41,13 @@ function JoinScreen() {
     else socket.once('connect', doPeek)
   }, [code])
 
-  // Reset peek flag when code changes length away from 6
   useEffect(() => {
     if (code.length !== 6) peekRef.current = false
   }, [code])
 
   const handleJoin = () => {
-    if (!code.trim()) { setError('Please enter the 6-character room code.'); return; }
-    if (!nickname.trim()) { setError('Please enter your name.'); return; }
+    if (!code.trim())     { setError(t('join.errors.codeRequired')); return }
+    if (!nickname.trim()) { setError(t('join.errors.nickRequired')); return }
     setError('')
     setLoading(true)
     const socket = connectSocket()
@@ -65,7 +65,7 @@ function JoinScreen() {
               search: { nickname: nickname.trim(), language, roomName: res.room.name, isHost: false },
             })
           } else {
-            setError(res.error ?? 'Room not found. Check the code.')
+            setError(res.error ?? t('join.errors.notFound'))
           }
         },
       )
@@ -77,7 +77,7 @@ function JoinScreen() {
       socket.once('connect', doJoin)
       socket.once('connect_error', () => {
         setLoading(false)
-        setError('Could not reach the server. Check your network.')
+        setError(t('common.error.network'))
       })
     }
   }
@@ -88,23 +88,21 @@ function JoinScreen() {
     <div className="min-h-screen bg-lt-bg flex items-center justify-center px-6">
       <div className="w-full max-w-sm flex flex-col gap-8">
 
-        {/* Header */}
         <div className="flex items-center gap-3">
           <button onClick={() => navigate({ to: '/' })} className="p-2 -ml-2 text-lt-muted text-2xl hover:text-white transition-colors">
             ←
           </button>
-          <h1 className="text-white text-2xl font-bold">Join Room</h1>
+          <h1 className="text-white text-2xl font-bold">{t('join.title')}</h1>
         </div>
 
-        {/* Form */}
         <div className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
             <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
-              Room Code
+              {t('join.fields.code')}
             </label>
             <input
               className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-white text-2xl tracking-widest text-center font-bold placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors uppercase"
-              placeholder="ABC123"
+              placeholder={t('join.fields.codePlaceholder')}
               value={code}
               onChange={e => setCode(e.target.value.toUpperCase().slice(0, 6))}
               maxLength={6}
@@ -116,11 +114,11 @@ function JoinScreen() {
 
           <div className="flex flex-col gap-2">
             <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
-              Your Name
+              {t('join.fields.yourName')}
             </label>
             <input
               className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-white text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors"
-              placeholder="Enter your name"
+              placeholder={t('join.fields.yourNamePlaceholder')}
               value={nickname}
               onChange={e => setNickname(e.target.value)}
               maxLength={30}
@@ -130,27 +128,24 @@ function JoinScreen() {
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
-                Your Language
+                {t('join.fields.yourLanguage')}
               </label>
               {langWasAutoSet && (
-                <span className="text-lt-primary text-xs">Suggested by host</span>
+                <span className="text-lt-primary text-xs">{t('join.fields.suggestedByHost')}</span>
               )}
             </div>
             <button
               onClick={() => setShowLangPicker(true)}
               className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 flex items-center justify-between hover:border-lt-primary transition-colors"
             >
-              <span className="text-white text-base">I want to read in…</span>
+              <span className="text-white text-base">{t('join.fields.yourLanguageSub')}</span>
               <LanguageBadge code={language} />
             </button>
           </div>
         </div>
 
-        {error && (
-          <p className="text-lt-danger text-sm text-center">{error}</p>
-        )}
+        {error && <p className="text-lt-danger text-sm text-center">{error}</p>}
 
-        {/* CTA */}
         <button
           onClick={handleJoin}
           disabled={loading || !ready}
@@ -158,12 +153,9 @@ function JoinScreen() {
             ready ? 'bg-lt-primary hover:bg-lt-primary-dark' : 'bg-lt-card border border-lt-border'
           } disabled:opacity-60`}
         >
-          {loading
-            ? <span className="text-white text-lg">Joining…</span>
-            : <span className={`text-lg font-bold ${ready ? 'text-white' : 'text-lt-muted'}`}>
-                Join Room
-              </span>
-          }
+          <span className={`text-lg font-bold ${ready ? 'text-white' : 'text-lt-muted'}`}>
+            {loading ? t('join.joining') : t('join.cta')}
+          </span>
         </button>
 
       </div>

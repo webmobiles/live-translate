@@ -120,15 +120,43 @@
     "joining": "Joining…"
   },
   "room": {
+    "live": "Live",
     "connecting": "Connecting…",
-    "connected": "Connected",
-    "disconnected": "Disconnected",
-    "reconnecting": "Reconnecting…",
+    "reconnected": "Reconnected to room",
+    "recreated": "Room recreated after server restart — share the code again if needed",
+    "error": {
+      "network": "Could not reach the server.",
+      "recreate": "Could not recreate the room."
+    },
+    "gone": "This room no longer exists",
     "participants": "{{count}} participant",
     "participants_plural": "{{count}} participants",
-    "inputPlaceholder": "Type a message…",
-    "listening": "Listening…",
-    "translating": "Translating…",
+    "joined": "{{nickname}} joined ({{lang}})",
+    "left": "{{nickname}} left",
+    "me": "Me",
+    "micRequired": "Microphone access is required for voice messages.",
+    "inputPlaceholder": "Message in {{lang}}…",
+    "inputPlaceholderSolo": "Type in {{lang}}…",
+    "stopRecording": "Stop recording",
+    "holdToRecord": "Hold to record",
+    "sendMessage": "Send message",
+    "autoplayVoice": "Autoplay voice",
+    "emptyState": {
+      "solo": "Tap your language side above, then speak or type.\nThe translation appears here instantly.",
+      "normal": "Send a message or hold the mic button to speak.\nEveryone gets it in their own language."
+    },
+    "config": {
+      "textIn": "Text",
+      "voiceIn": "Voice",
+      "directVoice": "Direct voice",
+      "textOut": "Text out",
+      "audioOut": "Audio out"
+    },
+    "alert": {
+      "tooShortTitle": "Voice message too short",
+      "tooShortBody": "Record at least 1 second before sending.",
+      "dismiss": "Dismiss voice message alert"
+    },
     "solo": {
       "speaking": "speaking"
     }

@@ -120,15 +120,43 @@
     "joining": "Connexion…"
   },
   "room": {
+    "live": "En direct",
     "connecting": "Connexion…",
-    "connected": "Connecté",
-    "disconnected": "Déconnecté",
-    "reconnecting": "Reconnexion…",
+    "reconnected": "Reconnecté au salon",
+    "recreated": "Salon recréé après redémarrage — partagez à nouveau le code si nécessaire",
+    "error": {
+      "network": "Impossible de joindre le serveur.",
+      "recreate": "Impossible de recréer le salon."
+    },
+    "gone": "Ce salon n'existe plus",
     "participants": "{{count}} participant",
     "participants_plural": "{{count}} participants",
-    "inputPlaceholder": "Tapez un message…",
-    "listening": "Écoute…",
-    "translating": "Traduction…",
+    "joined": "{{nickname}} a rejoint ({{lang}})",
+    "left": "{{nickname}} a quitté",
+    "me": "Moi",
+    "micRequired": "L'accès au microphone est requis pour les messages vocaux.",
+    "inputPlaceholder": "Message en {{lang}}…",
+    "inputPlaceholderSolo": "Taper en {{lang}}…",
+    "stopRecording": "Arrêter l'enregistrement",
+    "holdToRecord": "Maintenir pour enregistrer",
+    "sendMessage": "Envoyer le message",
+    "autoplayVoice": "Lecture auto",
+    "emptyState": {
+      "solo": "Appuyez sur votre côté de langue ci-dessus, puis parlez ou tapez.\nLa traduction apparaît ici instantanément.",
+      "normal": "Envoyez un message ou maintenez le bouton micro pour parler.\nTout le monde reçoit le message dans sa propre langue."
+    },
+    "config": {
+      "textIn": "Texte",
+      "voiceIn": "Voix",
+      "directVoice": "Voix directe",
+      "textOut": "Texte traduit",
+      "audioOut": "Audio traduit"
+    },
+    "alert": {
+      "tooShortTitle": "Message vocal trop court",
+      "tooShortBody": "Enregistrez au moins 1 seconde avant d'envoyer.",
+      "dismiss": "Fermer l'alerte"
+    },
     "solo": {
       "speaking": "parle"
     }

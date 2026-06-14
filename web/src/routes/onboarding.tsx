@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { LanguageSelector } from '@/components/LanguageSelector'
 import { getLang } from '@/lib/languages'
 import { saveProfile } from '@/lib/api'
@@ -10,23 +11,24 @@ export const Route = createFileRoute('/onboarding')({
 })
 
 function OnboardingScreen() {
+  const { t }         = useTranslation()
   const navigate      = useNavigate()
   const queryClient   = useQueryClient()
 
-  const [step,           setStep]         = useState<1 | 2 | 3>(1)
-  const [nickname,       setNickname]      = useState('')
-  const [motherLang,     setMotherLang]    = useState('en')
-  const [targetLang,     setTargetLang]    = useState('')
+  const [step,             setStep]          = useState<1 | 2 | 3>(1)
+  const [nickname,         setNickname]       = useState('')
+  const [motherLang,       setMotherLang]     = useState('en')
+  const [targetLang,       setTargetLang]     = useState('')
   const [showMotherPicker, setShowMotherPicker] = useState(false)
   const [showTargetPicker, setShowTargetPicker] = useState(false)
-  const [loading,        setLoading]       = useState(false)
-  const [error,          setError]         = useState('')
+  const [loading,          setLoading]        = useState(false)
+  const [error,            setError]          = useState('')
 
   const motherInfo = getLang(motherLang)
   const targetInfo = targetLang ? getLang(targetLang) : null
 
   const handleFinish = async () => {
-    if (!targetLang) { setError('Please choose your preferred translation language.'); return }
+    if (!targetLang) { setError(t('common.error.generic')); return }
     setError('')
     setLoading(true)
     try {
@@ -35,11 +37,10 @@ function OnboardingScreen() {
         motherLanguage: motherLang,
         targetLanguage: targetLang,
       })
-      // Refresh auth cache so __root re-reads updated profile
       queryClient.setQueryData(['auth-me'], updated)
       navigate({ to: '/' })
     } catch (err: any) {
-      setError(err.message ?? 'Something went wrong.')
+      setError(err.message ?? t('common.error.generic'))
     } finally {
       setLoading(false)
     }
@@ -55,8 +56,8 @@ function OnboardingScreen() {
             <span className="text-3xl">👋</span>
           </div>
           <div>
-            <h1 className="text-white text-2xl font-bold">Almost there!</h1>
-            <p className="text-lt-muted text-sm mt-1">Set up your profile in a few seconds</p>
+            <h1 className="text-white text-2xl font-bold">{t('onboarding.title')}</h1>
+            <p className="text-lt-muted text-sm mt-1">{t('onboarding.subtitle')}</p>
           </div>
         </div>
 
@@ -77,22 +78,18 @@ function OnboardingScreen() {
           <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-2">
               <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
-                What should we call you?
+                {t('onboarding.step.nickname.label')}
               </label>
               <input
                 autoFocus
                 className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-white text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors"
-                placeholder="Your name or nickname"
+                placeholder={t('onboarding.step.nickname.placeholder')}
                 value={nickname}
                 onChange={e => setNickname(e.target.value)}
                 maxLength={100}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && nickname.trim().length >= 2) setStep(2)
-                }}
+                onKeyDown={e => { if (e.key === 'Enter' && nickname.trim().length >= 2) setStep(2) }}
               />
-              <p className="text-lt-muted text-xs">
-                This shows to other participants. It doesn't need to be unique.
-              </p>
+              <p className="text-lt-muted text-xs">{t('onboarding.step.nickname.hint')}</p>
             </div>
 
             <button
@@ -100,7 +97,7 @@ function OnboardingScreen() {
               disabled={nickname.trim().length < 2}
               className="bg-lt-primary rounded-2xl py-4 text-white font-bold text-base hover:bg-lt-primary-dark transition-colors disabled:opacity-40"
             >
-              Continue →
+              {t('common.continue')}
             </button>
           </div>
         )}
@@ -110,11 +107,9 @@ function OnboardingScreen() {
           <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-2">
               <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
-                Your native language
+                {t('onboarding.step.motherLang.label')}
               </label>
-              <p className="text-white/60 text-sm">
-                This is the language you speak. Rooms you create will default to this.
-              </p>
+              <p className="text-white/60 text-sm">{t('onboarding.step.motherLang.hint')}</p>
               <button
                 onClick={() => setShowMotherPicker(true)}
                 className="bg-lt-card border border-lt-border rounded-xl px-4 py-4 flex items-center justify-between hover:border-lt-primary transition-colors"
@@ -126,7 +121,7 @@ function OnboardingScreen() {
                     <p className="text-lt-muted text-xs">{motherInfo.code.toUpperCase()}</p>
                   </div>
                 </div>
-                <span className="text-lt-muted text-sm">Change →</span>
+                <span className="text-lt-muted text-sm">{t('common.change')}</span>
               </button>
             </div>
 
@@ -135,28 +130,26 @@ function OnboardingScreen() {
                 onClick={() => setStep(1)}
                 className="flex-1 bg-lt-card border border-lt-border rounded-2xl py-4 text-lt-muted font-medium hover:text-white transition-colors"
               >
-                ← Back
+                {t('common.back')}
               </button>
               <button
                 onClick={() => setStep(3)}
-                className="flex-2 flex-1 bg-lt-primary rounded-2xl py-4 text-white font-bold hover:bg-lt-primary-dark transition-colors"
+                className="flex-1 bg-lt-primary rounded-2xl py-4 text-white font-bold hover:bg-lt-primary-dark transition-colors"
               >
-                Continue →
+                {t('common.continue')}
               </button>
             </div>
           </div>
         )}
 
-        {/* ── Step 3: Preferred translation language ── */}
+        {/* ── Step 3: Target language ── */}
         {step === 3 && (
           <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-2">
               <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
-                Preferred translation language
+                {t('onboarding.step.targetLang.label')}
               </label>
-              <p className="text-white/60 text-sm">
-                When others speak, you'll see translations in this language by default.
-              </p>
+              <p className="text-white/60 text-sm">{t('onboarding.step.targetLang.hint')}</p>
 
               {targetInfo ? (
                 <button
@@ -170,7 +163,7 @@ function OnboardingScreen() {
                       <p className="text-lt-muted text-xs">{targetInfo.code.toUpperCase()}</p>
                     </div>
                   </div>
-                  <span className="text-lt-muted text-sm">Change →</span>
+                  <span className="text-lt-muted text-sm">{t('common.change')}</span>
                 </button>
               ) : (
                 <button
@@ -178,14 +171,12 @@ function OnboardingScreen() {
                   className="bg-lt-card border border-lt-border rounded-xl px-4 py-4 flex items-center justify-center gap-2 hover:border-lt-primary transition-colors text-lt-muted hover:text-white"
                 >
                   <span className="text-xl">🌍</span>
-                  <span>Pick a language</span>
+                  <span>{t('onboarding.step.targetLang.pick')}</span>
                 </button>
               )}
 
               {motherLang && targetLang && motherLang === targetLang && (
-                <p className="text-yellow-400 text-xs">
-                  ⚠ This is the same as your native language. You can change it.
-                </p>
+                <p className="text-yellow-400 text-xs">{t('onboarding.step.targetLang.sameWarning')}</p>
               )}
             </div>
 
@@ -196,14 +187,14 @@ function OnboardingScreen() {
                 onClick={() => setStep(2)}
                 className="flex-1 bg-lt-card border border-lt-border rounded-2xl py-4 text-lt-muted font-medium hover:text-white transition-colors"
               >
-                ← Back
+                {t('common.back')}
               </button>
               <button
                 onClick={handleFinish}
                 disabled={!targetLang || loading}
                 className="flex-1 bg-lt-primary rounded-2xl py-4 text-white font-bold hover:bg-lt-primary-dark transition-colors disabled:opacity-40"
               >
-                {loading ? 'Saving…' : 'Let\'s go 🚀'}
+                {loading ? t('common.saving') : t('onboarding.finish')}
               </button>
             </div>
           </div>

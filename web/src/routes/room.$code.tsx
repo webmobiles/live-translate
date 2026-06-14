@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { CircleAlert, Mic, Pause, Play, Send, Square, X } from 'lucide-react'
 import { connectSocket } from '@/lib/socket'
 import { getLang } from '@/lib/languages'
@@ -238,6 +239,7 @@ export const Route = createFileRoute('/room/$code')({
 })
 
 function RoomScreen() {
+  const { t } = useTranslation()
   const { code } = Route.useParams()
   const { nickname, language: initialLang, roomName, isHost } = Route.useSearch()
   const navigate = useNavigate()
@@ -365,7 +367,7 @@ function RoomScreen() {
           syncInFlight.current = false
           if (err || !res) {
             setIsConnected(false)
-            setConnectionError('Could not reach the server.')
+            setConnectionError(t('room.error.network'))
             return
           }
 
@@ -379,7 +381,7 @@ function RoomScreen() {
             setRoomLost(false)
             setIsConnected(true)
             if (mode === 'reconnect' && wasDisconnected.current) {
-              addSystemMsg('Reconnected to room')
+              addSystemMsg(t('room.reconnected'))
             }
             wasDisconnected.current = false
             hasSyncedRoom.current = true
@@ -393,7 +395,7 @@ function RoomScreen() {
                   syncInFlight.current = false
                   if (createErr || !cr) {
                     setIsConnected(false)
-                    setConnectionError('Could not recreate the room.')
+                    setConnectionError(t('room.error.recreate'))
                     return
                   }
 
@@ -402,7 +404,7 @@ function RoomScreen() {
                     setRoomLost(false)
                     setIsConnected(true)
                     hasSyncedRoom.current = true
-                    addSystemMsg('Room recreated after server restart — share the code again if needed')
+                    addSystemMsg(t('room.recreated'))
                     if (cr.code && cr.code !== code) {
                       navigate({
                         to: '/room/$code',
@@ -441,7 +443,7 @@ function RoomScreen() {
     }
     const onConnectError = () => {
       setIsConnected(false)
-      setConnectionError('Could not reach the server.')
+      setConnectionError(t('room.error.network'))
       syncInFlight.current = false
     }
     const onParticipantsUpdated = ({ participants: p }: { participants: Participant[] }) => setParticipants(p)
@@ -453,12 +455,12 @@ function RoomScreen() {
       }
     }
     const onParticipantJoined = ({ participant }: { participant: Participant }) => {
-      addSystemMsg(`${participant.nickname} joined (${participant.language.toUpperCase()})`)
+      addSystemMsg(t('room.joined', { nickname: participant.nickname, lang: participant.language.toUpperCase() }))
     }
     const onParticipantLeft = ({ socketId }: { socketId: string }) => {
       setParticipants(prev => {
         const leaving = prev.find(p => p.socketId === socketId)
-        if (leaving) addSystemMsg(`${leaving.nickname} left`)
+        if (leaving) addSystemMsg(t('room.left', { nickname: leaving.nickname }))
         return prev.filter(p => p.socketId !== socketId)
       })
     }
@@ -649,7 +651,7 @@ function RoomScreen() {
       id,
       original: text,
       translated: text,
-      sender: nickname || 'Me',
+      sender: nickname || t('room.me'),
       senderLang: effectiveSenderLang,
       targetLang: myLanguageRef.current,
       isMine: true,
@@ -688,7 +690,7 @@ function RoomScreen() {
       setVoiceAlertVisible(false)
       setIsRecording(true)
     } catch {
-      alert('Microphone access is required for voice messages.')
+      alert(t('room.micRequired'))
     }
   }, [roomConfig.input.voice])
 
@@ -747,7 +749,7 @@ function RoomScreen() {
           <span className="text-4xl">🚪</span>
         </div>
         <div className="flex flex-col gap-2">
-          <h2 className="text-white text-2xl font-bold">This room no longer exists</h2>
+          <h2 className="text-white text-2xl font-bold">{t('room.gone')}</h2>
           <p className="text-lt-muted text-base">
             The room <span className="text-white font-mono font-bold">{code}</span> was closed or the server restarted.
           </p>
@@ -787,7 +789,7 @@ function RoomScreen() {
             </button>
             <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-lt-accent' : 'bg-yellow-500'}`} />
             <span className="text-lt-muted text-xs">
-              {isConnected ? 'Live' : connectionError || 'Connecting…'}
+              {isConnected ? t('room.live') : connectionError || t('room.connecting')}
             </span>
           </div>
         </div>
@@ -835,9 +837,9 @@ function RoomScreen() {
             type="checkbox"
             checked={voiceAutoPlayEnabled}
             onChange={e => updateVoiceAutoPlayEnabled(e.target.checked)}
-            aria-label="Autoplay voice messages"
+            aria-label={t('room.autoplayVoice')}
           />
-          <span>Autoplay voice</span>
+          <span>{t('room.autoplayVoice')}</span>
         </label>
       </div>
 
@@ -849,7 +851,7 @@ function RoomScreen() {
               checked={roomConfig.input.text}
               onChange={e => updateRoomConfig({ ...roomConfig, input: { ...roomConfig.input, text: e.target.checked } })}
             />
-            <span>Text</span>
+            <span>{t('room.config.textIn')}</span>
           </label>
           <label className="flex items-center gap-2 text-lt-muted text-xs">
             <input
@@ -857,7 +859,7 @@ function RoomScreen() {
               checked={roomConfig.input.voice}
               onChange={e => updateRoomConfig({ ...roomConfig, input: { ...roomConfig.input, voice: e.target.checked } })}
             />
-            <span>Voice</span>
+            <span>{t('room.config.voiceIn')}</span>
           </label>
           <select
             className="col-span-2 sm:col-span-1 bg-lt-card border border-lt-border rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-lt-primary"
@@ -865,7 +867,7 @@ function RoomScreen() {
             onChange={e => updateRoomConfig({ ...roomConfig, voicePipeline: e.target.value as RoomConfig['voicePipeline'] })}
           >
             <option value="stt-text-translate">STT</option>
-            <option value="direct-voice-translation">Direct voice</option>
+            <option value="direct-voice-translation">{t('room.config.directVoice')}</option>
           </select>
           <label className="flex items-center gap-2 text-lt-muted text-xs">
             <input
@@ -873,7 +875,7 @@ function RoomScreen() {
               checked={roomConfig.output.translatedText}
               onChange={e => updateRoomConfig({ ...roomConfig, output: { ...roomConfig.output, translatedText: e.target.checked } })}
             />
-            <span>Text out</span>
+            <span>{t('room.config.textOut')}</span>
           </label>
           <label className="flex items-center gap-2 text-lt-muted text-xs">
             <input
@@ -881,7 +883,7 @@ function RoomScreen() {
               checked={roomConfig.output.translatedAudio}
               onChange={e => updateRoomConfig({ ...roomConfig, output: { ...roomConfig.output, translatedAudio: e.target.checked } })}
             />
-            <span>Audio out</span>
+            <span>{t('room.config.audioOut')}</span>
           </label>
         </div>
       )}
@@ -893,8 +895,8 @@ function RoomScreen() {
             <span className="text-4xl">{roomConfig.mode === 'solo_multilang' ? '🔄' : '🌐'}</span>
             <p className="text-lt-muted text-center text-sm px-8">
               {roomConfig.mode === 'solo_multilang'
-                ? <>Tap your language side above, then speak or type.<br />The translation appears here instantly.</>
-                : <>Send a message or hold the mic button to speak.<br />Everyone gets it in their own language.</>
+                ? t('room.emptyState.solo').split('\n').map((l, i) => <span key={i}>{l}{i === 0 && <br />}</span>)
+                : t('room.emptyState.normal').split('\n').map((l, i) => <span key={i}>{l}{i === 0 && <br />}</span>)
               }
             </p>
           </div>
@@ -924,13 +926,13 @@ function RoomScreen() {
         <div className="px-4 pb-3">
           <Alert variant="destructive" className="pr-10">
             <CircleAlert aria-hidden="true" />
-            <AlertTitle>Voice message too short</AlertTitle>
-            <AlertDescription>Record at least 1 second before sending.</AlertDescription>
+            <AlertTitle>{t('room.alert.tooShortTitle')}</AlertTitle>
+            <AlertDescription>{t('room.alert.tooShortBody')}</AlertDescription>
             <button
               type="button"
               className="absolute right-3 top-3 rounded-md p-1 text-lt-muted transition-colors hover:bg-lt-card hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lt-primary"
               onClick={() => setVoiceAlertVisible(false)}
-              aria-label="Dismiss voice message alert"
+              aria-label={t('room.alert.dismiss')}
             >
               <X size={16} aria-hidden="true" />
             </button>
@@ -945,8 +947,8 @@ function RoomScreen() {
           className="flex-1 bg-lt-card border border-lt-border rounded-2xl px-4 py-3 text-white text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors resize-none max-h-28"
           placeholder={
             roomConfig.mode === 'solo_multilang' && effectiveSoloLang
-              ? `${getLang(effectiveSoloLang).flag} Type in ${getLang(effectiveSoloLang).name}…`
-              : `Message in ${myLanguage.toUpperCase()}…`
+              ? `${getLang(effectiveSoloLang).flag} ${t('room.inputPlaceholderSolo', { lang: getLang(effectiveSoloLang).name })}`
+              : t('room.inputPlaceholder', { lang: myLanguage.toUpperCase() })
           }
           value={inputText}
           onChange={e => setInputText(e.target.value)}
@@ -963,8 +965,8 @@ function RoomScreen() {
             onTouchStart={startRecording}
             onTouchEnd={stopAndSend}
             disabled={!isConnected || !roomConfig.input.voice}
-            title={isRecording ? 'Stop recording' : 'Hold to record'}
-            aria-label={isRecording ? 'Stop recording' : 'Hold to record'}
+            title={isRecording ? t('room.stopRecording') : t('room.holdToRecord')}
+            aria-label={isRecording ? t('room.stopRecording') : t('room.holdToRecord')}
             className={`rounded-full w-12 h-12 flex items-center justify-center transition-all disabled:opacity-50 shrink-0 ${
               isRecording ? 'bg-lt-danger scale-110' : 'bg-lt-primary hover:bg-lt-primary-dark'
             }`}
@@ -977,8 +979,8 @@ function RoomScreen() {
             type="button"
             onClick={sendText}
             disabled={!isConnected || !inputText.trim()}
-            title="Send message"
-            aria-label="Send message"
+            title={t('room.sendMessage')}
+            aria-label={t('room.sendMessage')}
             className="bg-lt-primary rounded-full w-12 h-12 flex items-center justify-center hover:bg-lt-primary-dark transition-colors disabled:opacity-40 shrink-0"
           >
             <Send size={20} className="text-white" />

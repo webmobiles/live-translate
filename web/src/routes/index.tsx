@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { logout } from '@/lib/api'
 import type { User } from '@/types'
 
@@ -10,6 +11,7 @@ export const Route = createFileRoute('/')({
 const LANG_CHIPS = ['🇺🇸 EN', '🇪🇸 ES', '🇫🇷 FR', '🇩🇪 DE', '🇨🇳 ZH', '🇯🇵 JA', '🇧🇷 PT', '🇷🇺 RU']
 
 function HomeScreen() {
+  const { t }        = useTranslation()
   const navigate     = useNavigate()
   const queryClient  = useQueryClient()
   const me = queryClient.getQueryData<User | null>(['auth-me'])
@@ -31,9 +33,7 @@ function HomeScreen() {
           </div>
           <div className="flex flex-col items-center gap-1">
             <h1 className="text-white text-4xl font-bold tracking-tight">LiveTranslate</h1>
-            <p className="text-lt-muted text-base text-center">
-              Real-time AI translation across languages
-            </p>
+            <p className="text-lt-muted text-base text-center">{t('home.tagline')}</p>
           </div>
         </div>
 
@@ -52,14 +52,14 @@ function HomeScreen() {
               onClick={handleLogout}
               className="text-lt-muted text-xs hover:text-white transition-colors flex-shrink-0 ml-3"
             >
-              Sign out
+              {t('common.signOut')}
             </button>
           </div>
         )}
 
         {/* Powered by */}
         <div className="flex items-center justify-center gap-2 bg-lt-card rounded-xl px-4 py-3 border border-lt-border">
-          <span className="text-lt-muted text-sm">Powered by</span>
+          <span className="text-lt-muted text-sm">{t('home.poweredBy')}</span>
           <span className="text-lt-accent font-semibold text-sm">OpenAI GPT-4o-mini + Whisper</span>
         </div>
 
@@ -69,16 +69,16 @@ function HomeScreen() {
             onClick={() => navigate({ to: '/create' })}
             className="bg-lt-primary rounded-2xl py-4 flex flex-col items-center hover:bg-lt-primary-dark transition-colors"
           >
-            <span className="text-white text-lg font-bold">Create Room</span>
-            <span className="text-white/60 text-sm mt-0.5">Start a new translation session</span>
+            <span className="text-white text-lg font-bold">{t('home.createRoom')}</span>
+            <span className="text-white/60 text-sm mt-0.5">{t('home.createRoomSub')}</span>
           </button>
 
           <button
             onClick={() => navigate({ to: '/join' })}
             className="border-2 border-lt-primary rounded-2xl py-4 flex flex-col items-center hover:bg-lt-primary-muted transition-colors"
           >
-            <span className="text-lt-primary text-lg font-bold">Join Room</span>
-            <span className="text-lt-muted text-sm mt-0.5">Enter a room code to join</span>
+            <span className="text-lt-primary text-lg font-bold">{t('home.joinRoom')}</span>
+            <span className="text-lt-muted text-sm mt-0.5">{t('home.joinRoomSub')}</span>
           </button>
         </div>
 

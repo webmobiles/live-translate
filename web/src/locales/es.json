@@ -120,15 +120,43 @@
     "joining": "Conectando…"
   },
   "room": {
+    "live": "En vivo",
     "connecting": "Conectando…",
-    "connected": "Conectado",
-    "disconnected": "Desconectado",
-    "reconnecting": "Reconectando…",
+    "reconnected": "Reconectado a la sala",
+    "recreated": "Sala recreada tras reinicio — comparte el código de nuevo si es necesario",
+    "error": {
+      "network": "No se puede conectar al servidor.",
+      "recreate": "No se pudo recrear la sala."
+    },
+    "gone": "Esta sala ya no existe",
     "participants": "{{count}} participante",
     "participants_plural": "{{count}} participantes",
-    "inputPlaceholder": "Escribe un mensaje…",
-    "listening": "Escuchando…",
-    "translating": "Traduciendo…",
+    "joined": "{{nickname}} se unió ({{lang}})",
+    "left": "{{nickname}} salió",
+    "me": "Yo",
+    "micRequired": "Se requiere acceso al micrófono para los mensajes de voz.",
+    "inputPlaceholder": "Mensaje en {{lang}}…",
+    "inputPlaceholderSolo": "Escribe en {{lang}}…",
+    "stopRecording": "Detener grabación",
+    "holdToRecord": "Mantener para grabar",
+    "sendMessage": "Enviar mensaje",
+    "autoplayVoice": "Reproducción auto",
+    "emptyState": {
+      "solo": "Toca tu lado del idioma arriba, luego habla o escribe.\nLa traducción aparece aquí al instante.",
+      "normal": "Envía un mensaje o mantén el botón de micrófono para hablar.\nTodos lo reciben en su propio idioma."
+    },
+    "config": {
+      "textIn": "Texto",
+      "voiceIn": "Voz",
+      "directVoice": "Voz directa",
+      "textOut": "Texto traducido",
+      "audioOut": "Audio traducido"
+    },
+    "alert": {
+      "tooShortTitle": "Mensaje de voz demasiado corto",
+      "tooShortBody": "Graba al menos 1 segundo antes de enviar.",
+      "dismiss": "Cerrar alerta"
+    },
     "solo": {
       "speaking": "habla"
     }

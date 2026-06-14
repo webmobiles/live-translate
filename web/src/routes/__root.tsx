@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { createRootRoute, Outlet, useNavigate, useLocation } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { fetchUser } from '@/lib/api'
 
 export const Route = createRootRoute({
@@ -48,11 +49,12 @@ function RootLayout() {
 }
 
 function LoadingScreen() {
+  const { t } = useTranslation()
   return (
     <div className="min-h-screen bg-lt-bg flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
         <span className="text-4xl">🌐</span>
-        <p className="text-lt-muted text-sm">Loading…</p>
+        <p className="text-lt-muted text-sm">{t('common.loading')}</p>
       </div>
     </div>
   )

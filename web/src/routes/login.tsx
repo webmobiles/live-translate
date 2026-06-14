@@ -1,4 +1,5 @@
 import { createFileRoute, useSearch } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 
 export const Route = createFileRoute('/login')({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -19,11 +20,8 @@ function GoogleIcon() {
 }
 
 function LoginScreen() {
+  const { t } = useTranslation()
   const { error } = useSearch({ from: '/login' })
-
-  const handleGoogleLogin = () => {
-    window.location.href = '/auth/google'
-  }
 
   return (
     <div className="min-h-screen bg-lt-bg flex items-center justify-center px-6">
@@ -36,43 +34,40 @@ function LoginScreen() {
           </div>
           <div className="text-center">
             <h1 className="text-white text-3xl font-bold tracking-tight">LiveTranslate</h1>
-            <p className="text-lt-muted text-sm mt-1">Real-time translation for everyone</p>
+            <p className="text-lt-muted text-sm mt-1">{t('home.tagline')}</p>
           </div>
         </div>
 
         {/* Card */}
         <div className="w-full bg-lt-card border border-lt-border rounded-2xl p-8 flex flex-col gap-6">
           <div className="text-center">
-            <h2 className="text-white text-xl font-semibold">Welcome</h2>
-            <p className="text-lt-muted text-sm mt-1">Sign in to start translating</p>
+            <h2 className="text-white text-xl font-semibold">{t('login.title')}</h2>
+            <p className="text-lt-muted text-sm mt-1">{t('login.subtitle')}</p>
           </div>
 
           {error && (
             <div className="bg-lt-danger/10 border border-lt-danger rounded-xl px-4 py-3 text-center">
               <p className="text-lt-danger text-sm">
-                {error === 'oauth_failed'
-                  ? 'Google sign-in failed. Please try again.'
-                  : 'Something went wrong. Please try again.'}
+                {t(`login.error.${error}`, t('login.error.oauth_failed'))}
               </p>
             </div>
           )}
 
           <button
-            onClick={handleGoogleLogin}
+            onClick={() => { window.location.href = '/auth/google' }}
             className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-50 active:bg-gray-100 text-gray-800 font-semibold rounded-xl py-3.5 px-4 transition-colors shadow-sm border border-gray-200"
           >
             <GoogleIcon />
-            <span>Continue with Google</span>
+            <span>{t('login.continueWithGoogle')}</span>
           </button>
 
           <p className="text-lt-muted text-xs text-center leading-relaxed">
-            By signing in you agree to our terms of service.
-            Your data is only used to provide the translation service.
+            {t('login.terms')}
           </p>
         </div>
 
         <p className="text-lt-muted text-xs text-center">
-          No account needed — Google sign-in creates one automatically.
+          {t('login.noAccount')}
         </p>
 
       </div>
