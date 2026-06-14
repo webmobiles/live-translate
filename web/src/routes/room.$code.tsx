@@ -844,39 +844,15 @@ function RoomScreen() {
       </div>
 
       {isHost && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 px-3 py-2.5 border-b border-lt-border bg-lt-bg shrink-0">
-          <label className="flex items-center gap-2 text-lt-muted text-xs">
-            <input
-              type="checkbox"
-              checked={roomConfig.input.text}
-              onChange={e => updateRoomConfig({ ...roomConfig, input: { ...roomConfig.input, text: e.target.checked } })}
-            />
-            <span>{t('room.config.textIn')}</span>
-          </label>
-          <label className="flex items-center gap-2 text-lt-muted text-xs">
-            <input
-              type="checkbox"
-              checked={roomConfig.input.voice}
-              onChange={e => updateRoomConfig({ ...roomConfig, input: { ...roomConfig.input, voice: e.target.checked } })}
-            />
-            <span>{t('room.config.voiceIn')}</span>
-          </label>
+        <div className="flex items-center gap-3 px-3 py-2.5 border-b border-lt-border bg-lt-bg shrink-0">
           <select
-            className="col-span-2 sm:col-span-1 bg-lt-card border border-lt-border rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-lt-primary"
+            className="bg-lt-card border border-lt-border rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-lt-primary"
             value={roomConfig.voicePipeline}
             onChange={e => updateRoomConfig({ ...roomConfig, voicePipeline: e.target.value as RoomConfig['voicePipeline'] })}
           >
             <option value="stt-text-translate">STT</option>
             <option value="direct-voice-translation">{t('room.config.directVoice')}</option>
           </select>
-          <label className="flex items-center gap-2 text-lt-muted text-xs">
-            <input
-              type="checkbox"
-              checked={roomConfig.output.translatedText}
-              onChange={e => updateRoomConfig({ ...roomConfig, output: { ...roomConfig.output, translatedText: e.target.checked } })}
-            />
-            <span>{t('room.config.textOut')}</span>
-          </label>
           <label className="flex items-center gap-2 text-lt-muted text-xs">
             <input
               type="checkbox"
