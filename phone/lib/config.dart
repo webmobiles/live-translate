@@ -7,7 +7,7 @@
 /// (`10.0.2.2` is the Android emulator's alias for the host machine's localhost.)
 const String kServerUrl = String.fromEnvironment(
   'SERVER_URL',
-  defaultValue: 'https://translate.hellovia.app',
+  defaultValue: 'https://livetranslate.hellovia.app',
 );
 
 /// When false, the Google sign-in gate on the home screen is bypassed
