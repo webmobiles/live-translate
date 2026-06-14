@@ -474,17 +474,27 @@ function RoomScreen() {
     const onHistory = ({ messages: history }: { messages: Message[] }) => {
       setMessages(prev => {
         const prevById = new Map(prev.map(m => [m.id, m]))
-        return history.map(h => {
+        const historyIds = new Set(history.map(h => h.id))
+
+        // Keep optimistic/in-flight messages that the server hasn't persisted yet.
+        // These are messages the sender added locally (sending/queued) or translating
+        // placeholders — they'll be replaced properly when message:incoming arrives.
+        const inFlight = prev.filter(m =>
+          !historyIds.has(m.id) &&
+          (m.isTranslating || m.deliveryStatus === 'sending' || m.deliveryStatus === 'queued'),
+        )
+
+        const merged = history.map(h => {
           const existing = prevById.get(h.id)
           return {
             ...h,
-            // Preserve in-memory audio if DB didn't store it yet (reconnect scenario)
             originalAudio: h.originalAudio ?? existing?.originalAudio ?? null,
             translatedAudio: h.translatedAudio ?? existing?.translatedAudio ?? null,
-            // Keep autoPlay from a real-time delivery; only suppress for pure history
             autoPlay: existing?.autoPlay ?? false,
           }
         })
+
+        return [...merged, ...inFlight]
       })
       setTimeout(scrollToBottom, 100)
     }
@@ -522,9 +532,10 @@ function RoomScreen() {
     const recoverActiveTab = () => {
       if (document.visibilityState === 'hidden') return
 
-      if (socket.connected) {
-        syncRoom(hasSyncedRoom.current ? 'reconnect' : 'initial')
-      } else {
+      // Only re-join if the socket actually dropped. When already connected, Socket.IO
+      // maintains the session — calling syncRoom redundantly triggers room:history which
+      // wipes in-flight optimistic messages that haven't been saved yet.
+      if (!socket.connected) {
         setConnectionError('')
         socket.connect()
       }
