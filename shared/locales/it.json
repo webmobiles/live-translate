@@ -1,0 +1,165 @@
+{
+  "common": {
+    "back": "← Indietro",
+    "continue": "Continua →",
+    "loading": "Caricamento…",
+    "saving": "Salvataggio…",
+    "signOut": "Esci",
+    "uiLanguage": "Seleziona lingua",
+    "change": "Cambia →",
+    "error": {
+      "network": "Impossibile raggiungere il server. Controlla la connessione.",
+      "generic": "Qualcosa è andato storto."
+    }
+  },
+  "home": {
+    "tagline": "Traduzione IA in tempo reale tra lingue",
+    "poweredBy": "Basato su",
+    "createRoom": "Crea stanza",
+    "createRoomSub": "Avvia una nuova sessione di traduzione",
+    "joinRoom": "Entra nella stanza",
+    "joinRoomSub": "Inserisci un codice stanza per entrare"
+  },
+  "login": {
+    "title": "Benvenuto",
+    "subtitle": "Accedi per iniziare a tradurre",
+    "continueWithGoogle": "Continua con Google",
+    "noAccount": "Non serve un account — l'accesso con Google ne crea uno automaticamente.",
+    "terms": "Accedendo accetti i nostri termini di servizio. I tuoi dati vengono usati solo per fornire il servizio di traduzione.",
+    "error": {
+      "oauth_failed": "Accesso con Google non riuscito. Riprova.",
+      "google_not_configured": "L'accesso con Google non è configurato su questo server.",
+      "too_many_requests": "Troppi tentativi. Attendi un momento e riprova."
+    }
+  },
+  "onboarding": {
+    "title": "Ci siamo quasi!",
+    "subtitle": "Configura il tuo profilo in pochi secondi",
+    "step": {
+      "nickname": {
+        "label": "Come dobbiamo chiamarti?",
+        "placeholder": "Il tuo nome o soprannome",
+        "hint": "Questo viene mostrato agli altri partecipanti. Non deve essere unico."
+      },
+      "motherLang": {
+        "label": "La tua lingua madre",
+        "hint": "Questa è la lingua che parli. Le stanze che crei la useranno come impostazione predefinita."
+      },
+      "targetLang": {
+        "label": "Lingua di traduzione preferita",
+        "hint": "Quando gli altri parlano, vedrai le traduzioni in questa lingua per impostazione predefinita.",
+        "pick": "Scegli una lingua",
+        "sameWarning": "⚠ È la stessa della tua lingua madre. Puoi cambiarla."
+      }
+    },
+    "finish": "Andiamo 🚀"
+  },
+  "create": {
+    "title": "Crea stanza",
+    "roomType": "Tipo di stanza",
+    "mode": {
+      "normal": "Multiutente",
+      "normalSub": "Condividi un codice; ogni persona entra con la propria lingua",
+      "solo": "Solo / Duo",
+      "soloSub": "Due lingue, un dispositivo — cambia per alternare chi parla"
+    },
+    "fields": {
+      "roomName": "Nome stanza (opzionale)",
+      "roomNamePlaceholder": "es. Riunione team, Conferenza…",
+      "yourName": "Il tuo nome",
+      "yourNamePlaceholder": "Inserisci il tuo nome",
+      "yourLanguage": "La tua lingua",
+      "yourLanguageSub": "Parlo in…",
+      "guestLanguage": "Lingua predefinita degli ospiti",
+      "guestLanguageSub": "Gli ospiti leggeranno in…",
+      "guestLanguageHint": "Precompila il selettore lingua quando qualcuno entra con il tuo codice. Potrà comunque cambiarla.",
+      "soloLanguages": "Scegli due lingue",
+      "personA": "Persona A",
+      "personB": "Persona B"
+    },
+    "options": {
+      "title": "Opzioni",
+      "textInput": "Input testo",
+      "voiceInput": "Input voce",
+      "pipeline": {
+        "stt": "STT poi traduzione",
+        "direct": "Traduzione vocale diretta"
+      },
+      "translatedText": "Testo tradotto",
+      "translatedAudio": "Audio tradotto"
+    },
+    "info": {
+      "soloTitle": "Come funziona Solo / Duo",
+      "soloBody": "Un grande interruttore ti permette di cambiare chi sta parlando. Tocca il lato della tua lingua, poi parla o scrivi. La traduzione appare subito. Nessuna condivisione necessaria — è solo per due persone su un dispositivo.",
+      "normalTitle": "Come funziona",
+      "normalBody": "Condividi il codice stanza con gli altri. Ogni persona seleziona la propria lingua. I messaggi vengono tradotti in tempo reale — tutti leggono nella propria lingua."
+    },
+    "errors": {
+      "nickRequired": "Inserisci il tuo nome.",
+      "sameLang": "Scegli due lingue diverse."
+    },
+    "cta": "Crea stanza",
+    "creating": "Creazione…"
+  },
+  "join": {
+    "title": "Entra nella stanza",
+    "fields": {
+      "code": "Codice stanza",
+      "codePlaceholder": "ABC123",
+      "yourName": "Il tuo nome",
+      "yourNamePlaceholder": "Inserisci il tuo nome",
+      "yourLanguage": "La tua lingua",
+      "yourLanguageSub": "Voglio leggere in…",
+      "suggestedByHost": "Suggerito dall'host"
+    },
+    "errors": {
+      "codeRequired": "Inserisci il codice stanza di 6 caratteri.",
+      "nickRequired": "Inserisci il tuo nome.",
+      "notFound": "Stanza non trovata. Controlla il codice."
+    },
+    "cta": "Entra nella stanza",
+    "joining": "Ingresso…"
+  },
+  "room": {
+    "live": "Live",
+    "connecting": "Connessione…",
+    "reconnected": "Riconnesso alla stanza",
+    "recreated": "Stanza ricreata dopo il riavvio del server — condividi di nuovo il codice se necessario",
+    "error": {
+      "network": "Impossibile raggiungere il server.",
+      "recreate": "Impossibile ricreare la stanza."
+    },
+    "gone": "Questa stanza non esiste più",
+    "participants": "{{count}} partecipante",
+    "participants_plural": "{{count}} partecipanti",
+    "joined": "{{nickname}} è entrato ({{lang}})",
+    "left": "{{nickname}} è uscito",
+    "me": "Io",
+    "micRequired": "L'accesso al microfono è necessario per i messaggi vocali.",
+    "inputPlaceholder": "Messaggio in {{lang}}…",
+    "inputPlaceholderSolo": "Scrivi in {{lang}}…",
+    "stopRecording": "Ferma registrazione",
+    "holdToRecord": "Tieni premuto per registrare",
+    "sendMessage": "Invia messaggio",
+    "autoplayVoice": "Riproduzione voce automatica",
+    "emptyState": {
+      "solo": "Tocca sopra il lato della tua lingua, poi parla o scrivi.\nLa traduzione appare qui subito.",
+      "normal": "Invia un messaggio o tieni premuto il microfono per parlare.\nOgnuno lo riceve nella propria lingua."
+    },
+    "config": {
+      "textIn": "Testo",
+      "voiceIn": "Voce",
+      "directVoice": "Voce diretta",
+      "textOut": "Testo in uscita",
+      "audioOut": "Audio in uscita"
+    },
+    "alert": {
+      "tooShortTitle": "Messaggio vocale troppo breve",
+      "tooShortBody": "Registra almeno 1 secondo prima di inviare.",
+      "dismiss": "Chiudi avviso messaggio vocale"
+    },
+    "solo": {
+      "speaking": "sta parlando"
+    }
+  }
+}

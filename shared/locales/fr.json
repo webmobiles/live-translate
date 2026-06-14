@@ -5,6 +5,7 @@
     "loading": "Chargement…",
     "saving": "Enregistrement…",
     "signOut": "Déconnexion",
+    "uiLanguage": "Choisir la langue",
     "change": "Modifier →",
     "error": {
       "network": "Impossible de joindre le serveur. Vérifiez votre connexion.",

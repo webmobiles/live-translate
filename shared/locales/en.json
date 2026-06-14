@@ -5,6 +5,7 @@
     "loading": "Loading…",
     "saving": "Saving…",
     "signOut": "Sign out",
+    "uiLanguage": "Select language",
     "change": "Change →",
     "error": {
       "network": "Could not reach the server. Check your network.",

@@ -5,6 +5,7 @@
     "loading": "Cargando…",
     "saving": "Guardando…",
     "signOut": "Cerrar sesión",
+    "uiLanguage": "Seleccionar idioma",
     "change": "Cambiar →",
     "error": {
       "network": "No se puede conectar al servidor. Comprueba tu conexión.",

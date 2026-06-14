@@ -1,0 +1,165 @@
+{
+  "common": {
+    "back": "← Zurück",
+    "continue": "Weiter →",
+    "loading": "Wird geladen…",
+    "saving": "Wird gespeichert…",
+    "signOut": "Abmelden",
+    "uiLanguage": "Sprache auswählen",
+    "change": "Ändern →",
+    "error": {
+      "network": "Der Server ist nicht erreichbar. Prüfen Sie Ihre Verbindung.",
+      "generic": "Etwas ist schiefgelaufen."
+    }
+  },
+  "home": {
+    "tagline": "KI-Übersetzung in Echtzeit zwischen Sprachen",
+    "poweredBy": "Bereitgestellt von",
+    "createRoom": "Raum erstellen",
+    "createRoomSub": "Eine neue Übersetzungssitzung starten",
+    "joinRoom": "Raum beitreten",
+    "joinRoomSub": "Geben Sie einen Raumcode ein"
+  },
+  "login": {
+    "title": "Willkommen",
+    "subtitle": "Melden Sie sich an, um mit dem Übersetzen zu beginnen",
+    "continueWithGoogle": "Mit Google fortfahren",
+    "noAccount": "Kein Konto erforderlich — die Google-Anmeldung erstellt automatisch eines.",
+    "terms": "Mit der Anmeldung akzeptieren Sie unsere Nutzungsbedingungen. Ihre Daten werden nur zur Bereitstellung des Übersetzungsdienstes verwendet.",
+    "error": {
+      "oauth_failed": "Google-Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+      "google_not_configured": "Die Google-Anmeldung ist auf diesem Server nicht konfiguriert.",
+      "too_many_requests": "Zu viele Versuche. Bitte warten Sie einen Moment und versuchen Sie es erneut."
+    }
+  },
+  "onboarding": {
+    "title": "Fast geschafft!",
+    "subtitle": "Richten Sie Ihr Profil in wenigen Sekunden ein",
+    "step": {
+      "nickname": {
+        "label": "Wie sollen wir Sie nennen?",
+        "placeholder": "Ihr Name oder Spitzname",
+        "hint": "Dies wird anderen Teilnehmenden angezeigt. Es muss nicht eindeutig sein."
+      },
+      "motherLang": {
+        "label": "Ihre Muttersprache",
+        "hint": "Das ist die Sprache, die Sie sprechen. Von Ihnen erstellte Räume verwenden sie standardmäßig."
+      },
+      "targetLang": {
+        "label": "Bevorzugte Übersetzungssprache",
+        "hint": "Wenn andere sprechen, sehen Sie Übersetzungen standardmäßig in dieser Sprache.",
+        "pick": "Sprache auswählen",
+        "sameWarning": "⚠ Dies ist dieselbe Sprache wie Ihre Muttersprache. Sie können sie ändern."
+      }
+    },
+    "finish": "Los geht's 🚀"
+  },
+  "create": {
+    "title": "Raum erstellen",
+    "roomType": "Raumtyp",
+    "mode": {
+      "normal": "Mehrbenutzer",
+      "normalSub": "Teilen Sie einen Code; jede Person tritt mit ihrer Sprache bei",
+      "solo": "Solo / Duo",
+      "soloSub": "Zwei Sprachen, ein Gerät — wechseln, um die sprechende Person zu ändern"
+    },
+    "fields": {
+      "roomName": "Raumname (optional)",
+      "roomNamePlaceholder": "z. B. Teammeeting, Konferenz…",
+      "yourName": "Ihr Name",
+      "yourNamePlaceholder": "Geben Sie Ihren Namen ein",
+      "yourLanguage": "Ihre Sprache",
+      "yourLanguageSub": "Ich spreche auf…",
+      "guestLanguage": "Standardsprache für Gäste",
+      "guestLanguageSub": "Gäste lesen auf…",
+      "guestLanguageHint": "Füllt die Sprachauswahl vor, wenn jemand mit Ihrem Code beitritt. Die Person kann sie weiterhin ändern.",
+      "soloLanguages": "Zwei Sprachen auswählen",
+      "personA": "Person A",
+      "personB": "Person B"
+    },
+    "options": {
+      "title": "Optionen",
+      "textInput": "Texteingabe",
+      "voiceInput": "Spracheingabe",
+      "pipeline": {
+        "stt": "STT, dann übersetzen",
+        "direct": "Direkte Sprachübersetzung"
+      },
+      "translatedText": "Übersetzter Text",
+      "translatedAudio": "Übersetztes Audio"
+    },
+    "info": {
+      "soloTitle": "So funktioniert Solo / Duo",
+      "soloBody": "Ein großer Umschalter lässt Sie wechseln, wer spricht. Tippen Sie auf Ihre Sprachseite und sprechen oder tippen Sie. Die Übersetzung erscheint sofort. Kein Teilen nötig — es ist nur für zwei Personen auf einem Gerät.",
+      "normalTitle": "So funktioniert es",
+      "normalBody": "Teilen Sie den Raumcode mit anderen. Jede Person wählt ihre Sprache. Nachrichten werden live übersetzt — alle lesen in ihrer eigenen Sprache."
+    },
+    "errors": {
+      "nickRequired": "Bitte geben Sie Ihren Namen ein.",
+      "sameLang": "Bitte wählen Sie zwei unterschiedliche Sprachen."
+    },
+    "cta": "Raum erstellen",
+    "creating": "Wird erstellt…"
+  },
+  "join": {
+    "title": "Raum beitreten",
+    "fields": {
+      "code": "Raumcode",
+      "codePlaceholder": "ABC123",
+      "yourName": "Ihr Name",
+      "yourNamePlaceholder": "Geben Sie Ihren Namen ein",
+      "yourLanguage": "Ihre Sprache",
+      "yourLanguageSub": "Ich möchte lesen auf…",
+      "suggestedByHost": "Vom Gastgeber vorgeschlagen"
+    },
+    "errors": {
+      "codeRequired": "Bitte geben Sie den 6-stelligen Raumcode ein.",
+      "nickRequired": "Bitte geben Sie Ihren Namen ein.",
+      "notFound": "Raum nicht gefunden. Prüfen Sie den Code."
+    },
+    "cta": "Raum beitreten",
+    "joining": "Beitritt läuft…"
+  },
+  "room": {
+    "live": "Live",
+    "connecting": "Verbindung wird hergestellt…",
+    "reconnected": "Wieder mit dem Raum verbunden",
+    "recreated": "Raum nach Serverneustart neu erstellt — teilen Sie den Code bei Bedarf erneut",
+    "error": {
+      "network": "Der Server ist nicht erreichbar.",
+      "recreate": "Der Raum konnte nicht neu erstellt werden."
+    },
+    "gone": "Dieser Raum existiert nicht mehr",
+    "participants": "{{count}} Teilnehmer",
+    "participants_plural": "{{count}} Teilnehmer",
+    "joined": "{{nickname}} ist beigetreten ({{lang}})",
+    "left": "{{nickname}} hat den Raum verlassen",
+    "me": "Ich",
+    "micRequired": "Für Sprachnachrichten ist Mikrofonzugriff erforderlich.",
+    "inputPlaceholder": "Nachricht auf {{lang}}…",
+    "inputPlaceholderSolo": "Auf {{lang}} tippen…",
+    "stopRecording": "Aufnahme stoppen",
+    "holdToRecord": "Zum Aufnehmen gedrückt halten",
+    "sendMessage": "Nachricht senden",
+    "autoplayVoice": "Sprache automatisch abspielen",
+    "emptyState": {
+      "solo": "Tippen Sie oben auf Ihre Sprachseite und sprechen oder tippen Sie.\nDie Übersetzung erscheint hier sofort.",
+      "normal": "Senden Sie eine Nachricht oder halten Sie die Mikrofontaste gedrückt, um zu sprechen.\nAlle erhalten sie in ihrer eigenen Sprache."
+    },
+    "config": {
+      "textIn": "Text",
+      "voiceIn": "Sprache",
+      "directVoice": "Direkte Sprache",
+      "textOut": "Textausgabe",
+      "audioOut": "Audioausgabe"
+    },
+    "alert": {
+      "tooShortTitle": "Sprachnachricht zu kurz",
+      "tooShortBody": "Nehmen Sie vor dem Senden mindestens 1 Sekunde auf.",
+      "dismiss": "Hinweis zur Sprachnachricht schließen"
+    },
+    "solo": {
+      "speaking": "spricht"
+    }
+  }
+}
