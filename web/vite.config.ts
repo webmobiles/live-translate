@@ -27,6 +27,11 @@ export default defineConfig({
         changeOrigin: true,
         secure:      false,
       },
+      '/uploads': {
+        target:      SERVER_URL,
+        changeOrigin: true,
+        secure:      false,
+      },
     },
   },
 })

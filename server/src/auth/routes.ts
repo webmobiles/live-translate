@@ -1,8 +1,33 @@
 import { Router } from 'express';
 import passport from 'passport';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import { rateLimitLogin } from './rateLimiter';
-import { updateProfile } from './db';
+import { updateProfile, updateAvatarUrl } from './db';
 import { requireAuth } from './middleware';
+
+const IMAGES_DIR = () => process.env.PROFILE_IMAGES_DIR ?? './data/images/profiles';
+
+const avatarUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      const dir = IMAGES_DIR();
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (req, _file, cb) => {
+      const user = req.user as any;
+      // Named by user id — overwrites previous upload
+      cb(null, `${user.id}.jpg`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Only image files are allowed'));
+  },
+});
 
 const router = Router();
 
@@ -81,6 +106,23 @@ router.patch('/profile', requireAuth, async (req, res, next) => {
     req.login(updated, err => {
       if (err) return next(err);
       res.json(updated);
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Avatar upload ─────────────────────────────────────────────────────────
+
+router.post('/profile/avatar', requireAuth, avatarUpload.single('avatar'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'no_file' });
+    const user = req.user as any;
+    const avatarUrl = `/uploads/profiles/${path.basename(req.file.path)}`;
+    const updated = await updateAvatarUrl(user.id, avatarUrl);
+    req.login(updated, err => {
+      if (err) return next(err);
+      res.json({ avatar_url: avatarUrl });
     });
   } catch (err) {
     next(err);

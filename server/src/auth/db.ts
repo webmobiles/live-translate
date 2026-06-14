@@ -237,3 +237,14 @@ export async function updateProfile(id: string, data: {
   );
   return rows[0] ?? null;
 }
+
+export async function updateAvatarUrl(id: string, avatarUrl: string) {
+  const { rows } = await pool.query(
+    `UPDATE users
+     SET avatar_url = $2, updated_at = NOW()
+     WHERE id = $1
+     RETURNING id, name, nickname, email, avatar_url, mother_language, target_language`,
+    [id, avatarUrl],
+  );
+  return rows[0] ?? null;
+}

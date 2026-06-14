@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { logout } from '@/lib/api'
 import type { User } from '@/types'
 
 export const Route = createFileRoute('/')({
@@ -15,12 +14,6 @@ function HomeScreen() {
   const navigate     = useNavigate()
   const queryClient  = useQueryClient()
   const me = queryClient.getQueryData<User | null>(['auth-me'])
-
-  const handleLogout = async () => {
-    await logout()
-    queryClient.setQueryData(['auth-me'], null)
-    navigate({ to: '/login', search: { error: undefined } })
-  }
 
   return (
     <div className="min-h-screen bg-lt-bg flex items-center justify-center px-6">
@@ -41,18 +34,20 @@ function HomeScreen() {
         {me && (
           <div className="flex items-center justify-between bg-lt-card border border-lt-border rounded-xl px-4 py-3">
             <div className="flex items-center gap-3 min-w-0">
-              {me.avatar_url && (
-                <img src={me.avatar_url} alt="" className="w-8 h-8 rounded-full flex-shrink-0" />
-              )}
+              {me.avatar_url
+                ? <img src={me.avatar_url} alt="" className="w-8 h-8 rounded-full flex-shrink-0 object-cover" />
+                : <span className="text-2xl flex-shrink-0">👤</span>
+              }
               <span className="text-white text-sm font-medium truncate">
                 {me.nickname ?? me.name}
               </span>
             </div>
             <button
-              onClick={handleLogout}
-              className="text-lt-muted text-xs hover:text-white transition-colors flex-shrink-0 ml-3"
+              onClick={() => navigate({ to: '/settings' })}
+              className="text-lt-muted text-xl hover:text-white transition-colors flex-shrink-0 ml-3 p-1"
+              aria-label="Settings"
             >
-              {t('common.signOut')}
+              ⚙
             </button>
           </div>
         )}

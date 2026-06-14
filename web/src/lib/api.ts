@@ -32,6 +32,22 @@ export async function saveProfile(data: {
   return res.json()
 }
 
+export async function uploadAvatar(file: File): Promise<string> {
+  const form = new FormData()
+  form.append('avatar', file)
+  const res = await fetch('/auth/profile/avatar', {
+    method:      'POST',
+    credentials: 'include',
+    body:        form,
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error ?? `HTTP ${res.status}`)
+  }
+  const data = await res.json()
+  return data.avatar_url as string
+}
+
 export async function logout(): Promise<void> {
   await fetch('/auth/logout', { method: 'POST', credentials: 'include' })
 }

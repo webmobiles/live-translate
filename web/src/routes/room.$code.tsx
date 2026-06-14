@@ -784,9 +784,11 @@ function RoomScreen() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={copyCode} className="text-lt-accent text-xs font-mono font-bold hover:opacity-70 transition-opacity">
-              {code} {copied ? '✓' : '📋'}
-            </button>
+            {roomConfig.mode !== 'solo_multilang' && (
+              <button onClick={copyCode} className="text-lt-accent text-xs font-mono font-bold hover:opacity-70 transition-opacity">
+                {code} {copied ? '✓' : '📋'}
+              </button>
+            )}
             <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-lt-accent' : 'bg-yellow-500'}`} />
             <span className="text-lt-muted text-xs">
               {isConnected ? t('room.live') : connectionError || t('room.connecting')}

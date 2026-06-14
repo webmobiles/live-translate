@@ -1,4 +1,4 @@
-import { useEffect, type ChangeEvent } from 'react'
+import { useEffect } from 'react'
 import { createRootRoute, Outlet, useNavigate, useLocation } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -44,62 +44,41 @@ function RootLayout() {
   }, [user, isLoading, isPublic, pathname, navigate])
 
   if (isLoading) {
-    return (
-      <>
-        <UiLanguageSelect />
-        <LoadingScreen />
-      </>
-    )
+    return <LoadingScreen />
   }
 
   return (
     <>
-      <UiLanguageSelect />
+      <ProfileButton user={user ?? null} hidden={pathname === '/settings'} />
       <Outlet />
     </>
   )
 }
 
-const UI_LANGUAGES = [
-  { code: 'en', name: 'English' },
-  { code: 'fr', name: 'Français' },
-  { code: 'es', name: 'Español' },
-  { code: 'pt', name: 'Português' },
-  { code: 'de', name: 'Deutsch' },
-  { code: 'it', name: 'Italiano' },
-]
+type RootUser = Awaited<ReturnType<typeof fetchUser>>
 
-function UiLanguageSelect() {
-  const { i18n, t } = useTranslation()
-  const currentLanguage = i18n.resolvedLanguage?.split('-')[0] ?? 'en'
+function ProfileButton({ user, hidden }: { user: RootUser; hidden: boolean }) {
+  const navigate = useNavigate()
+  const { t } = useTranslation()
 
-  useEffect(() => {
-    document.documentElement.lang = currentLanguage
-  }, [currentLanguage])
+  if (!user || hidden) return null
 
-  const handleChange = (event: ChangeEvent<HTMLSelectElement>) => {
-    void i18n.changeLanguage(event.target.value)
-  }
+  const displayName = user.nickname ?? user.name ?? user.email ?? ''
+  const initial = displayName.trim().charAt(0).toUpperCase() || '?'
 
   return (
-    <div className="fixed left-3 top-3 z-50 sm:left-4 sm:top-4">
-      <label htmlFor="ui-language" className="sr-only">
-        {t('common.uiLanguage')}
-      </label>
-      <select
-        id="ui-language"
-        value={currentLanguage}
-        onChange={handleChange}
-        aria-label={t('common.uiLanguage')}
-        className="h-9 max-w-[calc(100vw-1.5rem)] rounded-lg border border-lt-border bg-lt-card px-3 text-sm font-medium text-white shadow-lg shadow-black/20 outline-none transition-colors hover:border-lt-primary focus:border-lt-primary focus:ring-2 focus:ring-lt-primary/30"
-      >
-        {UI_LANGUAGES.map(language => (
-          <option key={language.code} value={language.code}>
-            {language.name}
-          </option>
-        ))}
-      </select>
-    </div>
+    <button
+      type="button"
+      onClick={() => navigate({ to: '/settings' })}
+      aria-label={t('settings.title')}
+      className="fixed right-3 top-3 z-50 flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-lt-border bg-lt-card text-sm font-bold text-white shadow-lg shadow-black/20 transition-colors hover:border-lt-primary focus:border-lt-primary focus:outline-none focus:ring-2 focus:ring-lt-primary/30 sm:right-4 sm:top-4"
+    >
+      {user.avatar_url ? (
+        <img src={user.avatar_url} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <span>{initial}</span>
+      )}
+    </button>
   )
 }
 

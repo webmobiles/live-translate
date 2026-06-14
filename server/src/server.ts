@@ -62,6 +62,10 @@ app.use(passport.session());
 // ── Auth routes ─────────────────────────────────────────────────────────────
 app.use('/auth', authRouter);
 app.use('/internal', internalRouter);
+
+// ── Profile images (static) ──────────────────────────────────────────────────
+const IMAGES_DIR = process.env.PROFILE_IMAGES_DIR ?? './data/images/profiles';
+app.use('/uploads/profiles', express.static(IMAGES_DIR));
 app.use('/api/inngest', rateLimitApi);
 app.use((req, res, next) => {
   const startedAt = Date.now();

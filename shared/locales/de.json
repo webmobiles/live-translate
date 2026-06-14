@@ -161,5 +161,19 @@
     "solo": {
       "speaking": "spricht"
     }
+  },
+  "settings": {
+    "title": "Kontoeinstellungen",
+    "avatar": "Profilfoto",
+    "avatarChange": "Foto ändern",
+    "avatarHint": "JPG, PNG oder GIF · max. 5 MB",
+    "nickname": "Ihr Name",
+    "nicknamePlaceholder": "Ihr Name oder Spitzname",
+    "motherLang": "Muttersprache",
+    "targetLang": "Bevorzugte Übersetzungssprache",
+    "uiLanguage": "App-Sprache",
+    "save": "Änderungen speichern",
+    "saved": "Gespeichert!",
+    "signOutConfirm": "Wirklich abmelden?"
   }
 }
