@@ -104,12 +104,11 @@ export async function getRoomByCode(code: string) {
 }
 
 export async function updateRoomConfig(roomId: string, config: any) {
-  const roomConfig = normalizeRoomConfig(config);
   await query(
     'UPDATE type::thing("rooms", $id) SET config = $config;',
-    { id: roomId, config: roomConfig },
+    { id: roomId, config },
   );
-  return roomConfig;
+  return config;
 }
 
 export async function saveMessage({ roomId, msgId, sender, senderLang, original, translations, isAudio }: any) {

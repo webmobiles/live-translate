@@ -199,7 +199,7 @@ io.on('connection', (socket) => {
   });
 
   // ── Join room ────────────────────────────────────────────────────────────
-  socket.on('room:join', async ({ code, nickname, language }: any = {}, cb) => {
+  socket.on('room:join', async ({ code, nickname, language, isHost: clientIsHost }: any = {}, cb) => {
     try {
       // Restore from ScyllaDB if server restarted
       const room = await roomManager.getOrRestore(code);
@@ -216,7 +216,7 @@ io.on('connection', (socket) => {
         socketId: socket.id,
         nickname: nickname || existingParticipant?.nickname || 'Guest',
         language: language || existingParticipant?.language || 'en',
-        isHost:   existingParticipant?.isHost || false,
+        isHost:   existingParticipant?.isHost || clientIsHost || false,
       });
 
       socket.join(`room:${room.code}`);

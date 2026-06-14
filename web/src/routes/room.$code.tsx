@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { CircleAlert, Mic, Send, Square, X } from 'lucide-react'
+import { CircleAlert, Mic, Pause, Play, Send, Square, X } from 'lucide-react'
 import { connectSocket } from '@/lib/socket'
 import { getLang } from '@/lib/languages'
 import { LanguageSelector, LanguageBadge } from '@/components/LanguageSelector'
@@ -86,7 +86,7 @@ function RoomScreen() {
       setConnectionError('')
       socket.timeout(8000).emit(
         'room:join',
-        { code, nickname, language: myLanguageRef.current },
+        { code, nickname, language: myLanguageRef.current, isHost },
         (err: Error | null, res?: { ok: boolean; room?: { code: string; name: string; config?: RoomConfig }; error?: string }) => {
           syncInFlight.current = false
           if (err || !res) {
@@ -693,6 +693,108 @@ function formatMessageTime(timestamp: number) {
   return date.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+// ── Audio player (WhatsApp-style) ──────────────────────────────────────────
+
+function generateWaveformBars(seed: string, count: number): number[] {
+  return Array.from({ length: count }, (_, i) => {
+    const envelope = Math.sin((i / (count - 1)) * Math.PI)
+    const c = seed.charCodeAt(i % seed.length)
+    const noise = Math.abs(Math.sin(i * 1.7 + c * 0.05))
+    return 0.15 + envelope * 0.45 + noise * 0.4
+  })
+}
+
+function AudioPlayer({ audioBase64, mimeType, isMine }: { audioBase64: string; mimeType: string; isMine: boolean }) {
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+
+  const bars = useMemo(() => generateWaveformBars(audioBase64.slice(0, 40), 36), [audioBase64])
+  const src  = useMemo(() => `data:${mimeType};base64,${audioBase64}`, [audioBase64, mimeType])
+
+  const togglePlay = useCallback(() => {
+    const a = audioRef.current
+    if (!a) return
+    if (isPlaying) a.pause()
+    else a.play()
+  }, [isPlaying])
+
+  const handleTimeUpdate = useCallback(() => {
+    const a = audioRef.current
+    if (!a || !a.duration) return
+    setProgress(a.currentTime / a.duration)
+    setCurrentTime(a.currentTime)
+  }, [])
+
+  const handleWaveformClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    const a = audioRef.current
+    if (!a || !a.duration) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    a.currentTime = ((e.clientX - rect.left) / rect.width) * a.duration
+  }, [])
+
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+
+  const activeColor   = isMine ? 'rgba(255,255,255,0.92)' : '#7C3AED'
+  const inactiveColor = isMine ? 'rgba(255,255,255,0.28)' : 'rgba(124,58,237,0.22)'
+
+  return (
+    <div className="flex items-center gap-2 mt-2 min-w-[180px]">
+      <audio
+        ref={audioRef}
+        src={src}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => { setIsPlaying(false); setProgress(0); setCurrentTime(0) }}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 0)}
+      />
+
+      <button
+        type="button"
+        onClick={togglePlay}
+        className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-opacity hover:opacity-80 ${
+          isMine ? 'bg-white/20' : 'bg-lt-primary'
+        }`}
+      >
+        {isPlaying
+          ? <Pause size={15} fill="white" className="text-white" />
+          : <Play  size={15} fill="white" className="text-white ml-0.5" />}
+      </button>
+
+      <div className="flex flex-col gap-0.5 flex-1">
+        <svg
+          height="28"
+          viewBox={`0 0 ${bars.length * 5} 28`}
+          preserveAspectRatio="none"
+          className="w-full cursor-pointer"
+          onClick={handleWaveformClick}
+        >
+          {bars.map((h, i) => {
+            const barH = Math.max(3, h * 26)
+            return (
+              <rect
+                key={i}
+                x={i * 5 + 1}
+                y={(28 - barH) / 2}
+                width={3}
+                height={barH}
+                rx={1.5}
+                fill={(i / bars.length) <= progress ? activeColor : inactiveColor}
+              />
+            )
+          })}
+        </svg>
+        <span className={`text-[10px] leading-none tabular-nums ${isMine ? 'text-white/50' : 'text-lt-muted'}`}>
+          {duration > 0 ? fmt(isPlaying ? currentTime : duration) : '…'}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 // ── Message bubble ─────────────────────────────────────────────────────────
 
 function MessageBubble({ message }: { message: Message }) {
@@ -733,10 +835,10 @@ function MessageBubble({ message }: { message: Message }) {
           {showOriginal ? original : translated}
         </p>
         {translatedAudio && (
-          <audio
-            className="mt-2 w-full max-w-64"
-            controls
-            src={`data:${translatedAudio.mimeType};base64,${translatedAudio.audioBase64}`}
+          <AudioPlayer
+            audioBase64={translatedAudio.audioBase64}
+            mimeType={translatedAudio.mimeType}
+            isMine={isMine}
           />
         )}
         {hasTranslation && (

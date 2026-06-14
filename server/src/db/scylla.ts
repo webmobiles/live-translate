@@ -89,13 +89,12 @@ export async function getRoomByCode(code: string) {
 }
 
 export async function updateRoomConfig(roomId: string, config: any) {
-  const roomConfig = normalizeRoomConfig(config);
   await getClient().execute(
     'UPDATE rooms SET config = ? WHERE id = ?',
-    [JSON.stringify(roomConfig), roomId],
+    [JSON.stringify(config), roomId],
     { prepare: true },
   );
-  return roomConfig;
+  return config;
 }
 
 // ── Messages ───────────────────────────────────────────────────────────────
