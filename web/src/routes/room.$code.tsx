@@ -1195,6 +1195,82 @@ function DeliveryIcon({ status }: { status?: Message['deliveryStatus'] }) {
   return null
 }
 
+// ── In-flight translation progress bar ─────────────────────────────────────
+// Thin bar shown under an outgoing message while it's being processed:
+//   • crawls toward 25% while the server is receiving the message
+//   • snaps to 25% once the server has it (status 'queued'), then crawls
+//     toward ~92% during translation + audio processing
+//   • fills to 100% on delivery, then fades out and unmounts
+// Never shows for messages that mount already-delivered (e.g. chat history).
+function TranslationProgress({ status, translating, align }: {
+  status?: Message['deliveryStatus']
+  translating?: boolean
+  align?: 'left' | 'right'
+}) {
+  const inFlight = translating || status === 'sending' || status === 'queued'
+  const seenInFlight = useRef(inFlight)
+  const [render, setRender] = useState(inFlight)
+  const [fading, setFading] = useState(false)
+  const [width, setWidth] = useState(12)
+  const [durationMs, setDurationMs] = useState(300)
+
+  if (inFlight) seenInFlight.current = true
+
+  useEffect(() => {
+    let crawl: ReturnType<typeof setTimeout> | undefined
+    let fade: ReturnType<typeof setTimeout> | undefined
+    let remove: ReturnType<typeof setTimeout> | undefined
+
+    if (translating) {
+      // "…" placeholder (e.g. voice in normal mode, or an incoming translation):
+      // crawl toward ~92% and stay there until the real message replaces it.
+      setRender(true); setFading(false)
+      setDurationMs(280); setWidth(25)
+      crawl = setTimeout(() => { setDurationMs(9000); setWidth(92) }, 340)
+    } else if (status === 'sending') {
+      setRender(true); setFading(false)
+      setDurationMs(300); setWidth(12)
+      crawl = setTimeout(() => { setDurationMs(9000); setWidth(90) }, 340)
+    } else if (status === 'queued') {
+      setRender(true); setFading(false)
+      setDurationMs(280); setWidth(25)
+      crawl = setTimeout(() => { setDurationMs(9000); setWidth(92) }, 340)
+    } else if (status === 'delivered' || status === 'read') {
+      if (!seenInFlight.current) { setRender(false); return }
+      setDurationMs(220); setWidth(100)
+      fade = setTimeout(() => setFading(true), 380)
+      remove = setTimeout(() => setRender(false), 720)
+    } else {
+      setRender(false) // 'failed' / undefined
+    }
+
+    return () => { clearTimeout(crawl); clearTimeout(fade); clearTimeout(remove) }
+  }, [status, translating])
+
+  if (!render) return null
+
+  return (
+    <div
+      role="progressbar"
+      aria-label="Translating"
+      className={`mt-1 h-1 w-32 max-w-[55%] overflow-hidden rounded-full bg-white/10 transition-opacity duration-300 ${
+        fading ? 'opacity-0' : 'opacity-100'
+      } ${align === 'right' ? 'self-end' : 'self-start'}`}
+    >
+      <div
+        className="h-full rounded-full"
+        style={{
+          width: `${width}%`,
+          background: 'linear-gradient(90deg, #7C6EFF, #00D4B4)', // lt-primary → lt-accent
+          transitionProperty: 'width',
+          transitionDuration: `${durationMs}ms`,
+          transitionTimingFunction: 'ease-out',
+        }}
+      />
+    </div>
+  )
+}
+
 function formatMessageTime(timestamp: number) {
   const date = new Date(timestamp)
   if (Number.isNaN(date.getTime())) return ''
@@ -1359,10 +1435,11 @@ function SoloMessageBubble({ message, soloLanguages }: { message: Message; soloL
 
   if (isTranslating) {
     return (
-      <div className={`flex mb-1 ${isA ? 'justify-start' : 'justify-end'}`}>
+      <div className={`flex flex-col mb-1 ${isA ? 'items-start' : 'items-end'}`}>
         <div className="max-w-[75%] px-4 py-3 rounded-2xl bg-lt-card border border-lt-border rounded-bl-sm">
           <span className="text-lt-muted text-sm">…</span>
         </div>
+        <TranslationProgress translating align={isA ? 'left' : 'right'} />
       </div>
     )
   }
@@ -1399,6 +1476,8 @@ function SoloMessageBubble({ message, soloLanguages }: { message: Message; soloL
         </div>
       )}
 
+      <TranslationProgress status={deliveryStatus} align={isA ? 'left' : 'right'} />
+
       <div className={`flex items-center gap-1 mt-1 mx-1 ${deliveryStatus === 'failed' ? 'text-lt-danger' : 'text-lt-muted'}`}>
         <span className="text-xs">{time}</span>
         {!isA && <DeliveryIcon status={deliveryStatus} />}
@@ -1433,10 +1512,11 @@ function MessageBubble({ message }: { message: Message }) {
 
   if (isTranslating) {
     return (
-      <div className={`flex mb-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
+      <div className={`flex flex-col mb-1 ${isMine ? 'items-end' : 'items-start'}`}>
         <div className={`max-w-[75%] px-4 py-3 rounded-2xl ${isMine ? 'bg-lt-primary rounded-br-sm' : 'bg-lt-card rounded-bl-sm border border-lt-border'}`}>
           <span className="text-lt-muted text-sm">…</span>
         </div>
+        <TranslationProgress translating align={isMine ? 'right' : 'left'} />
       </div>
     )
   }
@@ -1476,6 +1556,7 @@ function MessageBubble({ message }: { message: Message }) {
           </p>
         )}
       </div>
+      {isMine && <TranslationProgress status={deliveryStatus} align="right" />}
       {/* Timestamp + delivery icon (only shown on my messages) */}
       <div className={`flex items-center gap-1 mt-1 mx-1 ${deliveryStatus === 'failed' ? 'text-lt-danger' : 'text-lt-muted'}`}>
         <span className="text-xs">{time}</span>
