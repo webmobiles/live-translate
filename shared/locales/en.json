@@ -23,13 +23,26 @@
   "login": {
     "title": "Welcome",
     "subtitle": "Sign in to start translating",
+    "emailSignIn": "Sign in",
+    "createAccount": "Create account",
+    "namePlaceholder": "Name (optional)",
+    "emailPlaceholder": "Email",
+    "passwordPlaceholder": "Password",
+    "or": "or",
     "continueWithGoogle": "Continue with Google",
-    "noAccount": "No account needed — Google sign-in creates one automatically.",
+    "noAccount": "Use email and password, or continue with Google.",
     "terms": "By signing in you agree to our terms of service. Your data is only used to provide the translation service.",
     "error": {
       "oauth_failed": "Google sign-in failed. Please try again.",
       "google_not_configured": "Google sign-in is not configured on this server.",
-      "too_many_requests": "Too many attempts. Please wait a moment and try again."
+      "too_many_requests": "Too many attempts. Please wait a moment and try again.",
+      "email_invalid": "Enter a valid email address.",
+      "password_too_short": "Password must be at least 8 characters.",
+      "email_already_registered": "That email already has a password. Sign in instead.",
+      "email_password_required": "Enter your email and password.",
+      "invalid_credentials": "Email or password is incorrect.",
+      "network": "Could not reach the server. Check your network.",
+      "auth_failed": "Sign-in failed. Please try again."
     }
   },
   "onboarding": {

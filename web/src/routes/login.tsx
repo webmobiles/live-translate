@@ -1,5 +1,9 @@
 import { createFileRoute, useSearch } from '@tanstack/react-router'
+import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
+import { authenticateWithEmail } from '@/lib/api'
 
 export const Route = createFileRoute('/login')({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -22,6 +26,31 @@ function GoogleIcon() {
 function LoginScreen() {
   const { t } = useTranslation()
   const { error } = useSearch({ from: '/login' })
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [formError, setFormError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handleEmailAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setFormError(null)
+    setSubmitting(true)
+    try {
+      const result = await authenticateWithEmail({ mode, name, email, password })
+      queryClient.setQueryData(['auth-me'], result.user)
+      navigate({ to: result.needsOnboarding ? '/onboarding' : '/' })
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'auth_failed')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const displayError = formError ?? error
 
   return (
     <div className="min-h-screen bg-lt-bg flex items-center justify-center px-6">
@@ -45,13 +74,78 @@ function LoginScreen() {
             <p className="text-lt-muted text-sm mt-1">{t('login.subtitle')}</p>
           </div>
 
-          {error && (
+          {displayError && (
             <div className="bg-lt-danger/10 border border-lt-danger rounded-xl px-4 py-3 text-center">
               <p className="text-lt-danger text-sm">
-                {t(`login.error.${error}`, t('login.error.oauth_failed'))}
+                {t(`login.error.${displayError}`, t('login.error.oauth_failed'))}
               </p>
             </div>
           )}
+
+          <div className="grid grid-cols-2 rounded-xl border border-lt-border bg-lt-bg p-1">
+            <button
+              type="button"
+              onClick={() => { setMode('login'); setFormError(null) }}
+              className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${mode === 'login' ? 'bg-lt-primary text-white' : 'text-lt-muted hover:text-white'}`}
+            >
+              {t('login.emailSignIn')}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMode('signup'); setFormError(null) }}
+              className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${mode === 'signup' ? 'bg-lt-primary text-white' : 'text-lt-muted hover:text-white'}`}
+            >
+              {t('login.createAccount')}
+            </button>
+          </div>
+
+          <form onSubmit={handleEmailAuth} className="flex flex-col gap-3">
+            {mode === 'signup' && (
+              <input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder={t('login.namePlaceholder')}
+                autoComplete="name"
+                className="w-full rounded-xl border border-lt-border bg-lt-bg px-4 py-3 text-white outline-none transition-colors placeholder:text-lt-muted focus:border-lt-primary"
+              />
+            )}
+            <input
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder={t('login.emailPlaceholder')}
+              type="email"
+              autoComplete="email"
+              required
+              className="w-full rounded-xl border border-lt-border bg-lt-bg px-4 py-3 text-white outline-none transition-colors placeholder:text-lt-muted focus:border-lt-primary"
+            />
+            <input
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder={t('login.passwordPlaceholder')}
+              type="password"
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+              minLength={mode === 'signup' ? 8 : undefined}
+              required
+              className="w-full rounded-xl border border-lt-border bg-lt-bg px-4 py-3 text-white outline-none transition-colors placeholder:text-lt-muted focus:border-lt-primary"
+            />
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full rounded-xl bg-lt-primary px-4 py-3.5 font-semibold text-white transition-colors hover:bg-lt-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting
+                ? t('common.loading')
+                : mode === 'signup'
+                  ? t('login.createAccount')
+                  : t('login.emailSignIn')}
+            </button>
+          </form>
+
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-lt-border" />
+            <span className="text-xs text-lt-muted">{t('login.or')}</span>
+            <div className="h-px flex-1 bg-lt-border" />
+          </div>
 
           <button
             onClick={() => { window.location.href = '/auth/google' }}
@@ -65,10 +159,6 @@ function LoginScreen() {
             {t('login.terms')}
           </p>
         </div>
-
-        <p className="text-lt-muted text-xs text-center">
-          {t('login.noAccount')}
-        </p>
 
       </div>
     </div>

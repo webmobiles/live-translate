@@ -7,6 +7,14 @@ function intEnv(key: string, fallback: number) {
   return Number.isFinite(v) ? v : fallback;
 }
 
+function boolEnv(key: string) {
+  return ['1', 'true', 'yes', 'on'].includes((process.env[key] ?? '').trim().toLowerCase());
+}
+
+function rateLimitsDisabled() {
+  return boolEnv('RATE_LIMITS_DISABLED');
+}
+
 function buildLimiter(keyPrefix: string, pointsKey: string, durationKey: string, blockKey: string,
   pointsDef: number, durationDef: number, blockDef: number) {
   return new RateLimiterPostgres({
@@ -31,8 +39,9 @@ function apiGuestLimiter() { return _apiGuestLimiter ??= buildLimiter('api_guest
 const FRONTEND_URL = () => process.env.FRONTEND_URL ?? 'http://localhost:5173';
 
 function tooManyJson(res: Response, msBeforeNext: number) {
-  res.set('Retry-After', String(Math.ceil(msBeforeNext / 1000)));
-  res.status(429).json({ error: 'too_many_requests', retry_after: Math.ceil(msBeforeNext / 1000) });
+  const retryAfter = Number.isFinite(msBeforeNext) ? Math.ceil(msBeforeNext / 1000) : null;
+  if (retryAfter != null) res.set('Retry-After', String(retryAfter));
+  res.status(429).json({ error: 'too_many_requests', retry_after: retryAfter });
 }
 
 function tooManyRedirect(res: Response) {
@@ -40,6 +49,8 @@ function tooManyRedirect(res: Response) {
 }
 
 export function rateLimitLogin(req: Request, res: Response, next: NextFunction) {
+  if (rateLimitsDisabled()) return next();
+
   loginLimiter().consume(req.ip ?? 'unknown')
     .then(() => next())
     .catch((rej: any) => {
@@ -50,6 +61,8 @@ export function rateLimitLogin(req: Request, res: Response, next: NextFunction) 
 }
 
 export function rateLimitApi(req: Request, res: Response, next: NextFunction) {
+  if (rateLimitsDisabled()) return next();
+
   const user = req.user as any;
   const limiter = user?.role === 'guest' ? apiGuestLimiter() : apiUserLimiter();
   limiter.consume((user?.id ?? req.ip) ?? 'unknown')

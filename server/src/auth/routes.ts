@@ -3,8 +3,10 @@ import passport from 'passport';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
+import { promisify } from 'util';
 import { rateLimitLogin } from './rateLimiter';
-import { updateProfile, updateAvatarUrl } from './db';
+import { createPasswordUser, findUserByEmail, setPasswordForUser, updateProfile, updateAvatarUrl } from './db';
 import { requireAuth } from './middleware';
 
 const IMAGES_DIR = () => process.env.PROFILE_IMAGES_DIR ?? './data/images/profiles';
@@ -30,6 +32,7 @@ const avatarUpload = multer({
 });
 
 const router = Router();
+const scrypt = promisify(crypto.scrypt);
 
 const FRONTEND_URL  = () => process.env.FRONTEND_URL  ?? 'http://localhost:5173';
 const AFTER_LOGIN   = () => `${FRONTEND_URL()}/`;
@@ -52,6 +55,44 @@ function withQuery(url: string, params: Record<string, string>) {
     target.searchParams.set(key, value);
   }
   return target.toString();
+}
+
+function normalizeEmail(value: unknown) {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+function normalizePassword(value: unknown) {
+  return typeof value === 'string' ? value : '';
+}
+
+function publicUser(user: any) {
+  const { id, name, nickname, email, avatar_url, mother_language, target_language } = user;
+  return { id, name, nickname, email, avatar_url, mother_language, target_language };
+}
+
+async function hashPassword(password: string) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const key = (await scrypt(password, salt, 64)) as Buffer;
+  return `scrypt:${salt}:${key.toString('hex')}`;
+}
+
+async function verifyPassword(password: string, storedHash: string | null | undefined) {
+  if (!storedHash) return false;
+  const [scheme, salt, hash] = storedHash.split(':');
+  if (scheme !== 'scrypt' || !salt || !hash) return false;
+  const key = (await scrypt(password, salt, 64)) as Buffer;
+  const expected = Buffer.from(hash, 'hex');
+  return expected.length === key.length && crypto.timingSafeEqual(expected, key);
+}
+
+function loginAndRespond(req: any, res: any, next: any, user: any) {
+  req.login(publicUser(user), (err: any) => {
+    if (err) return next(err);
+    res.json({
+      user: publicUser(user),
+      needsOnboarding: !user?.nickname || !user?.mother_language,
+    });
+  });
 }
 
 // ── Google OAuth ──────────────────────────────────────────────────────────
@@ -109,12 +150,55 @@ router.get('/google/callback', rateLimitLogin, (req, res, next) => {
   });
 });
 
+// ── Email + password ──────────────────────────────────────────────────────
+
+router.post('/email/signup', rateLimitLogin, async (req, res, next) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+    const password = normalizePassword(req.body?.password);
+    const name = typeof req.body?.name === 'string' && req.body.name.trim()
+      ? req.body.name.trim().slice(0, 255)
+      : email.split('@')[0];
+
+    if (!email || !email.includes('@')) return res.status(400).json({ error: 'email_invalid' });
+    if (password.length < 8) return res.status(400).json({ error: 'password_too_short' });
+
+    const passwordHash = await hashPassword(password);
+    const existing = await findUserByEmail(email);
+    if (existing?.password_hash) return res.status(409).json({ error: 'email_already_registered' });
+
+    const user = existing
+      ? await setPasswordForUser(existing.id, passwordHash)
+      : await createPasswordUser({ email, name, passwordHash });
+
+    loginAndRespond(req, res, next, user);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/email/login', rateLimitLogin, async (req, res, next) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+    const password = normalizePassword(req.body?.password);
+    if (!email || !password) return res.status(400).json({ error: 'email_password_required' });
+
+    const user = await findUserByEmail(email);
+    if (!user || !(await verifyPassword(password, user.password_hash))) {
+      return res.status(401).json({ error: 'invalid_credentials' });
+    }
+
+    loginAndRespond(req, res, next, user);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── Session ───────────────────────────────────────────────────────────────
 
 router.get('/me', (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ error: 'unauthenticated' });
-  const { id, name, nickname, email, avatar_url, mother_language, target_language } = req.user as any;
-  res.json({ id, name, nickname, email, avatar_url, mother_language, target_language });
+  res.json(publicUser(req.user as any));
 });
 
 router.post('/logout', requireAuth, (req, res, next) => {

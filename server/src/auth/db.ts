@@ -28,12 +28,15 @@ async function initSchema() {
       avatar_url       TEXT,
       provider         VARCHAR(20)  NOT NULL DEFAULT 'google',
       provider_id      VARCHAR(255),
+      password_hash    TEXT,
       mother_language  VARCHAR(10),
       target_language  VARCHAR(10),
       created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
       updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
       CONSTRAINT uq_provider UNIQUE (provider, provider_id)
     );
+
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
 
     -- ── Sessions ─────────────────────────────────────────────────────────────
     CREATE TABLE IF NOT EXISTS session (
@@ -196,19 +199,74 @@ export async function findOrCreateUser(profile: {
   email?: string;
   avatarUrl?: string;
 }): Promise<{ id: string; name: string; nickname: string | null; mother_language: string | null; target_language: string | null }> {
-  const { rows } = await pool.query(
+  const byProvider = await pool.query(
+    `UPDATE users
+     SET name       = $3,
+         email      = COALESCE($4, email),
+         avatar_url = COALESCE($5, avatar_url),
+         updated_at = NOW()
+     WHERE provider = $1 AND provider_id = $2
+     RETURNING id, name, nickname, mother_language, target_language`,
+    [profile.provider, profile.providerId, profile.name, profile.email ?? null, profile.avatarUrl ?? null],
+  );
+  if (byProvider.rows[0]) return byProvider.rows[0];
+
+  if (profile.email) {
+    const byEmail = await pool.query(
+      `UPDATE users
+       SET name = COALESCE(NULLIF($1, ''), name),
+           avatar_url = COALESCE($2, avatar_url),
+           provider = $3,
+           provider_id = $4,
+           updated_at = NOW()
+       WHERE lower(email) = lower($5)
+       RETURNING id, name, nickname, mother_language, target_language`,
+      [profile.name, profile.avatarUrl ?? null, profile.provider, profile.providerId, profile.email],
+    );
+    if (byEmail.rows[0]) return byEmail.rows[0];
+  }
+
+  const inserted = await pool.query(
     `INSERT INTO users (name, email, avatar_url, provider, provider_id)
      VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT (provider, provider_id)
-     DO UPDATE SET
-       name       = EXCLUDED.name,
-       email      = EXCLUDED.email,
-       avatar_url = EXCLUDED.avatar_url,
-       updated_at = NOW()
      RETURNING id, name, nickname, mother_language, target_language`,
     [profile.name, profile.email ?? null, profile.avatarUrl ?? null, profile.provider, profile.providerId],
   );
+  return inserted.rows[0];
+}
+
+export async function findUserByEmail(email: string) {
+  const { rows } = await pool.query(
+    `SELECT id, name, nickname, email, avatar_url, mother_language, target_language, password_hash
+     FROM users WHERE lower(email) = lower($1)`,
+    [email],
+  );
+  return rows[0] ?? null;
+}
+
+export async function createPasswordUser(data: {
+  email: string;
+  name: string;
+  passwordHash: string;
+}) {
+  const { rows } = await pool.query(
+    `INSERT INTO users (name, email, provider, provider_id, password_hash)
+     VALUES ($1, $2, 'email', $4, $3)
+     RETURNING id, name, nickname, email, avatar_url, mother_language, target_language`,
+    [data.name, data.email, data.passwordHash, data.email.toLowerCase()],
+  );
   return rows[0];
+}
+
+export async function setPasswordForUser(id: string, passwordHash: string) {
+  const { rows } = await pool.query(
+    `UPDATE users
+     SET password_hash = $2, updated_at = NOW()
+     WHERE id = $1
+     RETURNING id, name, nickname, email, avatar_url, mother_language, target_language`,
+    [id, passwordHash],
+  );
+  return rows[0] ?? null;
 }
 
 export async function findUserById(id: string) {

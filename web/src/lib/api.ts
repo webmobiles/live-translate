@@ -14,6 +14,30 @@ export async function fetchUser(): Promise<User | null> {
   }
 }
 
+export async function authenticateWithEmail(data: {
+  mode: 'login' | 'signup'
+  email: string
+  password: string
+  name?: string
+}): Promise<{ user: User; needsOnboarding: boolean }> {
+  const endpoint = data.mode === 'signup' ? '/auth/email/signup' : '/auth/email/login'
+  const res = await fetch(endpoint, {
+    method:      'POST',
+    credentials: 'include',
+    headers:     { 'Content-Type': 'application/json' },
+    body:        JSON.stringify({
+      email: data.email,
+      password: data.password,
+      name: data.name,
+    }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error ?? `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
 export async function saveProfile(data: {
   nickname: string
   motherLanguage: string
