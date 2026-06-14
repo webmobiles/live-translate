@@ -850,7 +850,7 @@ function MessageBubble({ message }: { message: Message }) {
         <p className="text-white text-base leading-relaxed">
           {showOriginal ? original : translated}
         </p>
-        {translatedAudio && (
+        {translatedAudio && !isMine && (
           <AudioPlayer
             audioBase64={translatedAudio.audioBase64}
             mimeType={translatedAudio.mimeType}

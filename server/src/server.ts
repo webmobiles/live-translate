@@ -275,7 +275,7 @@ io.on('connection', (socket) => {
             isMine:          false,
             isAudio:         msg.isAudio,
             originalAudio:   null,
-            translatedAudio: msg.audioOutputs?.[lang] ?? msg.audioOutputs?.[msg.senderLang] ?? null,
+            translatedAudio: msg.audioOutputs?.[lang] ?? null,
             timestamp:       msg.timestamp,
           }));
           socket.emit('room:history', { messages: formatted });

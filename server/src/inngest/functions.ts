@@ -71,10 +71,11 @@ async function buildTranslations(text: string, senderLang: string, targetLangs: 
   return Object.fromEntries([[senderLang, text], ...entries]);
 }
 
-async function buildAudioOutputs(translations: any, targetLangs: any[], roomConfig: any) {
+async function buildAudioOutputs(translations: any, targetLangs: any[], roomConfig: any, senderLang?: string) {
   if (!roomConfig.output.translatedAudio) return {};
 
-  const unique = [...new Set(targetLangs)];
+  // Never synthesize audio in the sender's own language — they already know what they said
+  const unique = [...new Set(targetLangs)].filter(lang => lang !== senderLang);
   const entries = await Promise.all(
     unique.map(async lang => {
       const text = translations[lang];
@@ -108,7 +109,7 @@ export const translateMessage = inngest.createFunction(
     );
 
     const audioOutputs = await step.run('generate-audio-output', () =>
-      buildAudioOutputs(translations, targetLangs, roomConfig),
+      buildAudioOutputs(translations, targetLangs, roomConfig, senderLang),
     );
 
     await step.run('save-to-db', () =>
@@ -194,7 +195,7 @@ export const transcribeAndTranslate = inngest.createFunction(
     );
 
     const audioOutputs = await step.run('generate-audio-output', () =>
-      buildAudioOutputs(translations, targetLangs, roomConfig),
+      buildAudioOutputs(translations, targetLangs, roomConfig, senderLang),
     );
 
     await step.run('save-to-db', () =>
