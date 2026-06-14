@@ -173,6 +173,16 @@ async function checkKokoroServer() {
   return { ok: true };
 }
 
+async function checkPiperServer() {
+  const baseUrl = (process.env.PIPER_BASE_URL || 'http://localhost:8881').replace(/\/+$/, '');
+  const res = await withTimeout(
+    fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(TIMEOUT_MS) }),
+    'piper /health',
+  );
+  if (!res.ok) throw new Error(`piper unreachable — HTTP ${res.status}. Is the container running? docker-compose --profile local-tts up -d piper`);
+  return { ok: true };
+}
+
 async function checkOpenAI() {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error('OPENAI_API_KEY is not set in .env');
@@ -234,12 +244,19 @@ function checksForProvider() {
     ? [{ name: 'faster-whisper-server', fn: checkFasterWhisperServer, required: true }]
     : [];
 
-  const knownTtsProviders = ['none', 'mock', 'openai', 'local', 'kokoro'];
+  const knownTtsProviders = ['none', 'mock', 'openai', 'local', 'kokoro', 'piper', 'hybrid'];
   const ttsChecks = ttsProvider === 'kokoro'
     ? [{ name: 'kokoro-fastapi', fn: checkKokoroServer, required: true }]
-    : !knownTtsProviders.includes(ttsProvider)
-      ? [{ name: 'TTS provider', fn: async () => { throw new Error(`Unknown TTS_PROVIDER: "${ttsProvider}". Valid: ${knownTtsProviders.join(', ')}`); }, required: true }]
-      : [];
+    : ttsProvider === 'piper'
+      ? [{ name: 'piper', fn: checkPiperServer, required: true }]
+      : ttsProvider === 'hybrid'
+        ? [
+            { name: 'kokoro-fastapi', fn: checkKokoroServer, required: true },
+            { name: 'piper', fn: checkPiperServer, required: true },
+          ]
+        : !knownTtsProviders.includes(ttsProvider)
+          ? [{ name: 'TTS provider', fn: async () => { throw new Error(`Unknown TTS_PROVIDER: "${ttsProvider}". Valid: ${knownTtsProviders.join(', ')}`); }, required: true }]
+          : [];
 
   const openAiRequired = envFlag('STARTUP_OPENAI_REQUIRED');
 

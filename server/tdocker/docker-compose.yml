@@ -318,9 +318,10 @@ services:
 
   # ── Kokoro FastAPI (local TTS) ──────────────────────────────────────────
   # OpenAI-compatible /v1/audio/speech endpoint, runs fully offline.
+  # Supports: en, es, fr, hi, it, ja, pt, zh
   # Start with:
   #   docker-compose --profile local-tts up -d kokoro
-  # Set TTS_PROVIDER=kokoro in .env.
+  # Set TTS_PROVIDER=kokoro (or TTS_PROVIDER=hybrid) in .env.
   kokoro:
     image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
     container_name: live-translate-kokoro
@@ -335,6 +336,33 @@ services:
       timeout: 10s
       retries: 10
       start_period: 60s
+
+  # ── Piper (local TTS — extra languages) ────────────────────────────────
+  # Fast local TTS covering languages Kokoro doesn't support:
+  #   ar, cs, de, fi, hu, ko, nl, pl, ro, ru, sv, tr, uk
+  # Download voice models first (outside Docker):
+  #   ./tdocker/install-piper-voices.sh
+  # Start with:
+  #   docker-compose --profile local-tts up -d piper
+  # Use standalone: TTS_PROVIDER=piper in .env
+  # Use with Kokoro: TTS_PROVIDER=hybrid in .env (Kokoro first, Piper fallback)
+  piper:
+    build:
+      context: ./piper
+    container_name: live-translate-piper
+    profiles: ["local-tts"]
+    ports:
+      - "8881:8881"   # OpenAI-compatible /v1/audio/speech → http://localhost:8881
+    volumes:
+      - ../data/piper/models:/models
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8881/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
 
   # ── Ollama (local LLM) ───────────────────────────────────────────────────
   # Start with:

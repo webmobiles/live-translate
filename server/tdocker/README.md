@@ -36,6 +36,9 @@ Default services include NATS, ScyllaDB, and Inngest.
 | Dragonfly | `localhost:6379` | Optional Redis-compatible Socket.IO adapter |
 | Valkey | `localhost:6380` | Optional Redis-compatible Socket.IO adapter |
 | Ollama | http://localhost:11434 | Optional local LLM runtime |
+| faster-whisper | http://localhost:8100 | Optional local STT (`local-stt` profile) |
+| Kokoro TTS | http://localhost:8880 | Optional local TTS — en/es/fr/hi/it/ja/pt/zh (`local-tts` profile) |
+| Piper TTS | http://localhost:8881 | Optional local TTS — de/ru/nl/pl/tr/ar/cs/fi/hu/ro/sv/uk (`local-tts` profile) |
 | Inngest Dev UI | http://localhost:8288 | Workflow dashboard |
 | Grafana | http://localhost:3001 | Optional OSS dashboards |
 | Loki | http://localhost:3100 | Optional log storage |
@@ -236,6 +239,51 @@ OTEL_ENABLED=true
 OTEL_SERVICE_NAME=live-translate-server
 OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:5080/api/default
 OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic cm9vdEBleGFtcGxlLmNvbTpDb21wbGV4cGFzcyMxMjM="
+```
+
+## Local TTS (Kokoro + Piper)
+
+Both services run under the `local-tts` profile. Use `TTS_PROVIDER=hybrid` in `.env` to get full language coverage — Kokoro handles en/es/fr/hi/it/ja/pt/zh, Piper handles everything else.
+
+### Step 1 — Download Piper voice models (one-time, ~600 MB)
+
+Run from the `server/` directory:
+
+```bash
+./tdocker/install-piper-voices.sh
+```
+
+This saves `.onnx` model files into `data/piper/models/`. The script skips files already present, so it is safe to re-run to add languages later.
+
+### Step 2 — Build and start
+
+```bash
+docker-compose --profile local-tts up -d --build kokoro piper
+```
+
+Kokoro pulls its image on first run. Piper is built from `./piper/Dockerfile` (downloads the binary on first build).
+
+### Step 3 — Configure
+
+```env
+TTS_PROVIDER=hybrid
+KOKORO_BASE_URL=http://localhost:8880
+PIPER_BASE_URL=http://localhost:8881
+```
+
+To use only one backend, set `TTS_PROVIDER=kokoro` or `TTS_PROVIDER=piper` and start only that container.
+
+## Optional faster-whisper (local STT)
+
+```bash
+docker-compose --profile local-stt up -d faster-whisper
+```
+
+Then set:
+
+```env
+STT_PROVIDER=faster-whisper-http
+FASTER_WHISPER_BASE_URL=http://localhost:8100
 ```
 
 ## Optional Ollama (local LLM translation)

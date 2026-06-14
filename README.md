@@ -428,7 +428,9 @@ Set `TTS_PROVIDER` in server `.env`:
 | `mock` | ✅ Local dev | Emits text/plain base64 payloads |
 | `openai` | ✅ Active | Uses OpenAI speech generation |
 | `local` | ⚙️ Local command | Runs `LOCAL_TTS_COMMAND`; command prints base64 audio |
-| `kokoro` | ⚙️ Local HTTP | Uses an OpenAI-compatible Kokoro server |
+| `kokoro` | ⚙️ Local HTTP | Kokoro server — en/es/fr/hi/it/ja/pt/zh |
+| `piper` | ⚙️ Local HTTP | Piper server — ar/cs/de/fi/hu/nl/pl/ro/ru/sv/tr/uk |
+| `hybrid` | ⚙️ Local HTTP | Kokoro first, Piper fallback — full language coverage |
 
 ```env
 TTS_PROVIDER=openai
@@ -437,7 +439,9 @@ TTS_OPENAI_VOICE=coral
 TTS_RESPONSE_FORMAT=mp3
 ```
 
-For Kokoro TTS:
+### Kokoro TTS (local, offline)
+
+High-quality neural TTS for: en, es, fr, hi, it, ja, pt, zh.
 
 ```env
 TTS_PROVIDER=kokoro
@@ -445,9 +449,69 @@ KOKORO_BASE_URL=http://localhost:8880
 KOKORO_VOICE=af_heart
 ```
 
-Kokoro chooses the TTS voice from the receiver's target language at runtime, not from `.env`. For example, a receiver who joined with Spanish (`es`) uses the Spanish voice `ef_dora`, so Spanish text is not spoken with the English `af_heart` voice. `KOKORO_VOICE` only overrides the English voice. If the receiver language is unsupported by Kokoro, such as German (`de`), the provider returns no audio instead of using an English voice. Use OpenAI or a local TTS provider for German spoken output.
+Start the container (no extra setup needed — model is bundled):
 
-For local TTS:
+```bash
+cd server/tdocker
+docker-compose --profile local-tts up -d kokoro
+```
+
+Kokoro chooses the voice from the receiver's target language at runtime. `KOKORO_VOICE` only overrides the English voice. For unsupported languages (de, ru, nl, etc.) Kokoro returns no audio — use `piper` or `hybrid` to cover those.
+
+### Piper TTS (local, offline — extra languages)
+
+Fast neural TTS for languages Kokoro doesn't support: ar, cs, de, fi, hu, ko, nl, pl, ro, ru, sv, tr, uk.
+
+1. Download voice models (run once, ~600 MB total):
+
+```bash
+cd server
+./tdocker/install-piper-voices.sh
+```
+
+2. Build and start the container:
+
+```bash
+cd server/tdocker
+docker-compose --profile local-tts up -d --build piper
+```
+
+3. Set in `.env`:
+
+```env
+TTS_PROVIDER=piper
+PIPER_BASE_URL=http://localhost:8881
+```
+
+Voice models are stored in `server/data/piper/models/` and mounted into the container. Run the install script again at any time to add more voices — it skips files already downloaded.
+
+### Hybrid TTS (Kokoro + Piper, recommended)
+
+Routes each language to the best available backend: Kokoro for its eight languages, Piper for everything else.
+
+1. Download Piper voice models:
+
+```bash
+cd server
+./tdocker/install-piper-voices.sh
+```
+
+2. Start both containers:
+
+```bash
+cd server/tdocker
+docker-compose --profile local-tts up -d --build kokoro piper
+```
+
+3. Set in `.env`:
+
+```env
+TTS_PROVIDER=hybrid
+KOKORO_BASE_URL=http://localhost:8880
+PIPER_BASE_URL=http://localhost:8881
+```
+
+### Local TTS command
 
 ```env
 TTS_PROVIDER=local
@@ -654,4 +718,30 @@ sum(count_over_time({service="live-translate-server"} | json | severity="P2" [1h
 
 ## Supported Languages
 
-EN · ES · FR · DE · IT · PT · ZH · JA · KO · AR · RU · HI · TR · NL · PL · SV
+EN · ES · FR · DE · IT · PT · ZH · JA · KO · AR · RU · HI · TR · NL · PL · SV · CS · FI · HU · RO · UK
+
+| Language | Code | Kokoro TTS | Piper TTS |
+|---|---|---|---|
+| English | `en` | ✅ | — |
+| Spanish | `es` | ✅ | — |
+| French | `fr` | ✅ | — |
+| Hindi | `hi` | ✅ | — |
+| Italian | `it` | ✅ | — |
+| Japanese | `ja` | ✅ | — |
+| Portuguese | `pt` | ✅ | — |
+| Chinese | `zh` | ✅ | — |
+| Arabic | `ar` | — | ✅ |
+| Czech | `cs` | — | ✅ |
+| German | `de` | — | ✅ |
+| Finnish | `fi` | — | ✅ |
+| Hungarian | `hu` | — | ✅ |
+| Korean | `ko` | — | ❌ not in piper-voices v1.0 |
+| Dutch | `nl` | — | ✅ |
+| Polish | `pl` | — | ✅ |
+| Romanian | `ro` | — | ✅ |
+| Russian | `ru` | — | ✅ |
+| Swedish | `sv` | — | ✅ |
+| Turkish | `tr` | — | ✅ |
+| Ukrainian | `uk` | — | ✅ |
+
+Use `TTS_PROVIDER=hybrid` to enable all languages with a single setting.

@@ -16,6 +16,7 @@ DIRS=(
   valkey
   ollama
   faster-whisper
+  piper/models
   openobserve
   grafana
   loki

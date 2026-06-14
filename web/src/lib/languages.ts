@@ -22,6 +22,11 @@ export const LANGUAGES: Language[] = [
   { code: 'nl', name: 'Dutch',      nativeName: 'Nederlands', flag: '🇳🇱' },
   { code: 'pl', name: 'Polish',     nativeName: 'Polski',     flag: '🇵🇱' },
   { code: 'sv', name: 'Swedish',    nativeName: 'Svenska',    flag: '🇸🇪' },
+  { code: 'cs', name: 'Czech',      nativeName: 'Čeština',    flag: '🇨🇿' },
+  { code: 'fi', name: 'Finnish',    nativeName: 'Suomi',      flag: '🇫🇮' },
+  { code: 'hu', name: 'Hungarian',  nativeName: 'Magyar',     flag: '🇭🇺' },
+  { code: 'ro', name: 'Romanian',   nativeName: 'Română',     flag: '🇷🇴' },
+  { code: 'uk', name: 'Ukrainian',  nativeName: 'Українська', flag: '🇺🇦' },
 ];
 
 export function getLang(code: string): Language {

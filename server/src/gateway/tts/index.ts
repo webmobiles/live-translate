@@ -3,6 +3,8 @@ import * as mockTts from './providers/mock';
 import * as openaiTts from './providers/openai';
 import * as localTts from './providers/local';
 import * as kokoroHttpTts from './providers/kokoroHttp';
+import * as piperHttpTts from './providers/piperHttp';
+import * as hybridTts from './providers/hybrid';
 
 const PROVIDERS: Record<string, { synthesize: (...args: any[]) => Promise<any> }> = {
   none: noneTts,
@@ -10,6 +12,8 @@ const PROVIDERS: Record<string, { synthesize: (...args: any[]) => Promise<any> }
   openai: openaiTts,
   local: localTts,
   kokoro: kokoroHttpTts,
+  piper: piperHttpTts,
+  hybrid: hybridTts,
 };
 
 function getProviderName() {
@@ -19,7 +23,7 @@ function getProviderName() {
 function getProvider() {
   const name = getProviderName();
   const provider = PROVIDERS[name];
-  if (!provider) throw new Error(`Unknown TTS_PROVIDER: "${name}". Valid: none, mock, openai, local, kokoro`);
+  if (!provider) throw new Error(`Unknown TTS_PROVIDER: "${name}". Valid: none, mock, openai, local, kokoro, piper, hybrid`);
   return provider;
 }
 
