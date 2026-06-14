@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/room_config.dart';
 import '../services/client_log_service.dart';
 import '../services/socket_service.dart';
+import '../services/solo_api.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/language_selector.dart';
@@ -54,7 +55,6 @@ class _CreateScreenState extends State<CreateScreen> {
     }
 
     setState(() => _loading = true);
-    final socket = SocketService.connect();
 
     final config = RoomConfig(
       mode: _roomMode,
@@ -66,6 +66,14 @@ class _CreateScreenState extends State<CreateScreen> {
       outputTranslatedText: true,
       outputTranslatedAudio: _translatedAudio,
     );
+
+    // Solo rooms use plain HTTP — only one user, so no socket is needed.
+    if (_isSolo) {
+      _createSolo(config);
+      return;
+    }
+
+    final socket = SocketService.connect();
 
     void doCreate() {
       SocketService.emitWithAckLogged(
@@ -114,6 +122,30 @@ class _CreateScreenState extends State<CreateScreen> {
         setState(() => _loading = false);
         _snack(s.t('common.error.network'));
       });
+    }
+  }
+
+  Future<void> _createSolo(RoomConfig config) async {
+    final s = context.appState;
+    try {
+      final room = await SoloApi.createRoom(config: config);
+      if (!mounted) return;
+      setState(() => _loading = false);
+      Navigator.of(context).pushReplacement(MaterialPageRoute(
+        builder: (_) => RoomScreen(
+          code: room.code,
+          nickname: 'Solo',
+          language: _soloLangB,
+          roomName: room.name,
+          isHost: true,
+          mode: 'solo_multilang',
+          soloLanguages: [_soloLangA, _soloLangB],
+        ),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      _snack('${s.t('common.error.generic')} $e');
     }
   }
 

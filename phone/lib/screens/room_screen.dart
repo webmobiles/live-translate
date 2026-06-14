@@ -11,6 +11,7 @@ import '../models/language.dart';
 import '../models/message.dart';
 import '../models/participant.dart';
 import '../services/socket_service.dart';
+import '../services/solo_api.dart';
 import '../theme.dart';
 import '../widgets/language_selector.dart';
 import '../widgets/message_bubble.dart';
@@ -60,43 +61,52 @@ class _RoomScreenState extends State<RoomScreen> {
   String? _recordingPath;
   int _recordingStartedAt = 0;
 
-  late final io.Socket _socket;
+  io.Socket? _socket;
 
   @override
   void initState() {
     super.initState();
     _myLanguage = widget.language;
+    _recorder.hasPermission(); // prompt for mic up front
+
     if (widget.isSolo) {
+      // Solo rooms run over HTTP (single user) — no socket, always "ready".
       final langs = _soloLanguages;
       _soloActiveLanguage = langs.first;
       _myLanguage = _otherSoloLanguage(_soloActiveLanguage!);
+      _isConnected = true;
+      return;
     }
-    _socket = SocketService.getSocket();
-    _mySocketId = _socket.id ?? '';
 
-    _socket.on('connect', _onConnect);
-    _socket.on('disconnect', _onDisconnect);
-    _socket.on('room:participants-updated', _onParticipants);
-    _socket.on('room:participant-joined', _onParticipantJoined);
-    _socket.on('room:participant-left', _onParticipantLeft);
-    _socket.on('message:translating', _onTranslating);
-    _socket.on('message:incoming', _onIncoming);
-    _socket.on('message:error', _onMessageError);
+    final socket = SocketService.getSocket();
+    _socket = socket;
+    _mySocketId = socket.id ?? '';
 
-    _isConnected = _socket.connected;
-    _recorder.hasPermission(); // prompt for mic up front
+    socket.on('connect', _onConnect);
+    socket.on('disconnect', _onDisconnect);
+    socket.on('room:participants-updated', _onParticipants);
+    socket.on('room:participant-joined', _onParticipantJoined);
+    socket.on('room:participant-left', _onParticipantLeft);
+    socket.on('message:translating', _onTranslating);
+    socket.on('message:incoming', _onIncoming);
+    socket.on('message:error', _onMessageError);
+
+    _isConnected = socket.connected;
   }
 
   @override
   void dispose() {
-    _socket.off('connect', _onConnect);
-    _socket.off('disconnect', _onDisconnect);
-    _socket.off('room:participants-updated', _onParticipants);
-    _socket.off('room:participant-joined', _onParticipantJoined);
-    _socket.off('room:participant-left', _onParticipantLeft);
-    _socket.off('message:translating', _onTranslating);
-    _socket.off('message:incoming', _onIncoming);
-    _socket.off('message:error', _onMessageError);
+    final socket = _socket;
+    if (socket != null) {
+      socket.off('connect', _onConnect);
+      socket.off('disconnect', _onDisconnect);
+      socket.off('room:participants-updated', _onParticipants);
+      socket.off('room:participant-joined', _onParticipantJoined);
+      socket.off('room:participant-left', _onParticipantLeft);
+      socket.off('message:translating', _onTranslating);
+      socket.off('message:incoming', _onIncoming);
+      socket.off('message:error', _onMessageError);
+    }
     _input.dispose();
     _scroll.dispose();
     _recorder.dispose();
@@ -108,7 +118,7 @@ class _RoomScreenState extends State<RoomScreen> {
     if (!mounted) return;
     setState(() {
       _isConnected = true;
-      _mySocketId = _socket.id ?? '';
+      _mySocketId = _socket?.id ?? '';
     });
   }
 
@@ -217,13 +227,13 @@ class _RoomScreenState extends State<RoomScreen> {
   void _sendText() {
     final text = _input.text.trim();
     if (text.isEmpty || !_isConnected) return;
-    _socket.emit('message:text', {
-      'text': text,
-      if (widget.isSolo && _soloActiveLanguage != null)
-        'senderLang': _soloActiveLanguage,
-    });
     _input.clear();
     setState(() {});
+    if (widget.isSolo) {
+      _sendTextSolo(text);
+      return;
+    }
+    _socket?.emit('message:text', {'text': text});
   }
 
   void _copyCode() {
@@ -277,14 +287,16 @@ class _RoomScreenState extends State<RoomScreen> {
 
       final bytes = await file.readAsBytes();
       final base64Audio = base64Encode(bytes);
-      _socket.emit('message:audio', {
+      if (await file.exists()) await file.delete();
+      if (widget.isSolo) {
+        await _sendAudioSolo(base64Audio, durationMs);
+        return;
+      }
+      _socket?.emit('message:audio', {
         'audioBase64': base64Audio,
         'mimeType': 'audio/m4a',
         'durationMs': durationMs,
-        if (widget.isSolo && _soloActiveLanguage != null)
-          'senderLang': _soloActiveLanguage,
       });
-      if (await file.exists()) await file.delete();
     } catch (e) {
       debugPrint('stopAndSend $e');
       _recordingStartedAt = 0;
@@ -315,6 +327,92 @@ class _RoomScreenState extends State<RoomScreen> {
       _soloActiveLanguage = code;
       _myLanguage = _otherSoloLanguage(code);
     });
+  }
+
+  // ── Solo send (HTTP, no socket) ─────────────────────────────────────────────
+  Future<void> _sendTextSolo(String text) async {
+    final id = SoloApi.newId();
+    final senderLang = _soloActiveLanguage ?? _soloLanguages.first;
+    final targetLang = _otherSoloLanguage(senderLang);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    // Optimistic bubble showing the typed text while translation runs.
+    setState(() {
+      _messages.add(Message(
+        id: id,
+        original: text,
+        translated: text,
+        sender: widget.nickname,
+        senderLang: senderLang,
+        targetLang: targetLang,
+        isMine: true,
+        timestamp: now,
+      ));
+    });
+    _scrollToEnd();
+    try {
+      final msg = await SoloApi.sendText(
+        code: widget.code,
+        text: text,
+        clientMsgId: id,
+        sender: widget.nickname,
+        senderLang: senderLang,
+        targetLang: targetLang,
+      );
+      if (!mounted) return;
+      setState(() {
+        _messages.removeWhere((m) => m.id == id);
+        _messages.add(msg);
+      });
+      _scrollToEnd();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _messages.removeWhere((m) => m.id == id));
+      _snack('Could not translate message');
+    }
+  }
+
+  Future<void> _sendAudioSolo(String audioBase64, int durationMs) async {
+    final id = SoloApi.newId();
+    final senderLang = _soloActiveLanguage ?? _soloLanguages.first;
+    final targetLang = _otherSoloLanguage(senderLang);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    // Optimistic "…" bubble until transcription + translation return.
+    setState(() {
+      _messages.add(Message(
+        id: id,
+        original: '…',
+        translated: '…',
+        sender: widget.nickname,
+        senderLang: senderLang,
+        targetLang: targetLang,
+        isMine: true,
+        isAudio: true,
+        timestamp: now,
+        isTranslating: true,
+      ));
+    });
+    _scrollToEnd();
+    try {
+      final msg = await SoloApi.sendAudio(
+        code: widget.code,
+        audioBase64: audioBase64,
+        mimeType: 'audio/m4a',
+        durationMs: durationMs,
+        sender: widget.nickname,
+        senderLang: senderLang,
+        targetLang: targetLang,
+      );
+      if (!mounted) return;
+      setState(() {
+        _messages.removeWhere((m) => m.id == id);
+        _messages.add(msg);
+      });
+      _scrollToEnd();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _messages.removeWhere((m) => m.id == id));
+      _snack('Could not process voice message');
+    }
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
