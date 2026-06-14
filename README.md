@@ -40,6 +40,119 @@ User sends voice message → same flow but:
   step 4: broadcast via queue        — retry 3x if fails
 ```
 
+## Audio Payload and Autoplay Rules
+
+This part is easy to break accidentally. Keep the server and web client rules aligned.
+
+### Audio payload names
+
+`translatedAudio` is generated TTS for one participant's configured language. It must come from:
+
+```ts
+message.audioOutputs?.[participant.language] ?? null
+```
+
+Do not fall back to `message.audioOutputs?.[message.senderLang]` for guests. That makes a guest hear the sender's language instead of the language they selected when joining the room.
+
+`originalAudio` is the raw recording sent by the speaker. It is allowed only when the listener can understand the sender language:
+
+```ts
+const isSender = participant.socketId === message.senderSocketId
+const canUseOriginalAudio = isSender || participant.language === message.senderLang
+```
+
+So the server should emit:
+
+```ts
+originalAudio: canUseOriginalAudio ? (message.originalAudio ?? null) : null
+translatedAudio: message.audioOutputs?.[participant.language] ?? null
+```
+
+This means:
+
+| Listener | `translatedAudio` | `originalAudio` |
+|---|---|---|
+| Sender | Usually none, because we do not synthesize TTS in the sender's own language | Allowed for voice messages |
+| Guest with same language as sender | Their language audio if generated | Allowed |
+| Guest with different language | Their language audio if generated | Not allowed |
+
+If translated TTS is missing for a guest with a different language, play no audio. Do not play the original recording as a fallback, because that is the wrong language for that guest.
+
+### TTS target language and voice selection
+
+The TTS target language is not an `.env` setting. It comes from the receiver's room/join language:
+
+```ts
+const text = translations[lang]
+return [lang, await tts.synthesize(text, lang)]
+```
+
+In this code, `lang` is the receiver target language, e.g. `es` for a guest who joined in Spanish. TTS providers must use that runtime language for pronunciation or voice selection. Do not replace it with `senderLang`, `TTS_OPENAI_VOICE`, `KOKORO_VOICE`, or another static env value.
+
+Provider env vars choose provider-level behavior only:
+
+| Env var | Meaning |
+|---|---|
+| `TTS_PROVIDER` | Which TTS backend to use |
+| `TTS_RESPONSE_FORMAT` | Audio format such as `mp3` or `wav` |
+| `TTS_OPENAI_VOICE` | OpenAI voice style, while language still comes from `lang` |
+| `KOKORO_VOICE` | Fallback Kokoro voice only when no mapping exists for `lang` |
+
+For Kokoro, the default voice is selected from the receiver language map first:
+
+| Receiver `lang` | Default Kokoro voice |
+|---|---|
+| `en` | `af_heart` |
+| `es` | `ef_dora` |
+| `fr` | `ff_siwis` |
+| `hi` | `hf_alpha` |
+| `it` | `if_sara` |
+| `ja` | `jf_alpha` |
+| `pt` | `pf_dora` |
+| `zh` | `zf_xiaobei` |
+
+Example: if the sender speaks English and the receiver joined with Spanish, the workflow translates to Spanish and calls `tts.synthesize(spanishText, 'es')`. Kokoro should then use `ef_dora`, not the English fallback `af_heart`.
+
+### Frontend playback choice
+
+The web client uses the same rule before rendering or autoplaying audio:
+
+```ts
+message.isMine || message.targetLang === message.senderLang
+```
+
+Only then can it use `originalAudio`. Otherwise it must use only `translatedAudio`.
+
+The bubble chooses audio in this order:
+
+1. Use playable `translatedAudio`.
+2. If translated audio fails and original audio is allowed, use playable `originalAudio`.
+3. If neither is available, show text only.
+
+### Autoplay rules
+
+Autoplay is a local browser-window preference. Every room window starts with **Autoplay voice** checked. If the participant unchecks it, new audio messages keep the play component but require manual play.
+
+Autoplay must be based on actual playable audio payloads, not only on `isAudio`:
+
+```ts
+isPlayableAudioPayload(message.translatedAudio)
+  || (messageCanUseOriginalAudio(message) && isPlayableAudioPayload(message.originalAudio))
+```
+
+Why: typed text messages can have generated TTS audio even when `isAudio` is false, and voice messages can lack translated TTS but still have allowed original audio for the sender.
+
+The web client reuses one shared audio element for autoplay. This improves browser autoplay behavior after a user gesture. Browsers can still block sound until the user interacts with the page; in that case playback is queued and retried on the next click, touch, or key press.
+
+### Regression guardrails
+
+- Do not send sender-language `translatedAudio` to guests as a fallback.
+- Do not send `originalAudio` to guests whose language differs from `senderLang`.
+- Do not put the target TTS language in `.env`; use the receiver `lang` passed to `tts.synthesize(text, lang)`.
+- Do not make autoplay depend only on `isAudio`.
+- Do not replace the audio player with text after playback; the audio component should remain visible.
+- If you patch `server/src/server.ts` and the app is running from `dist`, patch `server/dist/server.js` too or rebuild intentionally.
+
 ---
 
 ## Quick Start
@@ -247,7 +360,7 @@ live-translate/
 | server → client | `room:participant-joined` | `{ participant }` |
 | server → client | `room:participant-left` | `{ socketId }` |
 | server → client | `message:translating` | `{ id }` |
-| server → client | `message:incoming` | `{ id, original, translated, sender, senderLang, targetLang, isMine, isAudio, timestamp }` |
+| server → client | `message:incoming` | `{ id, original, translated, sender, senderLang, targetLang, isMine, isAudio, originalAudio, translatedAudio, timestamp }` |
 
 ---
 
@@ -313,6 +426,7 @@ Set `TTS_PROVIDER` in server `.env`:
 | `mock` | ✅ Local dev | Emits text/plain base64 payloads |
 | `openai` | ✅ Active | Uses OpenAI speech generation |
 | `local` | ⚙️ Local command | Runs `LOCAL_TTS_COMMAND`; command prints base64 audio |
+| `kokoro` | ⚙️ Local HTTP | Uses an OpenAI-compatible Kokoro server |
 
 ```env
 TTS_PROVIDER=openai
@@ -320,6 +434,16 @@ TTS_OPENAI_MODEL=gpt-4o-mini-tts
 TTS_OPENAI_VOICE=coral
 TTS_RESPONSE_FORMAT=mp3
 ```
+
+For Kokoro TTS:
+
+```env
+TTS_PROVIDER=kokoro
+KOKORO_BASE_URL=http://localhost:8880
+KOKORO_VOICE=af_heart
+```
+
+Kokoro chooses the TTS voice from the receiver's target language at runtime, not from `.env`. For example, a receiver who joined with Spanish (`es`) uses the Spanish voice `ef_dora`, so Spanish text is not spoken with the English `af_heart` voice. `KOKORO_VOICE` is only a fallback for languages that do not have a built-in mapping.
 
 For local TTS:
 

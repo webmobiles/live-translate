@@ -2,7 +2,33 @@ import OpenAI from 'openai';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-export async function synthesize(text: string, _language: string, options: any = {}): Promise<{ audioBase64: string; mimeType: string } | null> {
+const LANGUAGE_NAMES: Record<string, string> = {
+  en: 'English',
+  es: 'Spanish',
+  fr: 'French',
+  hi: 'Hindi',
+  it: 'Italian',
+  ja: 'Japanese',
+  pt: 'Portuguese',
+  zh: 'Chinese',
+};
+
+function normalizeLanguage(language: string) {
+  return String(language || 'en').toLowerCase().split(/[-_]/)[0] || 'en';
+}
+
+function buildInstructions(language: string) {
+  const lang = normalizeLanguage(language);
+  const languageName = LANGUAGE_NAMES[lang] || language;
+  const languageInstruction = `Speak naturally in ${languageName} (${lang}). Use pronunciation and cadence appropriate for ${languageName}; do not use English pronunciation unless the text is English.`;
+  const customInstructions = process.env.TTS_OPENAI_INSTRUCTIONS?.trim();
+
+  return customInstructions
+    ? `${customInstructions}\n${languageInstruction}`
+    : languageInstruction;
+}
+
+export async function synthesize(text: string, language: string, options: any = {}): Promise<{ audioBase64: string; mimeType: string } | null> {
   if (!text?.trim()) return null;
 
   const responseFormat = options.responseFormat || process.env.TTS_RESPONSE_FORMAT || 'mp3';
@@ -11,7 +37,7 @@ export async function synthesize(text: string, _language: string, options: any =
     voice: options.voice || process.env.TTS_OPENAI_VOICE || 'coral',
     input: text,
     response_format: responseFormat,
-    ...(process.env.TTS_OPENAI_INSTRUCTIONS ? { instructions: process.env.TTS_OPENAI_INSTRUCTIONS } : {}),
+    instructions: buildInstructions(language),
   });
 
   return {

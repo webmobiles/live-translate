@@ -82,6 +82,9 @@ async function buildAudioOutputs(translations: any, targetLangs: any[], roomConf
       if (!text) return [lang, null];
       try {
         appMetrics.recordTtsInput({ language: lang, text });
+        // `lang` is the receiver's target language. TTS providers must use it
+        // for pronunciation/voice selection; do not replace it with senderLang
+        // or a static env language.
         return [lang, await tts.synthesize(text, lang)];
       } catch (err: any) {
         const isConfigError = /unknown tts_provider/i.test(err?.message || '');

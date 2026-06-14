@@ -33,8 +33,13 @@ function isPlayableAudioPayload(audio?: MessageAudioPayload | null): audio is Me
   return Boolean(audio?.audioBase64 && audio.mimeType?.startsWith('audio/'))
 }
 
-function messageHasPlayableAudio(message: Pick<Message, 'originalAudio' | 'translatedAudio'>) {
-  return isPlayableAudioPayload(message.translatedAudio) || isPlayableAudioPayload(message.originalAudio)
+function messageCanUseOriginalAudio(message: Pick<Message, 'isMine' | 'senderLang' | 'targetLang'>) {
+  return message.isMine || message.targetLang === message.senderLang
+}
+
+function messageHasPlayableAudio(message: Pick<Message, 'originalAudio' | 'translatedAudio' | 'isMine' | 'senderLang' | 'targetLang'>) {
+  return isPlayableAudioPayload(message.translatedAudio)
+    || (messageCanUseOriginalAudio(message) && isPlayableAudioPayload(message.originalAudio))
 }
 
 const pendingAutoPlayRequests: SharedAudioRequest[] = []
@@ -437,7 +442,7 @@ function RoomScreen() {
           isMine,
           isTranslating: false,
           deliveryStatus: isMine ? 'delivered' : undefined,
-          autoPlay: Boolean(voiceAutoPlayEnabledRef.current && messageHasPlayableAudio(msg)),
+          autoPlay: Boolean(voiceAutoPlayEnabledRef.current && messageHasPlayableAudio({ ...msg, isMine })),
         }]
       })
       // Tell the server we've seen these incoming (not-mine) messages
@@ -1095,7 +1100,8 @@ function MessageBubble({ message }: { message: Message }) {
   const senderInfo = getLang(senderLang)
   const time = formatMessageTime(timestamp)
   const hasTranslation = translated !== original
-  const playableOriginalAudio = isPlayableAudioPayload(originalAudio) ? originalAudio : null
+  const canUseOriginalAudio = messageCanUseOriginalAudio(message)
+  const playableOriginalAudio = canUseOriginalAudio && isPlayableAudioPayload(originalAudio) ? originalAudio : null
   const playableTranslatedAudio = isPlayableAudioPayload(translatedAudio) ? translatedAudio : null
   const translatedAudioKey = playableTranslatedAudio
     ? `${message.id}:${playableTranslatedAudio.mimeType}:${playableTranslatedAudio.audioBase64}`
