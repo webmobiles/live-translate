@@ -13,35 +13,212 @@ const DEFAULT_ROOM_CONFIG: RoomConfig = {
   output: { translatedText: true, translatedAudio: true },
 }
 const MIN_VOICE_MESSAGE_DURATION_MS = 1000
-const pendingAutoPlayAudios = new Set<HTMLAudioElement>()
-const loggedAutoPlayFailures = new WeakMap<HTMLAudioElement, Set<string>>()
+const SILENT_AUDIO_SRC = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=='
 
-function logAutoPlayFailure(audio: HTMLAudioElement, error: unknown, context: string) {
-  const key = `${context}:${audio.currentSrc || audio.src}`
-  const logged = loggedAutoPlayFailures.get(audio) ?? new Set<string>()
-  if (logged.has(key)) return
+type AudioPlayFailureHandler = (error: unknown) => void
+type SharedAudioRequest = {
+  src: string;
+  context: string;
+  onPlaybackError?: AudioPlayFailureHandler;
+}
+type SharedAudioSnapshot = {
+  src: string;
+  isPlaying: boolean;
+  currentTime: number;
+  duration: number;
+}
+type MessageAudioPayload = NonNullable<Message['translatedAudio']>
 
-  logged.add(key)
-  loggedAutoPlayFailures.set(audio, logged)
+function isPlayableAudioPayload(audio?: MessageAudioPayload | null): audio is MessageAudioPayload {
+  return Boolean(audio?.audioBase64 && audio.mimeType?.startsWith('audio/'))
+}
 
-  const err = error instanceof Error ? error : new Error(String(error))
+function messageHasPlayableAudio(message: Pick<Message, 'originalAudio' | 'translatedAudio'>) {
+  return isPlayableAudioPayload(message.translatedAudio) || isPlayableAudioPayload(message.originalAudio)
+}
+
+const pendingAutoPlayRequests: SharedAudioRequest[] = []
+const sharedAudioListeners = new Set<() => void>()
+const loggedAutoPlayFailures = new Set<string>()
+let sharedAudioElement: HTMLAudioElement | null = null
+let sharedAudioSrc = ''
+let sharedAudioCurrentRequest: SharedAudioRequest | null = null
+let audioPlaybackUnlocked = false
+let audioUnlockInFlight = false
+
+function asError(error: unknown) {
+  return error instanceof Error ? error : new Error(String(error))
+}
+
+function describeAudioSrc(src: string) {
+  return `${src.slice(0, 60)}${src.length > 60 ? '…' : ''} (${src.length} chars)`
+}
+
+function logAutoPlayFailure(src: string, error: unknown, context: string) {
+  const key = `${context}:${src.length}:${src.slice(0, 80)}`
+  if (loggedAutoPlayFailures.has(key)) return
+  loggedAutoPlayFailures.add(key)
+
+  const err = asError(error)
   console.warn('[voice autoplay] failed', {
     context,
     name: err.name,
     message: err.message,
-    readyState: audio.readyState,
-    networkState: audio.networkState,
-    paused: audio.paused,
-    muted: audio.muted,
+    src: describeAudioSrc(src),
+    readyState: sharedAudioElement?.readyState,
+    networkState: sharedAudioElement?.networkState,
+    paused: sharedAudioElement?.paused,
   })
 }
 
-function retryPendingAutoPlayAudios() {
-  for (const audio of Array.from(pendingAutoPlayAudios)) {
-    audio.play()
-      .then(() => pendingAutoPlayAudios.delete(audio))
-      .catch(error => logAutoPlayFailure(audio, error, 'retry-after-user-interaction'))
+function getSharedAudioSnapshot(): SharedAudioSnapshot {
+  const audio = sharedAudioElement
+  const duration = audio && Number.isFinite(audio.duration) ? audio.duration : 0
+
+  return {
+    src: sharedAudioSrc,
+    isPlaying: Boolean(audio && !audio.paused && !audio.ended),
+    currentTime: audio?.currentTime ?? 0,
+    duration,
   }
+}
+
+function emitSharedAudioState() {
+  sharedAudioListeners.forEach(listener => listener())
+}
+
+function subscribeSharedAudioState(listener: () => void) {
+  sharedAudioListeners.add(listener)
+  return () => {
+    sharedAudioListeners.delete(listener)
+  }
+}
+
+function removePendingAutoPlay(src: string) {
+  for (let i = pendingAutoPlayRequests.length - 1; i >= 0; i -= 1) {
+    if (pendingAutoPlayRequests[i].src === src) pendingAutoPlayRequests.splice(i, 1)
+  }
+}
+
+function queuePendingAutoPlay(request: SharedAudioRequest) {
+  if (!pendingAutoPlayRequests.some(pending => pending.src === request.src)) {
+    pendingAutoPlayRequests.push(request)
+  }
+}
+
+function clearPendingAutoPlayRequests() {
+  pendingAutoPlayRequests.length = 0
+}
+
+function getSharedAudioElement() {
+  if (sharedAudioElement || typeof Audio === 'undefined') return sharedAudioElement
+
+  const audio = new Audio()
+  audio.preload = 'auto'
+
+  audio.addEventListener('play', emitSharedAudioState)
+  audio.addEventListener('pause', emitSharedAudioState)
+  audio.addEventListener('timeupdate', emitSharedAudioState)
+  audio.addEventListener('durationchange', emitSharedAudioState)
+  audio.addEventListener('loadedmetadata', emitSharedAudioState)
+  audio.addEventListener('ended', () => {
+    emitSharedAudioState()
+    playNextPendingAutoPlay()
+  })
+  audio.addEventListener('error', () => {
+    const request = sharedAudioCurrentRequest
+    if (request) {
+      const error = new Error('Audio source failed to load')
+      removePendingAutoPlay(request.src)
+      logAutoPlayFailure(request.src, error, `${request.context}:load-error`)
+      request.onPlaybackError?.(error)
+    }
+    emitSharedAudioState()
+    playNextPendingAutoPlay()
+  })
+
+  sharedAudioElement = audio
+  return audio
+}
+
+async function playSharedAudioSource(request: SharedAudioRequest) {
+  const audio = getSharedAudioElement()
+  if (!audio) return
+
+  if (sharedAudioSrc !== request.src) {
+    audio.pause()
+    sharedAudioSrc = request.src
+    sharedAudioCurrentRequest = request
+    audio.src = request.src
+    audio.currentTime = 0
+    audio.load()
+  } else {
+    sharedAudioCurrentRequest = request
+    if (audio.ended) audio.currentTime = 0
+  }
+
+  try {
+    await audio.play()
+    audioPlaybackUnlocked = true
+    removePendingAutoPlay(request.src)
+    emitSharedAudioState()
+  } catch (error) {
+    const err = asError(error)
+    if (err.name === 'AbortError') return
+
+    if (err.name === 'NotAllowedError') {
+      queuePendingAutoPlay(request)
+      logAutoPlayFailure(request.src, error, request.context)
+      emitSharedAudioState()
+      return
+    }
+
+    removePendingAutoPlay(request.src)
+    logAutoPlayFailure(request.src, error, request.context)
+    request.onPlaybackError?.(error)
+    emitSharedAudioState()
+    playNextPendingAutoPlay()
+  }
+}
+
+function playNextPendingAutoPlay() {
+  const audio = getSharedAudioElement()
+  if (audio && !audio.paused && !audio.ended) return
+
+  const next = pendingAutoPlayRequests.shift()
+  if (next) void playSharedAudioSource({ ...next, context: 'queued-autoplay' })
+}
+
+async function unlockSharedAudioPlayback() {
+  if (audioPlaybackUnlocked || audioUnlockInFlight) return
+  const audio = getSharedAudioElement()
+  if (!audio || sharedAudioSrc || !audio.paused) return
+
+  audioUnlockInFlight = true
+  const previousVolume = audio.volume
+
+  try {
+    audio.volume = 0
+    audio.src = SILENT_AUDIO_SRC
+    audio.load()
+    await audio.play()
+    audio.pause()
+    audio.currentTime = 0
+    audioPlaybackUnlocked = true
+  } catch (error) {
+    logAutoPlayFailure(SILENT_AUDIO_SRC, error, 'audio-unlock')
+  } finally {
+    audio.volume = previousVolume
+    audio.removeAttribute('src')
+    audio.load()
+    audioUnlockInFlight = false
+    emitSharedAudioState()
+  }
+}
+
+function retryPendingAutoPlayAudios() {
+  void unlockSharedAudioPlayback()
+  playNextPendingAutoPlay()
 }
 
 export const Route = createFileRoute('/room/$code')({
@@ -72,8 +249,10 @@ function RoomScreen() {
   const [isRecording, setIsRecording] = useState(false)
   const [copied, setCopied] = useState(false)
   const [voiceAlertVisible, setVoiceAlertVisible] = useState(false)
+  const [voiceAutoPlayEnabled, setVoiceAutoPlayEnabled] = useState(true)
 
   const myLanguageRef = useRef(initialLang)
+  const voiceAutoPlayEnabledRef = useRef(true)
 
   const updateLanguage = useCallback((lang: string) => {
     myLanguageRef.current = lang
@@ -96,12 +275,30 @@ function RoomScreen() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
+  const updateVoiceAutoPlayEnabled = useCallback((enabled: boolean) => {
+    voiceAutoPlayEnabledRef.current = enabled
+    setVoiceAutoPlayEnabled(enabled)
+
+    if (enabled) {
+      retryPendingAutoPlayAudios()
+      return
+    }
+
+    clearPendingAutoPlayRequests()
+    setMessages(prev => prev.map(message =>
+      message.autoPlay ? { ...message, autoPlay: false } : message,
+    ))
+  }, [])
+
   useEffect(() => {
     const retry = () => retryPendingAutoPlayAudios()
 
     window.addEventListener('pointerdown', retry)
     window.addEventListener('keydown', retry)
     window.addEventListener('touchstart', retry)
+    if (navigator.userActivation?.hasBeenActive) {
+      void unlockSharedAudioPlayback()
+    }
 
     return () => {
       window.removeEventListener('pointerdown', retry)
@@ -234,13 +431,13 @@ function RoomScreen() {
       setMessages(prev => {
         const existing = prev.find(m => m.id === msg.id)
         const filtered = prev.filter(m => m.id !== msg.id)
-        const isMine = existing?.isMine ?? msg.isMine
+        const isMine = Boolean(msg.isMine || existing?.isMine)
         return [...filtered, {
           ...msg,
           isMine,
           isTranslating: false,
           deliveryStatus: isMine ? 'delivered' : undefined,
-          autoPlay: !isMine,
+          autoPlay: Boolean(voiceAutoPlayEnabledRef.current && messageHasPlayableAudio(msg)),
         }]
       })
       // Tell the server we've seen these incoming (not-mine) messages
@@ -277,6 +474,7 @@ function RoomScreen() {
           return {
             ...h,
             // Preserve in-memory audio if DB didn't store it yet (reconnect scenario)
+            originalAudio: h.originalAudio ?? existing?.originalAudio ?? null,
             translatedAudio: h.translatedAudio ?? existing?.translatedAudio ?? null,
             // Keep autoPlay from a real-time delivery; only suppress for pure history
             autoPlay: existing?.autoPlay ?? false,
@@ -549,6 +747,18 @@ function RoomScreen() {
         </div>
       )}
 
+      <div className="flex justify-end px-3 py-2 border-b border-lt-border bg-lt-bg shrink-0">
+        <label className="flex items-center gap-2 text-lt-muted text-xs">
+          <input
+            type="checkbox"
+            checked={voiceAutoPlayEnabled}
+            onChange={e => updateVoiceAutoPlayEnabled(e.target.checked)}
+            aria-label="Autoplay voice messages"
+          />
+          <span>Autoplay voice</span>
+        </label>
+      </div>
+
       {isHost && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 px-3 py-2.5 border-b border-lt-border bg-lt-bg shrink-0">
           <label className="flex items-center gap-2 text-lt-muted text-xs">
@@ -761,76 +971,75 @@ function generateWaveformBars(seed: string, count: number): number[] {
   })
 }
 
-function AudioPlayer({ audioBase64, mimeType, isMine, autoPlay }: { audioBase64: string; mimeType: string; isMine: boolean; autoPlay?: boolean }) {
-  const audioRef = useRef<HTMLAudioElement>(null)
-  const autoPlayAttemptedRef = useRef(false)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [currentTime, setCurrentTime] = useState(0)
-  const [duration, setDuration] = useState(0)
+function AudioPlayer({
+  audioBase64,
+  mimeType,
+  isMine,
+  autoPlay,
+  onPlaybackError,
+}: {
+  audioBase64: string;
+  mimeType: string;
+  isMine: boolean;
+  autoPlay?: boolean;
+  onPlaybackError?: AudioPlayFailureHandler;
+}) {
+  const autoPlayAttemptedSrcRef = useRef('')
+  const [sharedState, setSharedState] = useState(getSharedAudioSnapshot)
+  const [metadataDuration, setMetadataDuration] = useState(0)
 
   const bars = useMemo(() => generateWaveformBars(audioBase64.slice(0, 40), 36), [audioBase64])
   const src  = useMemo(() => `data:${mimeType};base64,${audioBase64}`, [audioBase64, mimeType])
+  const isActiveAudio = sharedState.src === src
+  const isPlaying = isActiveAudio && sharedState.isPlaying
+  const playbackDuration = isActiveAudio && sharedState.duration > 0 ? sharedState.duration : metadataDuration
+  const currentTime = isActiveAudio ? sharedState.currentTime : 0
+  const progress = isActiveAudio && playbackDuration > 0 ? Math.min(currentTime / playbackDuration, 1) : 0
 
   const togglePlay = useCallback(() => {
-    const a = audioRef.current
-    if (!a) return
-    if (isPlaying) a.pause()
-    else a.play()
-  }, [isPlaying])
+    const audio = getSharedAudioElement()
+    if (isActiveAudio && isPlaying) {
+      audio?.pause()
+      return
+    }
 
-  const handleTimeUpdate = useCallback(() => {
-    const a = audioRef.current
-    if (!a || !a.duration) return
-    setProgress(a.currentTime / a.duration)
-    setCurrentTime(a.currentTime)
-  }, [])
+    void playSharedAudioSource({ src, context: 'manual-play', onPlaybackError })
+  }, [isActiveAudio, isPlaying, onPlaybackError, src])
 
   const handleWaveformClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    const a = audioRef.current
-    if (!a || !a.duration) return
+    const audio = getSharedAudioElement()
+    if (!audio || !isActiveAudio || playbackDuration <= 0) return
     const rect = e.currentTarget.getBoundingClientRect()
-    a.currentTime = ((e.clientX - rect.left) / rect.width) * a.duration
-  }, [])
+    audio.currentTime = ((e.clientX - rect.left) / rect.width) * playbackDuration
+    emitSharedAudioState()
+  }, [isActiveAudio, playbackDuration])
 
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 
   const activeColor   = isMine ? 'rgba(255,255,255,0.92)' : '#7C3AED'
   const inactiveColor = isMine ? 'rgba(255,255,255,0.28)' : 'rgba(124,58,237,0.22)'
 
-  const tryAutoPlay = useCallback(() => {
-    const audio = audioRef.current
-    if (!autoPlay || !audio || autoPlayAttemptedRef.current) return
-    if (audio.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return
-
-    autoPlayAttemptedRef.current = true
-    audio.play()
-      .then(() => pendingAutoPlayAudios.delete(audio))
-      .catch(error => {
-        pendingAutoPlayAudios.add(audio)
-        logAutoPlayFailure(audio, error, 'initial-autoplay')
-        setIsPlaying(false)
-      })
-  }, [autoPlay])
+  useEffect(() => subscribeSharedAudioState(() => {
+    setSharedState(getSharedAudioSnapshot())
+  }), [])
 
   useEffect(() => {
-    autoPlayAttemptedRef.current = false
-    tryAutoPlay()
-  }, [src, tryAutoPlay])
+    if (!autoPlay || autoPlayAttemptedSrcRef.current === src) return
+
+    autoPlayAttemptedSrcRef.current = src
+    void playSharedAudioSource({ src, context: 'initial-autoplay', onPlaybackError })
+  }, [autoPlay, onPlaybackError, src])
 
   return (
     <div className="flex items-center gap-2 mt-2 min-w-[180px]" onClick={e => e.stopPropagation()}>
       <audio
-        ref={audioRef}
         src={src}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        onEnded={() => { setIsPlaying(false); setProgress(0); setCurrentTime(0) }}
-        onTimeUpdate={handleTimeUpdate}
-        onCanPlay={tryAutoPlay}
-        onLoadedMetadata={() => {
-          setDuration(audioRef.current?.duration ?? 0)
-          tryAutoPlay()
+        preload="metadata"
+        aria-hidden="true"
+        onError={() => onPlaybackError?.(new Error('Audio source failed to load'))}
+        onLoadedMetadata={e => {
+          const nextDuration = e.currentTarget.duration
+          setMetadataDuration(Number.isFinite(nextDuration) ? nextDuration : 0)
         }}
       />
 
@@ -870,7 +1079,7 @@ function AudioPlayer({ audioBase64, mimeType, isMine, autoPlay }: { audioBase64:
           })}
         </svg>
         <span className={`text-[10px] leading-none tabular-nums ${isMine ? 'text-white/50' : 'text-lt-muted'}`}>
-          {duration > 0 ? fmt(isPlaying ? currentTime : duration) : '…'}
+          {playbackDuration > 0 ? fmt(isPlaying ? currentTime : playbackDuration) : '…'}
         </span>
       </div>
     </div>
@@ -882,10 +1091,23 @@ function AudioPlayer({ audioBase64, mimeType, isMine, autoPlay }: { audioBase64:
 function MessageBubble({ message }: { message: Message }) {
   const { isMine, sender, senderLang, translated, original, isTranslating, isAudio, originalAudio, translatedAudio, timestamp, deliveryStatus } = message
   const [showOriginal, setShowOriginal] = useState(false)
+  const [failedTranslatedAudioKey, setFailedTranslatedAudioKey] = useState('')
   const senderInfo = getLang(senderLang)
   const time = formatMessageTime(timestamp)
   const hasTranslation = translated !== original
-  const audioToPlay = translatedAudio ?? originalAudio ?? null
+  const playableOriginalAudio = isPlayableAudioPayload(originalAudio) ? originalAudio : null
+  const playableTranslatedAudio = isPlayableAudioPayload(translatedAudio) ? translatedAudio : null
+  const translatedAudioKey = playableTranslatedAudio
+    ? `${message.id}:${playableTranslatedAudio.mimeType}:${playableTranslatedAudio.audioBase64}`
+    : ''
+  const useOriginalAudio = Boolean(translatedAudioKey && failedTranslatedAudioKey === translatedAudioKey)
+  const audioToPlay = useOriginalAudio ? playableOriginalAudio : (playableTranslatedAudio ?? playableOriginalAudio ?? null)
+
+  const fallbackToOriginalAudio = useCallback(() => {
+    if (playableTranslatedAudio && playableOriginalAudio && !useOriginalAudio) {
+      setFailedTranslatedAudioKey(translatedAudioKey)
+    }
+  }, [playableTranslatedAudio, playableOriginalAudio, translatedAudioKey, useOriginalAudio])
 
   if (isTranslating) {
     return (
@@ -919,7 +1141,8 @@ function MessageBubble({ message }: { message: Message }) {
             audioBase64={audioToPlay.audioBase64}
             mimeType={audioToPlay.mimeType}
             isMine={isMine}
-            autoPlay={isAudio && !isMine}
+            autoPlay={Boolean(message.autoPlay)}
+            onPlaybackError={fallbackToOriginalAudio}
           />
         )}
         <p className={`text-white text-base leading-relaxed ${audioToPlay ? 'mt-2' : ''}`}>
