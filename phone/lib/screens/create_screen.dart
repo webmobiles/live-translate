@@ -92,6 +92,7 @@ class _CreateScreenState extends State<CreateScreen> {
                 roomName: (room?['name'] as String?) ?? res['code'] as String,
                 isHost: true,
                 mode: _isSolo ? 'solo_multilang' : 'normal',
+                soloLanguages: _isSolo ? [_soloLangA, _soloLangB] : null,
               ),
             ));
           } else {

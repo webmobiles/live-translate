@@ -104,6 +104,9 @@ class _JoinScreenState extends State<JoinScreen> {
           if (res['ok'] == true && res['room'] != null) {
             final room = res['room'] as Map;
             final config = room['config'] as Map?;
+            final soloLanguages = (config?['soloLanguages'] as List?)
+                ?.whereType<String>()
+                .toList();
             Navigator.of(context).pushReplacement(MaterialPageRoute(
               builder: (_) => RoomScreen(
                 code: room['code'] as String,
@@ -112,6 +115,10 @@ class _JoinScreenState extends State<JoinScreen> {
                 roomName: room['name'] as String? ?? room['code'] as String,
                 isHost: false,
                 mode: (config?['mode'] as String?) ?? 'normal',
+                soloLanguages:
+                    soloLanguages != null && soloLanguages.length >= 2
+                        ? soloLanguages.take(2).toList()
+                        : null,
               ),
             ));
           } else {

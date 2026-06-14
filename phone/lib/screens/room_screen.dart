@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
+import '../models/language.dart';
 import '../models/message.dart';
 import '../models/participant.dart';
 import '../services/socket_service.dart';
@@ -25,6 +26,7 @@ class RoomScreen extends StatefulWidget {
   final String roomName;
   final bool isHost;
   final String mode;
+  final List<String>? soloLanguages;
 
   const RoomScreen({
     super.key,
@@ -34,6 +36,7 @@ class RoomScreen extends StatefulWidget {
     required this.roomName,
     required this.isHost,
     required this.mode,
+    this.soloLanguages,
   });
 
   bool get isSolo => mode == 'solo_multilang';
@@ -52,6 +55,7 @@ class _RoomScreenState extends State<RoomScreen> {
   bool _isRecording = false;
   bool _isConnected = false;
   late String _myLanguage;
+  String? _soloActiveLanguage;
   String _mySocketId = '';
   String? _recordingPath;
   int _recordingStartedAt = 0;
@@ -62,6 +66,11 @@ class _RoomScreenState extends State<RoomScreen> {
   void initState() {
     super.initState();
     _myLanguage = widget.language;
+    if (widget.isSolo) {
+      final langs = _soloLanguages;
+      _soloActiveLanguage = langs.first;
+      _myLanguage = _otherSoloLanguage(_soloActiveLanguage!);
+    }
     _socket = SocketService.getSocket();
     _mySocketId = _socket.id ?? '';
 
@@ -208,7 +217,11 @@ class _RoomScreenState extends State<RoomScreen> {
   void _sendText() {
     final text = _input.text.trim();
     if (text.isEmpty || !_isConnected) return;
-    _socket.emit('message:text', {'text': text});
+    _socket.emit('message:text', {
+      'text': text,
+      if (widget.isSolo && _soloActiveLanguage != null)
+        'senderLang': _soloActiveLanguage,
+    });
     _input.clear();
     setState(() {});
   }
@@ -268,6 +281,8 @@ class _RoomScreenState extends State<RoomScreen> {
         'audioBase64': base64Audio,
         'mimeType': 'audio/m4a',
         'durationMs': durationMs,
+        if (widget.isSolo && _soloActiveLanguage != null)
+          'senderLang': _soloActiveLanguage,
       });
       if (await file.exists()) await file.delete();
     } catch (e) {
@@ -283,6 +298,25 @@ class _RoomScreenState extends State<RoomScreen> {
         .showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  List<String> get _soloLanguages {
+    final langs = widget.soloLanguages;
+    if (langs != null && langs.length >= 2) return [langs[0], langs[1]];
+    return ['es', widget.language];
+  }
+
+  String _otherSoloLanguage(String activeLanguage) {
+    final langs = _soloLanguages;
+    return langs.firstWhere((lang) => lang != activeLanguage,
+        orElse: () => langs.last);
+  }
+
+  void _setSoloActiveLanguage(String code) {
+    setState(() {
+      _soloActiveLanguage = code;
+      _myLanguage = _otherSoloLanguage(code);
+    });
+  }
+
   // ── Render ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
@@ -293,7 +327,11 @@ class _RoomScreenState extends State<RoomScreen> {
         child: Column(
           children: [
             _header(),
-            ParticipantList(participants: _participants, mySocketId: _mySocketId),
+            if (widget.isSolo)
+              _soloLanguageToggle()
+            else
+              ParticipantList(
+                  participants: _participants, mySocketId: _mySocketId),
             Expanded(
               child: _messages.isEmpty
                   ? _emptyState()
@@ -393,15 +431,160 @@ class _RoomScreenState extends State<RoomScreen> {
               ],
             ),
           ),
-          LanguageBadge(
-            code: _myLanguage,
-            onTap: () async {
-              final code =
-                  await showLanguagePicker(context, selected: _myLanguage);
-              if (code != null) setState(() => _myLanguage = code);
-            },
+          if (!widget.isSolo)
+            LanguageBadge(
+              code: _myLanguage,
+              onTap: () async {
+                final code =
+                    await showLanguagePicker(context, selected: _myLanguage);
+                if (code != null) setState(() => _myLanguage = code);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _soloLanguageToggle() {
+    final langs = _soloLanguages;
+    final langA = getLang(langs[0]);
+    final langB = getLang(langs[1]);
+    final active = _soloActiveLanguage ?? langs[0];
+    final isA = active == langA.code;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+      decoration: const BoxDecoration(
+        color: AppColors.bg,
+        border: Border(bottom: BorderSide(color: AppColors.border)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            height: 64,
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              children: [
+                AnimatedAlign(
+                  alignment:
+                      isA ? Alignment.centerLeft : Alignment.centerRight,
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  child: FractionallySizedBox(
+                    widthFactor: 0.5,
+                    heightFactor: 1,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: _isConnected
+                            ? AppColors.primary
+                            : AppColors.primaryMuted,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _soloToggleSide(
+                        info: langA,
+                        active: isA,
+                        leftSide: true,
+                        onTap: () => _setSoloActiveLanguage(langA.code),
+                      ),
+                    ),
+                    const SizedBox(
+                      height: 32,
+                      child: VerticalDivider(
+                        width: 1,
+                        thickness: 1,
+                        color: Colors.white12,
+                      ),
+                    ),
+                    Expanded(
+                      child: _soloToggleSide(
+                        info: langB,
+                        active: !isA,
+                        leftSide: false,
+                        onTap: () => _setSoloActiveLanguage(langB.code),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Tap the language that is speaking',
+            style: TextStyle(color: AppColors.muted, fontSize: 12),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _soloToggleSide({
+    required Language info,
+    required bool active,
+    required bool leftSide,
+    required VoidCallback onTap,
+  }) {
+    final name = Text(
+      info.name,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: active ? Colors.white : AppColors.muted,
+        fontSize: 14,
+        fontWeight: FontWeight.bold,
+      ),
+    );
+    final speaking = active
+        ? const Text(
+            'SPEAKING',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          )
+        : const SizedBox.shrink();
+    final label = Flexible(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment:
+            leftSide ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+        children: [name, speaking],
+      ),
+    );
+
+    return GestureDetector(
+      onTap: _isConnected ? onTap : null,
+      child: Opacity(
+        opacity: _isConnected ? 1 : 0.45,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: leftSide
+                ? [
+                    Text(info.flag, style: const TextStyle(fontSize: 24)),
+                    const SizedBox(width: 8),
+                    label,
+                  ]
+                : [
+                    label,
+                    const SizedBox(width: 8),
+                    Text(info.flag, style: const TextStyle(fontSize: 24)),
+                  ],
+          ),
+        ),
       ),
     );
   }
