@@ -1,5 +1,11 @@
 {
   "name": "live-translate",
   "private": true,
-  "workspaces": ["shared", "web", "mobile"]
+  "workspaces": ["shared", "web", "mobile"],
+  "devDependencies": {
+    "react-native": "0.81.5"
+  },
+  "overrides": {
+    "react-native": "0.81.5"
+  }
 }

@@ -499,7 +499,7 @@ services:
     container_name: live-translate-cadvisor
     profiles: ["grafana"]
     ports:
-      - "8081:8080"   # cAdvisor UI/metrics → http://localhost:8081
+      - "18080:8080"  # cAdvisor UI/metrics -> http://localhost:18080
     volumes:
       - /:/rootfs:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
