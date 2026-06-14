@@ -14,12 +14,33 @@ const DEFAULT_ROOM_CONFIG: RoomConfig = {
 }
 const MIN_VOICE_MESSAGE_DURATION_MS = 1000
 const pendingAutoPlayAudios = new Set<HTMLAudioElement>()
+const loggedAutoPlayFailures = new WeakMap<HTMLAudioElement, Set<string>>()
+
+function logAutoPlayFailure(audio: HTMLAudioElement, error: unknown, context: string) {
+  const key = `${context}:${audio.currentSrc || audio.src}`
+  const logged = loggedAutoPlayFailures.get(audio) ?? new Set<string>()
+  if (logged.has(key)) return
+
+  logged.add(key)
+  loggedAutoPlayFailures.set(audio, logged)
+
+  const err = error instanceof Error ? error : new Error(String(error))
+  console.warn('[voice autoplay] failed', {
+    context,
+    name: err.name,
+    message: err.message,
+    readyState: audio.readyState,
+    networkState: audio.networkState,
+    paused: audio.paused,
+    muted: audio.muted,
+  })
+}
 
 function retryPendingAutoPlayAudios() {
   for (const audio of Array.from(pendingAutoPlayAudios)) {
     audio.play()
       .then(() => pendingAutoPlayAudios.delete(audio))
-      .catch(() => {})
+      .catch(error => logAutoPlayFailure(audio, error, 'retry-after-user-interaction'))
   }
 }
 
@@ -785,8 +806,9 @@ function AudioPlayer({ audioBase64, mimeType, isMine, autoPlay }: { audioBase64:
     autoPlayAttemptedRef.current = true
     audio.play()
       .then(() => pendingAutoPlayAudios.delete(audio))
-      .catch(() => {
+      .catch(error => {
         pendingAutoPlayAudios.add(audio)
+        logAutoPlayFailure(audio, error, 'initial-autoplay')
         setIsPlaying(false)
       })
   }, [autoPlay])
