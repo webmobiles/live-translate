@@ -100,6 +100,12 @@ async function ensureSchema() {
       INDEX messages_recent_by_room (room_id, timestamp)
     )
   `);
+
+  try {
+    await db.execute('ALTER TABLE messages ADD COLUMN audio_outputs LONGTEXT');
+  } catch (err: any) {
+    if (!/Duplicate column/i.test(err.message)) throw err;
+  }
 }
 
 // ── Rooms ──────────────────────────────────────────────────────────────────
@@ -145,11 +151,11 @@ export async function updateRoomConfig(roomId: string, config: any) {
 
 // ── Messages ───────────────────────────────────────────────────────────────
 
-export async function saveMessage({ roomId, msgId, sender, senderLang, original, translations, isAudio }: any) {
+export async function saveMessage({ roomId, msgId, sender, senderLang, original, translations, audioOutputs, isAudio }: any) {
   await getPool().execute(
     `INSERT INTO messages
-       (room_id, timestamp, id, sender, sender_lang, original, translations, is_audio)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       (room_id, timestamp, id, sender, sender_lang, original, translations, audio_outputs, is_audio)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       roomId,
       Date.now(),
@@ -158,6 +164,7 @@ export async function saveMessage({ roomId, msgId, sender, senderLang, original,
       senderLang,
       original,
       JSON.stringify(translations || {}),
+      JSON.stringify(audioOutputs || {}),
       Boolean(isAudio),
     ],
   );
@@ -166,7 +173,7 @@ export async function saveMessage({ roomId, msgId, sender, senderLang, original,
 export async function getRecentMessages(roomId: string, limit = 100) {
   const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
   const [rows]: any = await getPool().query(
-    `SELECT id, room_id, sender, sender_lang, original, translations, is_audio, timestamp
+    `SELECT id, room_id, sender, sender_lang, original, translations, audio_outputs, is_audio, timestamp
      FROM messages
      WHERE room_id = ?
      ORDER BY timestamp DESC, id ASC
@@ -184,6 +191,9 @@ export async function getRecentMessages(roomId: string, limit = 100) {
       translations: typeof row.translations === 'string'
         ? JSON.parse(row.translations)
         : row.translations || {},
+      audioOutputs: typeof row.audio_outputs === 'string'
+        ? JSON.parse(row.audio_outputs)
+        : row.audio_outputs || {},
       isAudio: Boolean(row.is_audio),
       timestamp: Number(row.timestamp),
     }))

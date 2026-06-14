@@ -128,6 +128,7 @@ async function startQueueConsumer() {
           targetLang: participant.language,
           isMine:     participant.socketId === message.senderSocketId,
           isAudio:    message.isAudio,
+          originalAudio: message.originalAudio ?? null,
           translatedAudio,
           timestamp:  message.timestamp,
         });
@@ -273,7 +274,8 @@ io.on('connection', (socket) => {
             targetLang:      lang,
             isMine:          false,
             isAudio:         msg.isAudio,
-            translatedAudio: null,
+            originalAudio:   null,
+            translatedAudio: msg.audioOutputs?.[lang] ?? msg.audioOutputs?.[msg.senderLang] ?? null,
             timestamp:       msg.timestamp,
           }));
           socket.emit('room:history', { messages: formatted });

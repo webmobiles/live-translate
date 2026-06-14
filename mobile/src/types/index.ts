@@ -15,6 +15,10 @@ export interface Message {
   targetLang: string;
   isMine: boolean;
   isAudio?: boolean;
+  originalAudio?: {
+    audioBase64: string;
+    mimeType: string;
+  } | null;
   translatedAudio?: {
     audioBase64: string;
     mimeType: string;

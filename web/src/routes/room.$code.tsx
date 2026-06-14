@@ -196,6 +196,7 @@ function RoomScreen() {
           isMine,
           isTranslating: false,
           deliveryStatus: isMine ? 'delivered' : undefined,
+          autoPlay: !isMine,
         }]
       })
       // Tell the server we've seen these incoming (not-mine) messages
@@ -225,7 +226,18 @@ function RoomScreen() {
 
     // Load chat history sent by server on join
     const onHistory = ({ messages: history }: { messages: Message[] }) => {
-      setMessages(history)
+      setMessages(prev => {
+        const prevById = new Map(prev.map(m => [m.id, m]))
+        return history.map(h => {
+          const existing = prevById.get(h.id)
+          return {
+            ...h,
+            // Preserve in-memory audio if DB didn't store it yet (reconnect scenario)
+            translatedAudio: h.translatedAudio ?? existing?.translatedAudio ?? null,
+            autoPlay: false,
+          }
+        })
+      })
       setTimeout(scrollToBottom, 100)
     }
 
@@ -704,7 +716,7 @@ function generateWaveformBars(seed: string, count: number): number[] {
   })
 }
 
-function AudioPlayer({ audioBase64, mimeType, isMine }: { audioBase64: string; mimeType: string; isMine: boolean }) {
+function AudioPlayer({ audioBase64, mimeType, isMine, autoPlay }: { audioBase64: string; mimeType: string; isMine: boolean; autoPlay?: boolean }) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -740,8 +752,9 @@ function AudioPlayer({ audioBase64, mimeType, isMine }: { audioBase64: string; m
   const activeColor   = isMine ? 'rgba(255,255,255,0.92)' : '#7C3AED'
   const inactiveColor = isMine ? 'rgba(255,255,255,0.28)' : 'rgba(124,58,237,0.22)'
 
+
   return (
-    <div className="flex items-center gap-2 mt-2 min-w-[180px]">
+    <div className="flex items-center gap-2 mt-2 min-w-[180px]" onClick={e => e.stopPropagation()}>
       <audio
         ref={audioRef}
         src={src}
@@ -749,7 +762,10 @@ function AudioPlayer({ audioBase64, mimeType, isMine }: { audioBase64: string; m
         onPause={() => setIsPlaying(false)}
         onEnded={() => { setIsPlaying(false); setProgress(0); setCurrentTime(0) }}
         onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 0)}
+        onLoadedMetadata={() => {
+          setDuration(audioRef.current?.duration ?? 0)
+          if (autoPlay ?? !isMine) audioRef.current?.play().catch(() => {})
+        }}
       />
 
       <button
@@ -839,9 +855,10 @@ function MessageBubble({ message }: { message: Message }) {
             audioBase64={translatedAudio.audioBase64}
             mimeType={translatedAudio.mimeType}
             isMine={isMine}
+            autoPlay={message.autoPlay}
           />
         )}
-        {hasTranslation && (
+        {hasTranslation && !translatedAudio && (
           <p className={`text-xs mt-1.5 ${isMine ? 'text-white/50' : 'text-lt-muted'}`}>
             {showOriginal ? '↩ show translation' : `${senderInfo.flag} tap to see original`}
           </p>

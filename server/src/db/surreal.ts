@@ -111,7 +111,7 @@ export async function updateRoomConfig(roomId: string, config: any) {
   return config;
 }
 
-export async function saveMessage({ roomId, msgId, sender, senderLang, original, translations, isAudio }: any) {
+export async function saveMessage({ roomId, msgId, sender, senderLang, original, translations, audioOutputs, isAudio }: any) {
   await query(
     `CREATE type::thing("messages", $id)
      SET room_id = $roomId,
@@ -120,6 +120,7 @@ export async function saveMessage({ roomId, msgId, sender, senderLang, original,
          sender_lang = $senderLang,
          original = $original,
          translations = $translations,
+         audio_outputs = $audioOutputs,
          is_audio = $isAudio;`,
     {
       id: msgId,
@@ -129,6 +130,7 @@ export async function saveMessage({ roomId, msgId, sender, senderLang, original,
       senderLang,
       original,
       translations: translations || {},
+      audioOutputs: audioOutputs || {},
       isAudio: Boolean(isAudio),
     },
   );
@@ -154,6 +156,7 @@ export async function getRecentMessages(roomId: string, limit = 100) {
         senderLang: normalized.sender_lang,
         original: normalized.original,
         translations: normalized.translations || {},
+        audioOutputs: normalized.audio_outputs || {},
         isAudio: Boolean(normalized.is_audio),
         timestamp: Number(normalized.timestamp),
       };

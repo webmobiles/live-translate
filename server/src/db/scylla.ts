@@ -35,6 +35,11 @@ async function ensureSchema() {
   } catch (err: any) {
     if (!/already exists|Invalid column name/i.test(err.message)) throw err;
   }
+  try {
+    await client!.execute('ALTER TABLE messages ADD audio_outputs text');
+  } catch (err: any) {
+    if (!/already exists|Invalid column name/i.test(err.message)) throw err;
+  }
 }
 
 // ── Rooms ──────────────────────────────────────────────────────────────────
@@ -99,11 +104,11 @@ export async function updateRoomConfig(roomId: string, config: any) {
 
 // ── Messages ───────────────────────────────────────────────────────────────
 
-export async function saveMessage({ roomId, msgId, sender, senderLang, original, translations, isAudio }: any) {
+export async function saveMessage({ roomId, msgId, sender, senderLang, original, translations, audioOutputs, isAudio }: any) {
   await getClient().execute(
     `INSERT INTO messages
-       (room_id, timestamp, id, sender, sender_lang, original, translations, is_audio)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       (room_id, timestamp, id, sender, sender_lang, original, translations, audio_outputs, is_audio)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       roomId,
       Date.now(),
@@ -112,6 +117,7 @@ export async function saveMessage({ roomId, msgId, sender, senderLang, original,
       senderLang,
       original,
       translations,   // map<text,text> — cassandra-driver handles JS objects
+      JSON.stringify(audioOutputs || {}),
       isAudio || false,
     ],
     { prepare: true },
@@ -136,6 +142,7 @@ export async function getRecentMessages(roomId: string, limit = 100) {
       senderLang:   row.sender_lang,
       original:     row.original,
       translations: row.translations || {},
+      audioOutputs: row.audio_outputs ? JSON.parse(row.audio_outputs) : {},
       isAudio:      row.is_audio,
       timestamp:    toNumber(row.timestamp),
     }))

@@ -15,10 +15,15 @@ export interface Message {
   targetLang: string;
   isMine: boolean;
   isAudio?: boolean;
+  originalAudio?: {
+    audioBase64: string;
+    mimeType: string;
+  } | null;
   translatedAudio?: {
     audioBase64: string;
     mimeType: string;
   } | null;
+  autoPlay?: boolean;
   timestamp: number;
   isTranslating?: boolean;
   deliveryStatus?: 'sending' | 'queued' | 'delivered' | 'read' | 'failed';

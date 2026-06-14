@@ -112,7 +112,7 @@ export const translateMessage = inngest.createFunction(
     );
 
     await step.run('save-to-db', () =>
-      db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, isAudio: false }),
+      db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: false }),
     );
 
     await step.run('broadcast', () =>
@@ -154,12 +154,21 @@ export const transcribeAndTranslate = inngest.createFunction(
       });
 
       await step.run('save-to-db', () =>
-        db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, isAudio: true }),
+        db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true }),
       );
 
       await step.run('broadcast', () =>
         queue.publishMessageReady(roomCode, {
-          id: msgId, sender, senderLang, senderSocketId, original: text, translations, audioOutputs, isAudio: true, timestamp: Date.now(),
+          id: msgId,
+          sender,
+          senderLang,
+          senderSocketId,
+          original: text,
+          translations,
+          audioOutputs,
+          originalAudio: { audioBase64, mimeType },
+          isAudio: true,
+          timestamp: Date.now(),
         }),
       );
 
@@ -189,12 +198,21 @@ export const transcribeAndTranslate = inngest.createFunction(
     );
 
     await step.run('save-to-db', () =>
-      db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, isAudio: true }),
+      db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true }),
     );
 
     await step.run('broadcast', () =>
       queue.publishMessageReady(roomCode, {
-        id: msgId, sender, senderLang, senderSocketId, original: text, translations, audioOutputs, isAudio: true, timestamp: Date.now(),
+        id: msgId,
+        sender,
+        senderLang,
+        senderSocketId,
+        original: text,
+        translations,
+        audioOutputs,
+        originalAudio: { audioBase64, mimeType },
+        isAudio: true,
+        timestamp: Date.now(),
       }),
     );
 
