@@ -163,6 +163,16 @@ async function checkFasterWhisperServer() {
   return { ok: true };
 }
 
+async function checkKokoroServer() {
+  const baseUrl = (process.env.KOKORO_BASE_URL || 'http://localhost:8880').replace(/\/+$/, '');
+  const res = await withTimeout(
+    fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(TIMEOUT_MS) }),
+    'kokoro-fastapi /health',
+  );
+  if (!res.ok) throw new Error(`kokoro-fastapi unreachable — HTTP ${res.status}. Is the container running? docker-compose --profile local-tts up -d kokoro`);
+  return { ok: true };
+}
+
 async function checkOpenAI() {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error('OPENAI_API_KEY is not set in .env');
@@ -217,12 +227,19 @@ function checksForProvider() {
 
   const requiresOpenAI = activeTranslationProviders.includes('openai')
     || sttProvider === 'openai'
-    || ttsProvider === 'openai'
+    || (ttsProvider === 'openai')
     || voiceTranslationProvider === 'openai-realtime';
 
   const sttChecks = sttProvider === 'faster-whisper-http'
     ? [{ name: 'faster-whisper-server', fn: checkFasterWhisperServer, required: true }]
     : [];
+
+  const knownTtsProviders = ['none', 'mock', 'openai', 'local', 'kokoro'];
+  const ttsChecks = ttsProvider === 'kokoro'
+    ? [{ name: 'kokoro-fastapi', fn: checkKokoroServer, required: true }]
+    : !knownTtsProviders.includes(ttsProvider)
+      ? [{ name: 'TTS provider', fn: async () => { throw new Error(`Unknown TTS_PROVIDER: "${ttsProvider}". Valid: ${knownTtsProviders.join(', ')}`); }, required: true }]
+      : [];
 
   const openAiRequired = envFlag('STARTUP_OPENAI_REQUIRED');
 
@@ -238,6 +255,7 @@ function checksForProvider() {
     { name: 'Inngest', fn: checkInngest, required: true },
     ...translationChecks,
     ...sttChecks,
+    ...ttsChecks,
     ...(requiresOpenAI ? [{ name: 'OpenAI', fn: checkOpenAI, required: openAiRequired }] : []),
   ];
 }

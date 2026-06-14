@@ -234,7 +234,8 @@ function RoomScreen() {
             ...h,
             // Preserve in-memory audio if DB didn't store it yet (reconnect scenario)
             translatedAudio: h.translatedAudio ?? existing?.translatedAudio ?? null,
-            autoPlay: false,
+            // Keep autoPlay from a real-time delivery; only suppress for pure history
+            autoPlay: existing?.autoPlay ?? false,
           }
         })
       })
@@ -764,7 +765,7 @@ function AudioPlayer({ audioBase64, mimeType, isMine, autoPlay }: { audioBase64:
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={() => {
           setDuration(audioRef.current?.duration ?? 0)
-          if (autoPlay ?? !isMine) audioRef.current?.play().catch(() => {})
+          if (autoPlay !== false) audioRef.current?.play().catch(() => {})
         }}
       />
 

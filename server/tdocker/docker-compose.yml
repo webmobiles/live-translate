@@ -316,6 +316,26 @@ services:
       retries: 10
       start_period: 120s  # model download on first start can take a minute
 
+  # ── Kokoro FastAPI (local TTS) ──────────────────────────────────────────
+  # OpenAI-compatible /v1/audio/speech endpoint, runs fully offline.
+  # Start with:
+  #   docker-compose --profile local-tts up -d kokoro
+  # Set TTS_PROVIDER=kokoro in .env.
+  kokoro:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
+    container_name: live-translate-kokoro
+    profiles: ["local-tts"]
+    ports:
+      - "8880:8880"   # OpenAI-compatible API → http://localhost:8880/v1
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8880/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
   # ── Ollama (local LLM) ───────────────────────────────────────────────────
   # Start with:
   #   docker-compose -f tdocker/docker-compose.yml --profile local-llm up -d ollama
