@@ -42,7 +42,8 @@
         {
           "photosPermission": "Hellovia Translate uses your photo library to set your profile picture."
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

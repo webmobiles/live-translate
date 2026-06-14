@@ -34,6 +34,25 @@ const router = Router();
 const FRONTEND_URL  = () => process.env.FRONTEND_URL  ?? 'http://localhost:5173';
 const AFTER_LOGIN   = () => `${FRONTEND_URL()}/`;
 const AFTER_LOGOUT  = () => `${FRONTEND_URL()}/login`;
+const MOBILE_SCHEME = 'hellovia-translate://';
+
+function getMobileReturnTo(value: unknown) {
+  if (typeof value !== 'string') return null;
+  if (!value.startsWith(MOBILE_SCHEME)) return null;
+  try {
+    return new URL(value).toString();
+  } catch {
+    return null;
+  }
+}
+
+function withQuery(url: string, params: Record<string, string>) {
+  const target = new URL(url);
+  for (const [key, value] of Object.entries(params)) {
+    target.searchParams.set(key, value);
+  }
+  return target.toString();
+}
 
 // ── Google OAuth ──────────────────────────────────────────────────────────
 
@@ -41,21 +60,48 @@ const googleEnabled = () =>
   !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
 router.get('/google', rateLimitLogin, (req, res, next) => {
-  if (!googleEnabled()) {
-    return res.redirect(`${FRONTEND_URL()}/login?error=google_not_configured`);
+  const mobileReturnTo = getMobileReturnTo(req.query.returnTo);
+  if (mobileReturnTo) {
+    (req.session as any).mobileReturnTo = mobileReturnTo;
   }
-  passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
-});
 
-router.get('/google/callback', rateLimitLogin, (req, res, next) => {
   if (!googleEnabled()) {
+    if (mobileReturnTo) {
+      return res.redirect(withQuery(mobileReturnTo, { error: 'google_not_configured' }));
+    }
     return res.redirect(`${FRONTEND_URL()}/login?error=google_not_configured`);
   }
   passport.authenticate('google', {
-    failureRedirect: `${FRONTEND_URL()}/login?error=oauth_failed`,
+    scope: ['profile', 'email'],
+    ...(mobileReturnTo ? { state: mobileReturnTo } : {}),
+  })(req, res, next);
+});
+
+router.get('/google/callback', rateLimitLogin, (req, res, next) => {
+  const mobileReturnTo =
+    getMobileReturnTo(req.query.state) ??
+    getMobileReturnTo((req.session as any).mobileReturnTo);
+  delete (req.session as any).mobileReturnTo;
+
+  if (!googleEnabled()) {
+    if (mobileReturnTo) {
+      return res.redirect(withQuery(mobileReturnTo, { error: 'google_not_configured' }));
+    }
+    return res.redirect(`${FRONTEND_URL()}/login?error=google_not_configured`);
+  }
+  passport.authenticate('google', {
+    failureRedirect: mobileReturnTo
+      ? withQuery(mobileReturnTo, { error: 'oauth_failed' })
+      : `${FRONTEND_URL()}/login?error=oauth_failed`,
   })(req, res, (err?: any) => {
     if (err) return next(err);
     const user = req.user as any;
+    if (mobileReturnTo) {
+      return res.redirect(withQuery(mobileReturnTo, {
+        status: 'ok',
+        onboarding: !user?.nickname || !user?.mother_language ? '1' : '0',
+      }));
+    }
     if (!user?.nickname || !user?.mother_language) {
       return res.redirect(`${FRONTEND_URL()}/onboarding`);
     }

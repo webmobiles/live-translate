@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
+    "emulator:prepare": "adb shell am force-stop host.exp.exponent || true && adb shell am force-stop app.hellovia.translate || true && adb reverse tcp:4000 tcp:4000 || true && adb reverse tcp:8081 tcp:8081 || true",
+    "prestart": "npm run emulator:prepare",
     "start": "expo start",
+    "preandroid": "npm run emulator:prepare",
     "android": "expo run:android",
     "ios": "expo run:ios"
   },
@@ -21,6 +24,7 @@
     "expo-localization": "~17.0.9",
     "expo-router": "~6.0.24",
     "expo-status-bar": "~3.0.9",
+    "expo-web-browser": "~15.0.11",
     "i18next": "^26.3.1",
     "nativewind": "^4.1.23",
     "react": "19.1.0",
