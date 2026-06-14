@@ -304,6 +304,7 @@ services:
     environment:
       WHISPER__MODEL: ${FASTER_WHISPER_MODEL:-Systran/faster-whisper-small}
       WHISPER__INFERENCE_DEVICE: cpu
+      WHISPER__PRELOAD_MODEL: "true"
     volumes:
       - ../data/faster-whisper:/root/.cache/huggingface
     networks:
