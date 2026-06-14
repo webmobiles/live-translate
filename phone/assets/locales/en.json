@@ -10,7 +10,8 @@
     "error": {
       "network": "Could not reach the server. Check your network.",
       "generic": "Something went wrong."
-    }
+    },
+    "cancel": "Cancel"
   },
   "home": {
     "tagline": "Real-time AI translation across languages",

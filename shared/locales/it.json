@@ -10,7 +10,8 @@
     "error": {
       "network": "Impossibile raggiungere il server. Controlla la connessione.",
       "generic": "Qualcosa è andato storto."
-    }
+    },
+    "cancel": "Annulla"
   },
   "home": {
     "tagline": "Traduzione IA in tempo reale tra lingue",

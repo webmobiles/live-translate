@@ -10,7 +10,8 @@
     "error": {
       "network": "No se puede conectar al servidor. Comprueba tu conexión.",
       "generic": "Algo salió mal."
-    }
+    },
+    "cancel": "Cancelar"
   },
   "home": {
     "tagline": "Traducción IA en tiempo real entre idiomas",

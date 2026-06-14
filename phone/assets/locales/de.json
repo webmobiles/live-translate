@@ -10,7 +10,8 @@
     "error": {
       "network": "Der Server ist nicht erreichbar. Prüfen Sie Ihre Verbindung.",
       "generic": "Etwas ist schiefgelaufen."
-    }
+    },
+    "cancel": "Abbrechen"
   },
   "home": {
     "tagline": "KI-Übersetzung in Echtzeit zwischen Sprachen",

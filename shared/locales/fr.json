@@ -10,7 +10,8 @@
     "error": {
       "network": "Impossible de joindre le serveur. Vérifiez votre connexion.",
       "generic": "Une erreur est survenue."
-    }
+    },
+    "cancel": "Annuler"
   },
   "home": {
     "tagline": "Traduction IA en temps réel entre les langues",
