@@ -4,6 +4,7 @@ import { CircleAlert, Mic, Pause, Play, Send, Square, X } from 'lucide-react'
 import { connectSocket } from '@/lib/socket'
 import { getLang } from '@/lib/languages'
 import { LanguageSelector, LanguageBadge } from '@/components/LanguageSelector'
+import { SoloLanguageToggle } from '@/components/SoloLanguageToggle'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import type { Message, Participant, RoomConfig } from '@/types'
 
@@ -256,6 +257,12 @@ function RoomScreen() {
   const [voiceAlertVisible, setVoiceAlertVisible] = useState(false)
   const [voiceAutoPlayEnabled, setVoiceAutoPlayEnabled] = useState(true)
 
+  // solo_multilang: which language side is currently "speaking"
+  const [soloActiveLang, setSoloActiveLang] = useState<string | null>(null)
+  const soloActiveLangRef = useRef<string | null>(null)
+  // Derived: always non-null when in solo mode (falls back to soloLanguages[0])
+  const effectiveSoloLang = soloActiveLang ?? roomConfig.soloLanguages?.[0] ?? null
+
   const myLanguageRef = useRef(initialLang)
   const voiceAutoPlayEnabledRef = useRef(true)
 
@@ -264,6 +271,27 @@ function RoomScreen() {
     setMyLanguage(lang)
     socketRef.current.emit('room:update-language', { language: lang })
   }, [])
+
+  // Seed soloActiveLang as soon as roomConfig resolves to solo mode
+  useEffect(() => {
+    if (roomConfig.mode !== 'solo_multilang' || !roomConfig.soloLanguages) return
+    if (soloActiveLangRef.current !== null) return // already seeded
+    const [langA, langB] = roomConfig.soloLanguages
+    soloActiveLangRef.current = langA
+    setSoloActiveLang(langA)
+    // Set participant language = translation target (langB receives langA's speech)
+    updateLanguage(langB)
+  }, [roomConfig.mode, roomConfig.soloLanguages, updateLanguage])
+
+  // Solo toggle: activeLang = who is speaking; myLanguage = translation target (the other lang)
+  const handleSoloToggle = useCallback((activeLang: string) => {
+    const langs = roomConfig.soloLanguages
+    if (!langs) return
+    const otherLang = langs.find(l => l !== activeLang) ?? langs[1]
+    soloActiveLangRef.current = activeLang
+    setSoloActiveLang(activeLang)
+    updateLanguage(otherLang) // participant.language = translation target
+  }, [roomConfig.soloLanguages, updateLanguage])
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textInputRef = useRef<HTMLTextAreaElement>(null)
@@ -342,7 +370,12 @@ function RoomScreen() {
           }
 
           if (res.ok) {
-            setRoomConfig(res.room?.config ?? DEFAULT_ROOM_CONFIG)
+            const resolvedConfig = res.room?.config ?? DEFAULT_ROOM_CONFIG
+            setRoomConfig(resolvedConfig)
+            if (resolvedConfig.mode === 'solo_multilang' && resolvedConfig.soloLanguages && soloActiveLangRef.current === null) {
+              soloActiveLangRef.current = resolvedConfig.soloLanguages[0]
+              setSoloActiveLang(resolvedConfig.soloLanguages[0])
+            }
             setRoomLost(false)
             setIsConnected(true)
             if (mode === 'reconnect' && wasDisconnected.current) {
@@ -412,7 +445,13 @@ function RoomScreen() {
       syncInFlight.current = false
     }
     const onParticipantsUpdated = ({ participants: p }: { participants: Participant[] }) => setParticipants(p)
-    const onConfigUpdated = ({ config }: { config: RoomConfig }) => setRoomConfig(config)
+    const onConfigUpdated = ({ config }: { config: RoomConfig }) => {
+      setRoomConfig(config)
+      if (config.mode === 'solo_multilang' && config.soloLanguages && soloActiveLangRef.current === null) {
+        soloActiveLangRef.current = config.soloLanguages[0]
+        setSoloActiveLang(config.soloLanguages[0])
+      }
+    }
     const onParticipantJoined = ({ participant }: { participant: Participant }) => {
       addSystemMsg(`${participant.nickname} joined (${participant.language.toUpperCase()})`)
     }
@@ -601,12 +640,17 @@ function RoomScreen() {
     const text = inputText.trim()
     if (!text || !isConnected || !roomConfig.input.text) return
     const id = crypto.randomUUID()
+    const isSolo = roomConfig.mode === 'solo_multilang'
+    // In solo mode senderLang = the active speaker side; targetLang = myLanguage (translation target)
+    const effectiveSenderLang = isSolo && effectiveSoloLang
+      ? effectiveSoloLang
+      : myLanguageRef.current
     setMessages(prev => [...prev, {
       id,
       original: text,
       translated: text,
       sender: nickname || 'Me',
-      senderLang: myLanguageRef.current,
+      senderLang: effectiveSenderLang,
       targetLang: myLanguageRef.current,
       isMine: true,
       timestamp: Date.now(),
@@ -615,7 +659,7 @@ function RoomScreen() {
     }])
     socketRef.current.timeout(8000).emit(
       'message:text',
-      { text, clientMsgId: id },
+      { text, clientMsgId: id, ...(isSolo && { senderLang: effectiveSenderLang }) },
       (err: Error | null, res?: { ok: boolean; id?: string; error?: string }) => {
         setMessages(prev => prev.map(m => {
           if (m.id !== id) return m
@@ -625,7 +669,7 @@ function RoomScreen() {
       },
     )
     setInputText('')
-  }, [inputText, isConnected, nickname, roomConfig.input.text])
+  }, [inputText, isConnected, nickname, roomConfig.input.text, roomConfig.mode])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText() }
@@ -664,13 +708,16 @@ function RoomScreen() {
       const reader = new FileReader()
       reader.onloadend = () => {
         const base64 = (reader.result as string).split(',')[1]
-        socketRef.current.emit('message:audio', { audioBase64: base64, mimeType: 'audio/webm', durationMs })
+        const isSolo = roomConfig.mode === 'solo_multilang'
+        const payload: Record<string, unknown> = { audioBase64: base64, mimeType: 'audio/webm', durationMs }
+        if (isSolo && soloActiveLangRef.current) payload.senderLang = soloActiveLangRef.current
+        socketRef.current.emit('message:audio', payload)
       }
       reader.readAsDataURL(blob)
     }
     mr.stop()
     setIsRecording(false)
-  }, [])
+  }, [roomConfig.mode])
 
   const copyCode = () => {
     navigator.clipboard.writeText(code)
@@ -726,7 +773,14 @@ function RoomScreen() {
           ←
         </button>
         <div className="flex-1 min-w-0">
-          <p className="text-white font-bold text-base truncate">{roomName || code}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-white font-bold text-base truncate">{roomName || code}</p>
+            {roomConfig.mode === 'solo_multilang' && (
+              <span className="text-xs bg-lt-primary/20 text-lt-primary border border-lt-primary/40 px-2 py-0.5 rounded-full shrink-0">
+                Solo
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <button onClick={copyCode} className="text-lt-accent text-xs font-mono font-bold hover:opacity-70 transition-opacity">
               {code} {copied ? '✓' : '📋'}
@@ -737,11 +791,23 @@ function RoomScreen() {
             </span>
           </div>
         </div>
-        <LanguageBadge code={myLanguage} onClick={() => setShowLangPicker(true)} />
+        {roomConfig.mode !== 'solo_multilang' && (
+          <LanguageBadge code={myLanguage} onClick={() => setShowLangPicker(true)} />
+        )}
       </div>
 
-      {/* Participants */}
-      {participants.length > 0 && (
+      {/* Solo language toggle (replaces participant bar in solo mode) */}
+      {roomConfig.mode === 'solo_multilang' && roomConfig.soloLanguages && effectiveSoloLang && (
+        <SoloLanguageToggle
+          languages={roomConfig.soloLanguages}
+          active={effectiveSoloLang}
+          onChange={handleSoloToggle}
+          disabled={!isConnected}
+        />
+      )}
+
+      {/* Participants (normal mode only) */}
+      {roomConfig.mode !== 'solo_multilang' && participants.length > 0 && (
         <div className="flex gap-2 px-3 py-2.5 border-b border-lt-border overflow-x-auto shrink-0">
           {participants.map(p => {
             const lang = getLang(p.language)
@@ -824,10 +890,12 @@ function RoomScreen() {
       <div className="flex-1 overflow-y-auto p-4 flex flex-col">
         {messages.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 py-20">
-            <span className="text-4xl">🌐</span>
+            <span className="text-4xl">{roomConfig.mode === 'solo_multilang' ? '🔄' : '🌐'}</span>
             <p className="text-lt-muted text-center text-sm px-8">
-              Send a message or hold the mic button to speak.<br />
-              Everyone gets it in their own language.
+              {roomConfig.mode === 'solo_multilang'
+                ? <>Tap your language side above, then speak or type.<br />The translation appears here instantly.</>
+                : <>Send a message or hold the mic button to speak.<br />Everyone gets it in their own language.</>
+              }
             </p>
           </div>
         ) : (
@@ -837,6 +905,12 @@ function RoomScreen() {
                 <div key={msg.id} className="flex justify-center">
                   <span className="text-lt-muted text-xs bg-lt-card px-3 py-1 rounded-full">{msg.original}</span>
                 </div>
+              ) : roomConfig.mode === 'solo_multilang' && roomConfig.soloLanguages ? (
+                <SoloMessageBubble
+                  key={msg.id}
+                  message={msg}
+                  soloLanguages={roomConfig.soloLanguages}
+                />
               ) : (
                 <MessageBubble key={msg.id} message={msg} />
               )
@@ -869,7 +943,11 @@ function RoomScreen() {
         <textarea
           ref={textInputRef}
           className="flex-1 bg-lt-card border border-lt-border rounded-2xl px-4 py-3 text-white text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors resize-none max-h-28"
-          placeholder={`Message in ${myLanguage.toUpperCase()}…`}
+          placeholder={
+            roomConfig.mode === 'solo_multilang' && effectiveSoloLang
+              ? `${getLang(effectiveSoloLang).flag} Type in ${getLang(effectiveSoloLang).name}…`
+              : `Message in ${myLanguage.toUpperCase()}…`
+          }
           value={inputText}
           onChange={e => setInputText(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -1097,6 +1175,72 @@ function AudioPlayer({
         <span className={`text-[10px] leading-none tabular-nums ${isMine ? 'text-white/50' : 'text-lt-muted'}`}>
           {playbackDuration > 0 ? fmt(isPlaying ? currentTime : playbackDuration) : '…'}
         </span>
+      </div>
+    </div>
+  )
+}
+
+// ── Solo message bubble ────────────────────────────────────────────────────
+// Always shows both original + translation, aligned by which side spoke.
+
+function SoloMessageBubble({ message, soloLanguages }: { message: Message; soloLanguages: [string, string] }) {
+  const { senderLang, original, translated, isTranslating, isAudio, originalAudio, translatedAudio, timestamp, deliveryStatus } = message
+  const isA = senderLang === soloLanguages[0]
+  const senderInfo = getLang(senderLang)
+  const targetInfo = getLang(isA ? soloLanguages[1] : soloLanguages[0])
+  const time = formatMessageTime(timestamp)
+  const hasTranslation = translated !== original
+
+  const canUseOriginalAudio = messageCanUseOriginalAudio(message)
+  const playableOriginalAudio = canUseOriginalAudio && isPlayableAudioPayload(originalAudio) ? originalAudio : null
+  const playableTranslatedAudio = isPlayableAudioPayload(translatedAudio) ? translatedAudio : null
+  const audioToPlay = playableTranslatedAudio ?? playableOriginalAudio ?? null
+
+  if (isTranslating) {
+    return (
+      <div className={`flex mb-1 ${isA ? 'justify-start' : 'justify-end'}`}>
+        <div className="max-w-[75%] px-4 py-3 rounded-2xl bg-lt-card border border-lt-border rounded-bl-sm">
+          <span className="text-lt-muted text-sm">…</span>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={`flex flex-col ${isA ? 'items-start' : 'items-end'}`}>
+      {/* Original text bubble */}
+      <div className={`flex items-center gap-1.5 mb-1 ${isA ? 'ml-1' : 'mr-1'}`}>
+        <span className="text-base">{senderInfo.flag}</span>
+        <span className="text-lt-muted text-xs">{senderInfo.name}</span>
+      </div>
+      <div className={`max-w-[78%] px-4 py-3 rounded-2xl ${
+        isA ? 'bg-lt-card border border-lt-border rounded-bl-sm' : 'bg-lt-primary rounded-br-sm'
+      } ${deliveryStatus === 'failed' ? 'border-lt-danger' : ''}`}>
+        {isAudio && (
+          <p className={`text-xs mb-1 ${isA ? 'text-lt-muted' : 'text-white/60'}`}>🎤 Voice</p>
+        )}
+        {audioToPlay && (
+          <AudioPlayer
+            audioBase64={audioToPlay.audioBase64}
+            mimeType={audioToPlay.mimeType}
+            isMine={!isA}
+            autoPlay={Boolean(message.autoPlay)}
+          />
+        )}
+        <p className="text-white text-base leading-relaxed">{original}</p>
+      </div>
+
+      {/* Translation pill */}
+      {hasTranslation && (
+        <div className={`flex items-center gap-1.5 mt-1.5 max-w-[78%] ${isA ? 'ml-1' : 'mr-1'}`}>
+          <span className="text-sm">{targetInfo.flag}</span>
+          <p className="text-lt-muted text-sm leading-relaxed italic">{translated}</p>
+        </div>
+      )}
+
+      <div className={`flex items-center gap-1 mt-1 mx-1 ${deliveryStatus === 'failed' ? 'text-lt-danger' : 'text-lt-muted'}`}>
+        <span className="text-xs">{time}</span>
+        {!isA && <DeliveryIcon status={deliveryStatus} />}
       </div>
     </div>
   )

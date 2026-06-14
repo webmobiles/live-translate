@@ -28,10 +28,15 @@ export const roomManager = {
       code,
       name:           roomName,
       createdAt:      dbRoom.createdAt,
-      config:         dbRoom.config || roomConfig,
+      config:         roomConfig,
       knownLanguages: new Set<string>(),
       participants:   new Map(),
     });
+
+    // Persist full config immediately so getOrRestore after restarts recovers mode/soloLanguages
+    db.updateRoomConfig(dbRoom.id, roomConfig).catch(
+      (err: Error) => logger.warn({ event: 'room.config.initial_persist_failed', roomCode: code, err }, 'Failed to persist initial room config'),
+    );
 
     logger.info({ event: 'room.persisted', roomCode: code, roomId: dbRoom.id }, 'Room persisted');
     return rooms.get(code);

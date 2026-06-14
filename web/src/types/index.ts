@@ -30,6 +30,8 @@ export interface Message {
 }
 
 export interface RoomConfig {
+  mode?: 'normal' | 'solo_multilang';
+  soloLanguages?: [string, string] | null;
   input: {
     text: boolean;
     voice: boolean;

@@ -329,7 +329,7 @@ io.on('connection', (socket) => {
   });
 
   // ── Text message → queue + Inngest ───────────────────────────────────────
-  socket.on('message:text', async ({ text, clientMsgId }: any = {}, cb) => {
+  socket.on('message:text', async ({ text, clientMsgId, senderLang: clientSenderLang }: any = {}, cb) => {
     const { roomCode, roomId, participant } = socket.data;
     if (!roomCode || !participant || !text?.trim()) {
       cb?.({ ok: false, error: 'Not connected to a room.' });
@@ -339,6 +339,10 @@ io.on('connection', (socket) => {
     const msgId        = isUuid(clientMsgId) ? clientMsgId : makeMsgId();
     const participants = roomManager.getParticipants(roomCode);
     const roomConfig   = roomManager.get(roomCode)?.config;
+    // solo_multilang: client sends the active speaker language explicitly
+    const effectiveSenderLang = (typeof clientSenderLang === 'string' && clientSenderLang)
+      ? clientSenderLang
+      : participant.language;
 
     if (roomConfig && !roomConfig.input.text) {
       cb?.({ ok: false, error: 'Text input is disabled for this room.' });
@@ -374,7 +378,7 @@ io.on('connection', (socket) => {
         roomCode,
         roomId,
         text:           text.trim(),
-        senderLang:     participant.language,
+        senderLang:     effectiveSenderLang,
         sender:         participant.nickname,
         senderSocketId: socket.id,
         participants,
@@ -390,9 +394,12 @@ io.on('connection', (socket) => {
   });
 
   // ── Audio message → queue + Inngest ──────────────────────────────────────
-  socket.on('message:audio', async ({ audioBase64, mimeType, durationMs, durationSeconds, audioDurationMs, audioDurationSeconds }: any = {}) => {
+  socket.on('message:audio', async ({ audioBase64, mimeType, durationMs, durationSeconds, audioDurationMs, audioDurationSeconds, senderLang: clientSenderLang }: any = {}) => {
     const { roomCode, roomId, participant } = socket.data;
     if (!roomCode || !participant || !audioBase64) return;
+    const effectiveSenderLang = (typeof clientSenderLang === 'string' && clientSenderLang)
+      ? clientSenderLang
+      : participant.language;
 
     const msgId        = makeMsgId();
     const participants = roomManager.getParticipants(roomCode);
@@ -447,7 +454,7 @@ io.on('connection', (socket) => {
         roomId,
         audioBase64,
         mimeType,
-        senderLang:     participant.language,
+        senderLang:     effectiveSenderLang,
         sender:         participant.nickname,
         senderSocketId: socket.id,
         participants,

@@ -1,4 +1,6 @@
 export const DEFAULT_ROOM_CONFIG = {
+  mode: 'normal' as 'normal' | 'solo_multilang',
+  soloLanguages: null as [string, string] | null,
   input: {
     text: true,
     voice: true,
@@ -13,13 +15,28 @@ export const DEFAULT_ROOM_CONFIG = {
 
 const VOICE_PIPELINES = new Set(['stt-text-translate', 'direct-voice-translation']);
 const TRANSLATION_PROVIDERS = new Set(['ollama', 'openai']);
+const ROOM_MODES = new Set(['normal', 'solo_multilang']);
 
-function bool(value, fallback) {
+function bool(value: any, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback;
 }
 
+function normalizeSoloLanguages(langs: any): [string, string] | null {
+  if (!Array.isArray(langs) || langs.length !== 2) return null;
+  const [a, b] = langs.map(String);
+  if (!a || !b || a === b) return null;
+  return [a, b];
+}
+
 function normalizeRoomConfig(config: any = {}) {
+  const mode = ROOM_MODES.has(config.mode) ? config.mode : DEFAULT_ROOM_CONFIG.mode;
+  const soloLanguages = mode === 'solo_multilang'
+    ? normalizeSoloLanguages(config.soloLanguages)
+    : null;
+
   const normalized = {
+    mode,
+    soloLanguages,
     input: {
       text: bool(config.input?.text, DEFAULT_ROOM_CONFIG.input.text),
       voice: bool(config.input?.voice, DEFAULT_ROOM_CONFIG.input.voice),
