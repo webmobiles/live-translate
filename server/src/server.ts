@@ -13,6 +13,7 @@ import { authRouter } from './auth/routes';
 import { internalRouter } from './auth/internalRoutes';
 import { rateLimitApi } from './auth/rateLimiter';
 import { logger, flushLogs } from './observability/logger';
+import { dumpIncomingAudio } from './debug/audioDump';
 import { severity } from './observability/severity';
 import * as appMetrics from './observability/metrics';
 import { metricsHandler } from './observability/prometheus';
@@ -329,6 +330,8 @@ app.post('/api/solo/rooms/:code/audio', async (req, res) => {
       audioDurationSource: audioDuration.source,
       audioBytesApprox: Math.round(audioBase64.length * 0.75),
     }, 'Solo audio message received');
+
+    dumpIncomingAudio(audioBase64, mimeType, { source: 'solo-http', msgId, senderLang });
 
     let text: string;
     let translations: Record<string, string>;
@@ -854,6 +857,8 @@ io.on('connection', (socket) => {
         audioDurationSource: audioDuration.source,
         audioBytesApprox: Math.round(audioBase64.length * 0.75),
       }, 'Audio message received');
+
+      dumpIncomingAudio(audioBase64, mimeType, { source: 'room-socket', msgId, senderLang: effectiveSenderLang });
 
       // 1. Show spinner on all servers immediately (backward-compat)
       await queue.publishTranslating(roomCode, msgId);

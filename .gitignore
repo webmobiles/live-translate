@@ -3,6 +3,7 @@ server/.env
 node_modules/
 server/dist/
 server/data/
+server/audios/
 
 mobile/.DS_Store
 
