@@ -7,6 +7,7 @@ import path from 'path'
 const SERVER_URL = process.env.VITE_SERVER_URL ?? 'http://localhost:4000'
 
 export default defineConfig({
+  envPrefix: ['VITE_', 'WEB_'],
   plugins: [
     tanstackRouter({ routesDirectory: './src/routes' }),
     react(),
