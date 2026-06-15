@@ -1143,17 +1143,17 @@ function RoomScreen() {
           <span className="text-4xl">🚪</span>
         </div>
         <div className="flex flex-col gap-2">
-          <h2 className="text-white text-2xl font-bold">{t('room.gone')}</h2>
+          <h2 className="text-lt-text text-2xl font-bold">{t('room.gone')}</h2>
           <p className="text-lt-muted text-base">
-            The room <span className="text-white font-mono font-bold">{code}</span> was closed or the server restarted.
+            The room <span className="text-lt-text font-mono font-bold">{code}</span> was closed or the server restarted.
           </p>
         </div>
         <p className="text-lt-muted text-sm">
-          Redirecting to home in <span className="text-white font-bold">{countdown}</span>s…
+          Redirecting to home in <span className="text-lt-text font-bold">{countdown}</span>s…
         </p>
         <button
           onClick={() => navigate({ to: '/' })}
-          className="bg-lt-primary rounded-2xl px-8 py-3 text-white font-bold hover:bg-lt-primary-dark transition-colors"
+          className="bg-lt-primary rounded-2xl px-8 py-3 text-lt-text font-bold hover:bg-lt-primary-dark transition-colors"
         >
           Go home now
         </button>
@@ -1165,12 +1165,12 @@ function RoomScreen() {
     <div className="h-screen bg-lt-bg flex flex-col">
       {/* Header */}
       <div className="flex items-center px-4 py-3 border-b border-lt-border gap-3 shrink-0">
-        <button onClick={() => navigate({ to: '/' })} className="p-1 text-lt-muted text-xl hover:text-white transition-colors">
+        <button onClick={() => navigate({ to: '/' })} className="p-1 text-lt-muted text-xl hover:text-lt-text transition-colors">
           ←
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className="text-white font-bold text-base truncate">{roomName || code}</p>
+            <p className="text-lt-text font-bold text-base truncate">{roomName || code}</p>
             {roomConfig.mode === 'solo_multilang' && (
               <span className="text-xs bg-lt-primary/20 text-lt-primary border border-lt-primary/40 px-2 py-0.5 rounded-full shrink-0">
                 Solo
@@ -1218,7 +1218,7 @@ function RoomScreen() {
                 }`}
               >
                 <span className="text-base">{lang.flag}</span>
-                <span className={`text-sm font-medium ${isMe ? 'text-lt-primary' : 'text-white'}`}>
+                <span className={`text-sm font-medium ${isMe ? 'text-lt-primary' : 'text-lt-text'}`}>
                   {p.nickname}{p.isHost ? ' 👑' : ''}
                 </span>
               </div>
@@ -1242,7 +1242,7 @@ function RoomScreen() {
       {isHost && (
         <div className="flex items-center gap-3 px-3 py-2.5 border-b border-lt-border bg-lt-bg shrink-0">
           <select
-            className="bg-lt-card border border-lt-border rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-lt-primary"
+            className="bg-lt-card border border-lt-border rounded-lg px-2 py-1.5 text-lt-text text-xs focus:outline-none focus:border-lt-primary"
             value={roomConfig.voicePipeline}
             onChange={e => updateRoomConfig({ ...roomConfig, voicePipeline: e.target.value as RoomConfig['voicePipeline'] })}
           >
@@ -1304,7 +1304,7 @@ function RoomScreen() {
             <AlertDescription>{t('room.alert.tooShortBody')}</AlertDescription>
             <button
               type="button"
-              className="absolute right-3 top-3 rounded-md p-1 text-lt-muted transition-colors hover:bg-lt-card hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lt-primary"
+              className="absolute right-3 top-3 rounded-md p-1 text-lt-muted transition-colors hover:bg-lt-card hover:text-lt-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lt-primary"
               onClick={() => setVoiceAlertVisible(false)}
               aria-label={t('room.alert.dismiss')}
             >
@@ -1318,7 +1318,7 @@ function RoomScreen() {
       <div className="flex items-end px-4 py-3 border-t border-lt-border gap-3 shrink-0">
         <textarea
           ref={textInputRef}
-          className="flex-1 bg-lt-card border border-lt-border rounded-2xl px-4 py-3 text-white text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors resize-none max-h-28"
+          className="flex-1 bg-lt-card border border-lt-border rounded-2xl px-4 py-3 text-lt-text text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors resize-none max-h-28"
           placeholder={
             roomConfig.mode === 'solo_multilang' && effectiveSoloLang
               ? `${getLang(effectiveSoloLang).flag} ${t('room.inputPlaceholderSolo', { lang: getLang(effectiveSoloLang).name })}`
@@ -1345,7 +1345,7 @@ function RoomScreen() {
               isRecording ? 'bg-lt-danger scale-110' : 'bg-lt-primary hover:bg-lt-primary-dark'
             }`}
           >
-            {isRecording ? <Square size={20} className="text-white" fill="currentColor" /> : <Mic size={22} className="text-white" />}
+            {isRecording ? <Square size={20} className="text-lt-text" fill="currentColor" /> : <Mic size={22} className="text-lt-text" />}
           </button>
         )}
         {roomConfig.input.text && (
@@ -1357,7 +1357,7 @@ function RoomScreen() {
             aria-label={t('room.sendMessage')}
             className="bg-lt-primary rounded-full w-12 h-12 flex items-center justify-center hover:bg-lt-primary-dark transition-colors disabled:opacity-40 shrink-0"
           >
-            <Send size={20} className="text-white" />
+            <Send size={20} className="text-lt-text" />
           </button>
         )}
       </div>
@@ -1589,7 +1589,7 @@ function OriginalAudioBlock({ code, message, isMine, inline }: {
       onClick={(e) => { e.stopPropagation(); void recover() }}
       disabled={loadState === 'loading'}
       className={`inline-flex items-center text-xs  px-2.5 py-1.5 transition-colors disabled:opacity-60 ${
-        isMine ? 'text-white/80 bg-white/10 hover:bg-white/20' : 'text-lt-muted bg-lt-bg hover:text-white'
+        isMine ? 'text-lt-text/80 bg-white/10 hover:bg-white/20' : 'text-lt-muted bg-lt-bg hover:text-lt-text'
       }`}
     >
      
@@ -1685,8 +1685,8 @@ function AudioPlayer({
         }`}
       >
         {isPlaying
-          ? <Pause size={15} fill="white" className="text-white" />
-          : <Play  size={15} fill="white" className="text-white ml-0.5" />}
+          ? <Pause size={15} fill="white" className="text-lt-text" />
+          : <Play  size={15} fill="white" className="text-lt-text ml-0.5" />}
       </button>
 
       <div className="flex flex-col gap-0.5 flex-1">
@@ -1712,7 +1712,7 @@ function AudioPlayer({
             )
           })}
         </svg>
-        <span className={`text-[10px] leading-none tabular-nums ${isMine ? 'text-white/50' : 'text-lt-muted'}`}>
+        <span className={`text-[10px] leading-none tabular-nums ${isMine ? 'text-lt-text/50' : 'text-lt-muted'}`}>
           {playbackDuration > 0 ? fmt(isPlaying ? currentTime : playbackDuration) : '…'}
         </span>
       </div>
@@ -1728,7 +1728,7 @@ function PendingAudioPreview({ isMine, seed }: { isMine: boolean; seed: string }
   return (
     <div className="flex min-w-[180px] items-center gap-2">
       <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isMine ? 'bg-white/20' : 'bg-lt-primary/20'}`}>
-        <Mic size={16} className={isMine ? 'text-white' : 'text-lt-primary'} />
+        <Mic size={16} className={isMine ? 'text-lt-text' : 'text-lt-primary'} />
       </div>
       <div className="flex flex-1 flex-col gap-0.5">
         <svg height="28" viewBox={`0 0 ${bars.length * 5} 28`} preserveAspectRatio="none" className="w-full">
@@ -1747,7 +1747,7 @@ function PendingAudioPreview({ isMine, seed }: { isMine: boolean; seed: string }
             )
           })}
         </svg>
-        <span className={`text-[10px] leading-none ${isMine ? 'text-white/50' : 'text-lt-muted'}`}>…</span>
+        <span className={`text-[10px] leading-none ${isMine ? 'text-lt-text/50' : 'text-lt-muted'}`}>…</span>
       </div>
     </div>
   )
@@ -1805,7 +1805,7 @@ function SoloMessageBubble({ code, message, soloLanguages, onRetry }: { code: st
     {!hasTranslation  &&
       <div className={`max-w-[78%] px-4 py-3 rounded-2xl ${sourceBubbleClass} ${deliveryStatus === 'failed' ? 'border-lt-danger' : ''}`}>
 
-        <p> <span className="text-xs text-gray-500 ">{emitterInfo.code}</span>: <span className="text-white text-base leading-relaxed">{original}</span>
+        <p> <span className="text-xs text-gray-500 ">{emitterInfo.code}</span>: <span className="text-lt-text text-base leading-relaxed">{original}</span>
     
           <OriginalAudioBlock code={code} message={message} isMine={!isA} inline={originalAudioToPlay} />
  
@@ -1831,7 +1831,7 @@ function SoloMessageBubble({ code, message, soloLanguages, onRetry }: { code: st
             )}
             <p>
                 <span className="text-base text-gray-500">{receiverInfo.code}: </span>
-              <span className="text-white text-base leading-relaxed">{translated}</span></p>
+              <span className="text-lt-text text-base leading-relaxed">{translated}</span></p>
 
           </div>
         </>
@@ -1930,7 +1930,7 @@ function MessageBubble({ code, message, onRetry }: { code: string; message: Mess
         } ${deliveryStatus === 'failed' ? 'border border-lt-danger' : ''} ${canToggleView ? 'cursor-pointer' : ''}`}
       >
         {isAudio && (
-          <p className={`text-xs mb-1 ${isMine ? 'text-white/60' : 'text-lt-muted'}`}>🎤 Voice</p>
+          <p className={`text-xs mb-1 ${isMine ? 'text-lt-text/60' : 'text-lt-muted'}`}>🎤 Voice</p>
         )}
         {audioToPlay && (
           <div className={viewingOriginalAudio ? 'hidden' : ''}>
@@ -1948,11 +1948,11 @@ function MessageBubble({ code, message, onRetry }: { code: string; message: Mess
             <OriginalAudioBlock code={code} message={message} isMine={isMine} inline={playableOriginalAudio} />
           </div>
         )}
-        <p className={`text-white text-base leading-relaxed ${audioToPlay || (isAudio && hasRecoverableOriginal) ? 'mt-2' : ''}`}>
+        <p className={`text-lt-text text-base leading-relaxed ${audioToPlay || (isAudio && hasRecoverableOriginal) ? 'mt-2' : ''}`}>
           {showOriginal ? original : translated}
         </p>
         {canToggleView && (
-          <p className={`text-xs mt-1.5 ${isMine ? 'text-white/50' : 'text-lt-muted'}`}>
+          <p className={`text-xs mt-1.5 ${isMine ? 'text-lt-text/50' : 'text-lt-muted'}`}>
             {showOriginal
               ? '↩ tap to show translation'
               : `${emitterInfo.flag} tap to show original${isAudio && hasRecoverableOriginal ? ' audio' : ''}`}

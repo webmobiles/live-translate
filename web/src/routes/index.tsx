@@ -25,7 +25,7 @@ function HomeScreen() {
             <span className="text-5xl">🌐</span>
           </div>
           <div className="flex flex-col items-center gap-1">
-            <h1 className="text-white text-4xl font-bold tracking-tight">LiveTranslate</h1>
+            <h1 className="text-lt-text text-4xl font-bold tracking-tight">LiveTranslate</h1>
             <p className="text-lt-muted text-base text-center">{t('home.tagline')}</p>
           </div>
         </div>
@@ -38,13 +38,13 @@ function HomeScreen() {
                 ? <img src={me.avatar_url} alt="" className="w-8 h-8 rounded-full flex-shrink-0 object-cover" />
                 : <span className="text-2xl flex-shrink-0">👤</span>
               }
-              <span className="text-white text-sm font-medium truncate">
+              <span className="text-lt-text text-sm font-medium truncate">
                 {me.nickname ?? me.name}
               </span>
             </div>
             <button
               onClick={() => navigate({ to: '/settings' })}
-              className="text-lt-muted text-xl hover:text-white transition-colors flex-shrink-0 ml-3 p-1"
+              className="text-lt-muted text-xl hover:text-lt-text transition-colors flex-shrink-0 ml-3 p-1"
               aria-label="Settings"
             >
               ⚙
@@ -64,8 +64,8 @@ function HomeScreen() {
             onClick={() => navigate({ to: '/create' })}
             className="bg-lt-primary rounded-2xl py-4 flex flex-col items-center hover:bg-lt-primary-dark transition-colors"
           >
-            <span className="text-white text-lg font-bold">{t('home.createRoom')}</span>
-            <span className="text-white/60 text-sm mt-0.5">{t('home.createRoomSub')}</span>
+            <span className="text-lt-text text-lg font-bold">{t('home.createRoom')}</span>
+            <span className="text-lt-text/60 text-sm mt-0.5">{t('home.createRoomSub')}</span>
           </button>
 
           <button

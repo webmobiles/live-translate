@@ -4,16 +4,17 @@
 @import "@fontsource-variable/geist";
 
 @theme inline {
-  --color-lt-bg: #0A0A0F;
-  --color-lt-surface: #12121A;
-  --color-lt-card: #1A1A28;
-  --color-lt-border: #2A2A3E;
-  --color-lt-primary: #7C6EFF;
-  --color-lt-primary-dark: #5A52E0;
-  --color-lt-primary-muted: rgba(124,110,255,0.15);
-  --color-lt-accent: #00D4B4;
-  --color-lt-muted: #8A8AA3;
-  --color-lt-danger: #FF4757;
+  --color-lt-bg: var(--lt-bg);
+  --color-lt-surface: var(--lt-surface);
+  --color-lt-card: var(--lt-card);
+  --color-lt-border: var(--lt-border);
+  --color-lt-primary: var(--lt-primary);
+  --color-lt-primary-dark: var(--lt-primary-dark);
+  --color-lt-primary-muted: var(--lt-primary-muted);
+  --color-lt-accent: var(--lt-accent);
+  --color-lt-muted: var(--lt-muted);
+  --color-lt-danger: var(--lt-danger);
+  --color-lt-text: var(--lt-text);
 }
 
 @custom-variant dark (&:is(.dark *));
@@ -62,6 +63,20 @@
 }
 
 :root {
+    /* LiveTranslate palette — light mode. Brand purple/danger stay constant;
+       surfaces, borders, muted, accent and primary text flip with .dark. */
+    --lt-primary: #7C6EFF;
+    --lt-primary-dark: #5A52E0;
+    --lt-primary-muted: rgba(124,110,255,0.15);
+    --lt-danger: #FF4757;
+    --lt-bg: #F7F7FB;
+    --lt-surface: #FFFFFF;
+    --lt-card: #FFFFFF;
+    --lt-border: #E4E4ED;
+    --lt-muted: #6B6B7B;
+    --lt-accent: #0E9C82;
+    --lt-text: #17171F;
+
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
@@ -97,6 +112,15 @@
 }
 
 .dark {
+    /* LiveTranslate palette — dark mode (the original look). */
+    --lt-bg: #0A0A0F;
+    --lt-surface: #12121A;
+    --lt-card: #1A1A28;
+    --lt-border: #2A2A3E;
+    --lt-muted: #8A8AA3;
+    --lt-accent: #00D4B4;
+    --lt-text: #FFFFFF;
+
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
     --card: oklch(0.205 0 0);

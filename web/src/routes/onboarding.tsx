@@ -56,7 +56,7 @@ function OnboardingScreen() {
             <span className="text-3xl">👋</span>
           </div>
           <div>
-            <h1 className="text-white text-2xl font-bold">{t('onboarding.title')}</h1>
+            <h1 className="text-lt-text text-2xl font-bold">{t('onboarding.title')}</h1>
             <p className="text-lt-muted text-sm mt-1">{t('onboarding.subtitle')}</p>
           </div>
         </div>
@@ -82,7 +82,7 @@ function OnboardingScreen() {
               </label>
               <input
                 autoFocus
-                className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-white text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors"
+                className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-lt-text text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors"
                 placeholder={t('onboarding.step.nickname.placeholder')}
                 value={nickname}
                 onChange={e => setNickname(e.target.value)}
@@ -95,7 +95,7 @@ function OnboardingScreen() {
             <button
               onClick={() => setStep(2)}
               disabled={nickname.trim().length < 2}
-              className="bg-lt-primary rounded-2xl py-4 text-white font-bold text-base hover:bg-lt-primary-dark transition-colors disabled:opacity-40"
+              className="bg-lt-primary rounded-2xl py-4 text-lt-text font-bold text-base hover:bg-lt-primary-dark transition-colors disabled:opacity-40"
             >
               {t('common.continue')}
             </button>
@@ -109,7 +109,7 @@ function OnboardingScreen() {
               <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
                 {t('onboarding.step.motherLang.label')}
               </label>
-              <p className="text-white/60 text-sm">{t('onboarding.step.motherLang.hint')}</p>
+              <p className="text-lt-text/60 text-sm">{t('onboarding.step.motherLang.hint')}</p>
               <button
                 onClick={() => setShowMotherPicker(true)}
                 className="bg-lt-card border border-lt-border rounded-xl px-4 py-4 flex items-center justify-between hover:border-lt-primary transition-colors"
@@ -117,7 +117,7 @@ function OnboardingScreen() {
                 <div className="flex items-center gap-3">
                   <span className="text-3xl">{motherInfo.flag}</span>
                   <div className="text-left">
-                    <p className="text-white font-medium">{motherInfo.name}</p>
+                    <p className="text-lt-text font-medium">{motherInfo.name}</p>
                     <p className="text-lt-muted text-xs">{motherInfo.code.toUpperCase()}</p>
                   </div>
                 </div>
@@ -128,13 +128,13 @@ function OnboardingScreen() {
             <div className="flex gap-3">
               <button
                 onClick={() => setStep(1)}
-                className="flex-1 bg-lt-card border border-lt-border rounded-2xl py-4 text-lt-muted font-medium hover:text-white transition-colors"
+                className="flex-1 bg-lt-card border border-lt-border rounded-2xl py-4 text-lt-muted font-medium hover:text-lt-text transition-colors"
               >
                 {t('common.back')}
               </button>
               <button
                 onClick={() => setStep(3)}
-                className="flex-1 bg-lt-primary rounded-2xl py-4 text-white font-bold hover:bg-lt-primary-dark transition-colors"
+                className="flex-1 bg-lt-primary rounded-2xl py-4 text-lt-text font-bold hover:bg-lt-primary-dark transition-colors"
               >
                 {t('common.continue')}
               </button>
@@ -149,7 +149,7 @@ function OnboardingScreen() {
               <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
                 {t('onboarding.step.targetLang.label')}
               </label>
-              <p className="text-white/60 text-sm">{t('onboarding.step.targetLang.hint')}</p>
+              <p className="text-lt-text/60 text-sm">{t('onboarding.step.targetLang.hint')}</p>
 
               {targetInfo ? (
                 <button
@@ -159,7 +159,7 @@ function OnboardingScreen() {
                   <div className="flex items-center gap-3">
                     <span className="text-3xl">{targetInfo.flag}</span>
                     <div className="text-left">
-                      <p className="text-white font-medium">{targetInfo.name}</p>
+                      <p className="text-lt-text font-medium">{targetInfo.name}</p>
                       <p className="text-lt-muted text-xs">{targetInfo.code.toUpperCase()}</p>
                     </div>
                   </div>
@@ -168,7 +168,7 @@ function OnboardingScreen() {
               ) : (
                 <button
                   onClick={() => setShowTargetPicker(true)}
-                  className="bg-lt-card border border-lt-border rounded-xl px-4 py-4 flex items-center justify-center gap-2 hover:border-lt-primary transition-colors text-lt-muted hover:text-white"
+                  className="bg-lt-card border border-lt-border rounded-xl px-4 py-4 flex items-center justify-center gap-2 hover:border-lt-primary transition-colors text-lt-muted hover:text-lt-text"
                 >
                   <span className="text-xl">🌍</span>
                   <span>{t('onboarding.step.targetLang.pick')}</span>
@@ -185,14 +185,14 @@ function OnboardingScreen() {
             <div className="flex gap-3">
               <button
                 onClick={() => setStep(2)}
-                className="flex-1 bg-lt-card border border-lt-border rounded-2xl py-4 text-lt-muted font-medium hover:text-white transition-colors"
+                className="flex-1 bg-lt-card border border-lt-border rounded-2xl py-4 text-lt-muted font-medium hover:text-lt-text transition-colors"
               >
                 {t('common.back')}
               </button>
               <button
                 onClick={handleFinish}
                 disabled={!targetLang || loading}
-                className="flex-1 bg-lt-primary rounded-2xl py-4 text-white font-bold hover:bg-lt-primary-dark transition-colors disabled:opacity-40"
+                className="flex-1 bg-lt-primary rounded-2xl py-4 text-lt-text font-bold hover:bg-lt-primary-dark transition-colors disabled:opacity-40"
               >
                 {loading ? t('common.saving') : t('onboarding.finish')}
               </button>

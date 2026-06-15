@@ -98,11 +98,11 @@ function SettingsScreen() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate({ to: '/' })}
-            className="p-2 -ml-2 text-lt-muted text-2xl hover:text-white transition-colors"
+            className="p-2 -ml-2 text-lt-muted text-2xl hover:text-lt-text transition-colors"
           >
             ←
           </button>
-          <h1 className="text-white text-2xl font-bold">{t('settings.title')}</h1>
+          <h1 className="text-lt-text text-2xl font-bold">{t('settings.title')}</h1>
         </div>
 
         {/* Avatar */}
@@ -124,8 +124,8 @@ function SettingsScreen() {
             </div>
             <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
               {uploadingAvatar
-                ? <span className="text-white text-xs">{t('common.saving')}</span>
-                : <span className="text-white text-xs font-medium">{t('settings.avatarChange')}</span>
+                ? <span className="text-lt-text text-xs">{t('common.saving')}</span>
+                : <span className="text-lt-text text-xs font-medium">{t('settings.avatarChange')}</span>
               }
             </div>
           </button>
@@ -145,7 +145,7 @@ function SettingsScreen() {
             {t('settings.nickname')}
           </label>
           <input
-            className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-white text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors"
+            className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-lt-text text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors"
             placeholder={t('settings.nicknamePlaceholder')}
             value={nickname}
             onChange={e => setNickname(e.target.value)}
@@ -165,7 +165,7 @@ function SettingsScreen() {
             <div className="flex items-center gap-3">
               <span className="text-3xl">{motherInfo.flag}</span>
               <div className="text-left">
-                <p className="text-white font-medium">{motherInfo.name}</p>
+                <p className="text-lt-text font-medium">{motherInfo.name}</p>
                 <p className="text-lt-muted text-xs">{motherInfo.code.toUpperCase()}</p>
               </div>
             </div>
@@ -185,7 +185,7 @@ function SettingsScreen() {
             <div className="flex items-center gap-3">
               <span className="text-3xl">{targetInfo.flag}</span>
               <div className="text-left">
-                <p className="text-white font-medium">{targetInfo.name}</p>
+                <p className="text-lt-text font-medium">{targetInfo.name}</p>
                 <p className="text-lt-muted text-xs">{targetInfo.code.toUpperCase()}</p>
               </div>
             </div>
@@ -201,7 +201,7 @@ function SettingsScreen() {
           <select
             value={i18n.resolvedLanguage?.split('-')[0] ?? 'en'}
             onChange={e => void i18n.changeLanguage(e.target.value)}
-            className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-white text-base focus:outline-none focus:border-lt-primary transition-colors appearance-none"
+            className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-lt-text text-base focus:outline-none focus:border-lt-primary transition-colors appearance-none"
           >
             {UI_LANGUAGES.map(l => (
               <option key={l.code} value={l.code}>{l.name}</option>
@@ -215,7 +215,7 @@ function SettingsScreen() {
         <button
           onClick={handleSave}
           disabled={saving || !nickname.trim()}
-          className="bg-lt-primary rounded-2xl py-4 text-white text-lg font-bold hover:bg-lt-primary-dark transition-colors disabled:opacity-50"
+          className="bg-lt-primary rounded-2xl py-4 text-lt-text text-lg font-bold hover:bg-lt-primary-dark transition-colors disabled:opacity-50"
         >
           {saving ? t('common.saving') : saved ? t('settings.saved') : t('settings.save')}
         </button>

@@ -35,11 +35,11 @@ export function SoloLanguageToggle({ languages, active, onChange, disabled }: So
         >
           <span className="text-2xl leading-none">{infoA.flag}</span>
           <div className="flex flex-col items-start">
-            <span className={`text-sm font-bold leading-tight ${isA ? 'text-white' : 'text-lt-muted'}`}>
+            <span className={`text-sm font-bold leading-tight ${isA ? 'text-lt-text' : 'text-lt-muted'}`}>
               {infoA.name}
             </span>
             {isA && (
-              <span className="text-[10px] text-white/60 leading-tight uppercase tracking-wide">
+              <span className="text-[10px] text-lt-text/60 leading-tight uppercase tracking-wide">
                 speaking
               </span>
             )}
@@ -61,11 +61,11 @@ export function SoloLanguageToggle({ languages, active, onChange, disabled }: So
           }`}
         >
           <div className="flex flex-col items-start">
-            <span className={`text-sm font-bold leading-tight ${!isA ? 'text-white' : 'text-lt-muted'}`}>
+            <span className={`text-sm font-bold leading-tight ${!isA ? 'text-lt-text' : 'text-lt-muted'}`}>
               {infoB.name}
             </span>
             {!isA && (
-              <span className="text-[10px] text-white/60 leading-tight uppercase tracking-wide">
+              <span className="text-[10px] text-lt-text/60 leading-tight uppercase tracking-wide">
                 speaking
               </span>
             )}

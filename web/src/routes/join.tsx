@@ -89,10 +89,10 @@ function JoinScreen() {
       <div className="w-full max-w-sm flex flex-col gap-8">
 
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate({ to: '/' })} className="p-2 -ml-2 text-lt-muted text-2xl hover:text-white transition-colors">
+          <button onClick={() => navigate({ to: '/' })} className="p-2 -ml-2 text-lt-muted text-2xl hover:text-lt-text transition-colors">
             ←
           </button>
-          <h1 className="text-white text-2xl font-bold">{t('join.title')}</h1>
+          <h1 className="text-lt-text text-2xl font-bold">{t('join.title')}</h1>
         </div>
 
         <div className="flex flex-col gap-5">
@@ -101,7 +101,7 @@ function JoinScreen() {
               {t('join.fields.code')}
             </label>
             <input
-              className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-white text-2xl tracking-widest text-center font-bold placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors uppercase"
+              className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-lt-text text-2xl tracking-widest text-center font-bold placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors uppercase"
               placeholder={t('join.fields.codePlaceholder')}
               value={code}
               onChange={e => setCode(e.target.value.toUpperCase().slice(0, 6))}
@@ -117,7 +117,7 @@ function JoinScreen() {
               {t('join.fields.yourName')}
             </label>
             <input
-              className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-white text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors"
+              className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-lt-text text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors"
               placeholder={t('join.fields.yourNamePlaceholder')}
               value={nickname}
               onChange={e => setNickname(e.target.value)}
@@ -138,7 +138,7 @@ function JoinScreen() {
               onClick={() => setShowLangPicker(true)}
               className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 flex items-center justify-between hover:border-lt-primary transition-colors"
             >
-              <span className="text-white text-base">{t('join.fields.yourLanguageSub')}</span>
+              <span className="text-lt-text text-base">{t('join.fields.yourLanguageSub')}</span>
               <LanguageBadge code={language} />
             </button>
           </div>
@@ -153,7 +153,7 @@ function JoinScreen() {
             ready ? 'bg-lt-primary hover:bg-lt-primary-dark' : 'bg-lt-card border border-lt-border'
           } disabled:opacity-60`}
         >
-          <span className={`text-lg font-bold ${ready ? 'text-white' : 'text-lt-muted'}`}>
+          <span className={`text-lg font-bold ${ready ? 'text-lt-text' : 'text-lt-muted'}`}>
             {loading ? t('join.joining') : t('join.cta')}
           </span>
         </button>

@@ -8,8 +8,8 @@ const alertVariants = cva(
   {
     variants: {
       variant: {
-        default: 'border-lt-border bg-lt-card text-white',
-        destructive: 'border-lt-danger/40 bg-lt-danger/10 text-white [&>svg]:text-lt-danger',
+        default: 'border-lt-border bg-lt-card text-lt-text',
+        destructive: 'border-lt-danger/40 bg-lt-danger/10 text-lt-text [&>svg]:text-lt-danger',
       },
     },
     defaultVariants: {

@@ -16,7 +16,7 @@ export function LanguageSelector({ visible, selected, onSelect, onClose }: Selec
       <div className="relative bg-lt-card rounded-t-3xl border-t border-lt-border max-h-[70vh] flex flex-col">
         <div className="flex flex-col items-center pt-3 pb-2 shrink-0">
           <div className="w-10 h-1 rounded-full bg-lt-border" />
-          <p className="text-white text-lg font-semibold mt-3">Select Language</p>
+          <p className="text-lt-text text-lg font-semibold mt-3">Select Language</p>
         </div>
         <div className="overflow-y-auto pb-8">
           {LANGUAGES.map(lang => (
@@ -31,7 +31,7 @@ export function LanguageSelector({ visible, selected, onSelect, onClose }: Selec
             >
               <span className="text-2xl mr-3">{lang.flag}</span>
               <div className="flex-1">
-                <p className="text-white font-medium">{lang.name}</p>
+                <p className="text-lt-text font-medium">{lang.name}</p>
                 <p className="text-lt-muted text-sm">{lang.nativeName}</p>
               </div>
               {selected === lang.code && (

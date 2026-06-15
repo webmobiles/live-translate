@@ -73,7 +73,7 @@ function LoginScreen() {
             <span className="text-4xl">🌐</span>
           </div>
           <div className="text-center">
-            <h1 className="text-white text-3xl font-bold tracking-tight">LiveTranslate</h1>
+            <h1 className="text-lt-text text-3xl font-bold tracking-tight">LiveTranslate</h1>
             <p className="text-lt-muted text-sm mt-1">{t('home.tagline')}</p>
           </div>
         </div>
@@ -81,7 +81,7 @@ function LoginScreen() {
         {/* Card */}
         <div className="w-full bg-lt-card border border-lt-border rounded-2xl p-8 flex flex-col gap-6">
           <div className="text-center">
-            <h2 className="text-white text-xl font-semibold">{t('login.title')}</h2>
+            <h2 className="text-lt-text text-xl font-semibold">{t('login.title')}</h2>
             <p className="text-lt-muted text-sm mt-1">{t('login.subtitle')}</p>
           </div>
 
@@ -97,14 +97,14 @@ function LoginScreen() {
             <button
               type="button"
               onClick={() => { setMode('login'); setFormError(null) }}
-              className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${mode === 'login' ? 'bg-lt-primary text-white' : 'text-lt-muted hover:text-white'}`}
+              className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${mode === 'login' ? 'bg-lt-primary text-lt-text' : 'text-lt-muted hover:text-lt-text'}`}
             >
               {t('login.emailSignIn')}
             </button>
             <button
               type="button"
               onClick={() => { setMode('signup'); setFormError(null) }}
-              className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${mode === 'signup' ? 'bg-lt-primary text-white' : 'text-lt-muted hover:text-white'}`}
+              className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${mode === 'signup' ? 'bg-lt-primary text-lt-text' : 'text-lt-muted hover:text-lt-text'}`}
             >
               {t('login.createAccount')}
             </button>
@@ -117,7 +117,7 @@ function LoginScreen() {
                 onChange={(event) => setName(event.target.value)}
                 placeholder={t('login.namePlaceholder')}
                 autoComplete="name"
-                className="w-full rounded-xl border border-lt-border bg-lt-bg px-4 py-3 text-white outline-none transition-colors placeholder:text-lt-muted focus:border-lt-primary"
+                className="w-full rounded-xl border border-lt-border bg-lt-bg px-4 py-3 text-lt-text outline-none transition-colors placeholder:text-lt-muted focus:border-lt-primary"
               />
             )}
             <input
@@ -127,7 +127,7 @@ function LoginScreen() {
               type="email"
               autoComplete="email"
               required
-              className="w-full rounded-xl border border-lt-border bg-lt-bg px-4 py-3 text-white outline-none transition-colors placeholder:text-lt-muted focus:border-lt-primary"
+              className="w-full rounded-xl border border-lt-border bg-lt-bg px-4 py-3 text-lt-text outline-none transition-colors placeholder:text-lt-muted focus:border-lt-primary"
             />
             <div className="relative">
               <input
@@ -138,7 +138,7 @@ function LoginScreen() {
                 autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                 minLength={mode === 'signup' ? 8 : undefined}
                 required
-                className="w-full rounded-xl border border-lt-border bg-lt-bg px-4 py-3 pr-11 text-white outline-none transition-colors placeholder:text-lt-muted focus:border-lt-primary"
+                className="w-full rounded-xl border border-lt-border bg-lt-bg px-4 py-3 pr-11 text-lt-text outline-none transition-colors placeholder:text-lt-muted focus:border-lt-primary"
               />
               <button
                 type="button"
@@ -153,7 +153,7 @@ function LoginScreen() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full rounded-xl bg-lt-primary px-4 py-3.5 font-semibold text-white transition-colors hover:bg-lt-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-xl bg-lt-primary px-4 py-3.5 font-semibold text-lt-text transition-colors hover:bg-lt-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submitting
                 ? t('common.loading')

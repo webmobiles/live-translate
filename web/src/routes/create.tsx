@@ -148,11 +148,11 @@ function CreateScreen() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate({ to: '/' })}
-            className="p-2 -ml-2 text-lt-muted text-2xl hover:text-white transition-colors"
+            className="p-2 -ml-2 text-lt-muted text-2xl hover:text-lt-text transition-colors"
           >
             ←
           </button>
-          <h1 className="text-white text-2xl font-bold">{t('create.title')}</h1>
+          <h1 className="text-lt-text text-2xl font-bold">{t('create.title')}</h1>
         </div>
 
         {/* Mode selector */}
@@ -168,7 +168,7 @@ function CreateScreen() {
               }`}
             >
               <span className="text-2xl">👥</span>
-              <span className={`text-sm font-semibold ${!isSolo ? 'text-lt-primary' : 'text-white'}`}>
+              <span className={`text-sm font-semibold ${!isSolo ? 'text-lt-primary' : 'text-lt-text'}`}>
                 {t('create.mode.normal')}
               </span>
               <span className="text-xs text-lt-muted text-center leading-snug">
@@ -182,7 +182,7 @@ function CreateScreen() {
               }`}
             >
               <span className="text-2xl">🔄</span>
-              <span className={`text-sm font-semibold ${isSolo ? 'text-lt-primary' : 'text-white'}`}>
+              <span className={`text-sm font-semibold ${isSolo ? 'text-lt-primary' : 'text-lt-text'}`}>
                 {t('create.mode.solo')}
               </span>
               <span className="text-xs text-lt-muted text-center leading-snug">
@@ -200,7 +200,7 @@ function CreateScreen() {
                 {t('create.fields.roomName')}
               </label>
               <input
-                className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-white text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors"
+                className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-lt-text text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors"
                 placeholder={t('create.fields.roomNamePlaceholder')}
                 value={roomName}
                 onChange={e => setRoomName(e.target.value)}
@@ -213,7 +213,7 @@ function CreateScreen() {
                 {t('create.fields.yourName')}
               </label>
               <input
-                className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-white text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors"
+                className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-lt-text text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors"
                 placeholder={t('create.fields.yourNamePlaceholder')}
                 value={nickname}
                 onChange={e => setNickname(e.target.value)}
@@ -230,7 +230,7 @@ function CreateScreen() {
                 onClick={() => setShowLangPicker(true)}
                 className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 flex items-center justify-between hover:border-lt-primary transition-colors"
               >
-                <span className="text-white text-base">{t('create.fields.yourLanguageSub')}</span>
+                <span className="text-lt-text text-base">{t('create.fields.yourLanguageSub')}</span>
                 <LanguageBadge code={language} />
               </button>
             </div>
@@ -243,7 +243,7 @@ function CreateScreen() {
                 onClick={() => setShowGuestPicker(true)}
                 className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 flex items-center justify-between hover:border-lt-primary transition-colors"
               >
-                <span className="text-white/70 text-base">{t('create.fields.guestLanguageSub')}</span>
+                <span className="text-lt-text/70 text-base">{t('create.fields.guestLanguageSub')}</span>
                 <LanguageBadge code={guestLang} />
               </button>
               <p className="text-lt-muted text-xs">{t('create.fields.guestLanguageHint')}</p>
@@ -287,14 +287,14 @@ function CreateScreen() {
           </label>
           <div className="bg-lt-card border border-lt-border rounded-xl p-4 flex flex-col gap-3">
             <select
-              className="bg-lt-bg border border-lt-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-lt-primary"
+              className="bg-lt-bg border border-lt-border rounded-lg px-3 py-2 text-lt-text text-sm focus:outline-none focus:border-lt-primary"
               value={config.voicePipeline}
               onChange={e => setConfig(prev => ({ ...prev, voicePipeline: e.target.value as RoomConfig['voicePipeline'] }))}
             >
               <option value="stt-text-translate">STT then translate</option>
               <option value="direct-voice-translation">{t('create.options.pipeline.direct')}</option>
             </select>
-            <label className="flex items-center justify-between gap-3 text-white text-sm">
+            <label className="flex items-center justify-between gap-3 text-lt-text text-sm">
               <span>{t('create.options.translatedAudio')}</span>
               <input type="checkbox" checked={config.output.translatedAudio}
                 onChange={e => setConfig(prev => ({ ...prev, output: { ...prev.output, translatedAudio: e.target.checked } }))} />
@@ -307,7 +307,7 @@ function CreateScreen() {
           <p className="text-lt-primary font-semibold">
             {isSolo ? t('create.info.soloTitle') : t('create.info.normalTitle')}
           </p>
-          <p className="text-white/70 text-sm leading-relaxed">
+          <p className="text-lt-text/70 text-sm leading-relaxed">
             {isSolo ? t('create.info.soloBody') : t('create.info.normalBody')}
           </p>
         </div>
@@ -319,7 +319,7 @@ function CreateScreen() {
           disabled={loading || (isSolo && soloLangA === soloLangB)}
           className="bg-lt-primary rounded-2xl py-4 flex items-center justify-center hover:bg-lt-primary-dark transition-colors disabled:opacity-60"
         >
-          <span className="text-white text-lg font-bold">
+          <span className="text-lt-text text-lg font-bold">
             {loading ? t('create.creating') : t('create.cta')}
           </span>
         </button>
