@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -18,6 +19,7 @@ class SoloApi {
     String path,
     Map<String, dynamic> body, {
     required String label,
+    Duration timeout = const Duration(seconds: 45),
   }) async {
     final uri = Uri.parse('$kServerUrl$path');
     final startedAt = DateTime.now();
@@ -25,6 +27,7 @@ class SoloApi {
       'url': uri.toString(),
       'path': path,
       'bodyKeys': body.keys.toList(),
+      'timeoutMs': timeout.inMilliseconds,
     });
 
     final client = HttpClient()
@@ -33,8 +36,15 @@ class SoloApi {
       final req = await client.postUrl(uri);
       req.headers.contentType = ContentType.json;
       req.write(jsonEncode(body));
-      final res = await req.close();
-      final text = await utf8.decoder.bind(res).join();
+      // Overall response deadline. `connectionTimeout` only covers establishing
+      // the socket; this covers the "connected but the server never replies"
+      // case, so a hung request becomes a real error (→ retry) instead of
+      // spinning forever.
+      final res = await req.close().timeout(timeout);
+      final text = await utf8.decoder
+          .bind(res)
+          .join()
+          .timeout(const Duration(seconds: 15));
       final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
       final decoded = text.isNotEmpty
           ? jsonDecode(text) as Map<String, dynamic>
@@ -56,6 +66,12 @@ class SoloApi {
         );
       }
       return decoded;
+    } on TimeoutException {
+      ClientLogService.error('client.solo.$label.timeout', {
+        'url': uri.toString(),
+        'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+      });
+      throw const SoloApiException('No response from server — timed out');
     } catch (err) {
       ClientLogService.error('client.solo.$label.exception', {
         'url': uri.toString(),
@@ -76,7 +92,7 @@ class SoloApi {
     final res = await _post('/api/solo/rooms', {
       if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
       'config': config.toJson(),
-    }, label: 'create');
+    }, label: 'create', timeout: const Duration(seconds: 20));
     final room = res['room'] as Map?;
     final code = res['code'] as String;
     return SoloRoom(code: code, name: (room?['name'] as String?) ?? code);
@@ -97,7 +113,7 @@ class SoloApi {
       'sender': sender,
       'senderLang': senderLang,
       'targetLang': targetLang,
-    }, label: 'text');
+    }, label: 'text', timeout: const Duration(seconds: 30));
     return Message.fromJson(Map<String, dynamic>.from(res['message'] as Map));
   }
 
@@ -119,7 +135,7 @@ class SoloApi {
       'sender': sender,
       'senderLang': senderLang,
       'targetLang': targetLang,
-    }, label: 'audio');
+    }, label: 'audio', timeout: const Duration(seconds: 60));
     return Message.fromJson(Map<String, dynamic>.from(res['message'] as Map));
   }
 
