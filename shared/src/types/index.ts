@@ -31,6 +31,7 @@ export interface Message {
   timestamp: number
   isTranslating?: boolean
   deliveryStatus?: 'sending' | 'queued' | 'delivered' | 'read' | 'failed'
+  progress?: number
 }
 
 export interface RoomConfig {

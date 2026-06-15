@@ -10,6 +10,7 @@ export const SOCKET_EVENTS = {
   MESSAGE_SEND:       'message:send',
   MESSAGE_RECEIVED:   'message:received',
   MESSAGE_TRANSLATING:'message:translating',
+  MESSAGE_PROGRESS:   'message:progress',
   // Participants
   PARTICIPANT_JOINED: 'participant:joined',
   PARTICIPANT_LEFT:   'participant:left',

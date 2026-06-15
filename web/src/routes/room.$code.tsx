@@ -574,8 +574,13 @@ function RoomScreen() {
     const onMessageError = ({ id }: { id: string }) => {
       setMessages(prev => prev.flatMap(m => {
         if (m.id !== id) return [m]
-        return m.isMine ? [{ ...m, deliveryStatus: 'failed' as const }] : []
+        return m.isMine ? [{ ...m, deliveryStatus: 'failed' as const, progress: undefined }] : []
       }))
+    }
+    const onMessageProgress = ({ id, progress }: { id: string; progress: number }) => {
+      setMessages(prev => prev.map(m =>
+        m.id === id ? { ...m, progress } : m
+      ))
     }
     const onMessageDelivered = ({ id }: { id: string }) => {
       setMessages(prev => prev.map(m =>
@@ -631,6 +636,7 @@ function RoomScreen() {
     socket.on('message:error', onMessageError)
     socket.on('message:delivered', onMessageDelivered)
     socket.on('message:read', onMessageRead)
+    socket.on('message:progress', onMessageProgress)
     socket.on('room:history', onHistory)
 
     if (socket.connected) {
@@ -679,6 +685,7 @@ function RoomScreen() {
       socket.off('message:error', onMessageError)
       socket.off('message:delivered', onMessageDelivered)
       socket.off('message:read', onMessageRead)
+      socket.off('message:progress', onMessageProgress)
       socket.off('room:history', onHistory)
       window.removeEventListener('focus', recoverActiveTab)
       window.removeEventListener('online', recoverActiveTab)
@@ -787,6 +794,58 @@ function RoomScreen() {
     )
     setInputText('')
   }, [code, inputText, isConnected, nickname, roomConfig.input.text, roomConfig.mode, scrollToBottom, t])
+
+  const retryMessage = useCallback((msg: Message) => {
+    if (msg.deliveryStatus !== 'failed' || !msg.isMine) return
+    const isSolo = roomConfig.mode === 'solo_multilang'
+    setMessages(prev => prev.map(m =>
+      m.id === msg.id ? { ...m, deliveryStatus: 'sending' as const, progress: 25 } : m
+    ))
+
+    if (isSolo && !SOLOROOM_SOCKET) {
+      void (async () => {
+        try {
+          const res = await fetch(`/api/solo/rooms/${encodeURIComponent(code)}/text`, {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: msg.original, clientMsgId: msg.id,
+              sender: nickname || t('room.me'),
+              senderLang: msg.senderLang, targetLang: msg.targetLang,
+            }),
+          })
+          const data = await res.json().catch(() => ({})) as { ok?: boolean; message?: Message }
+          if (!res.ok || !data.ok || !data.message) throw new Error('Retry failed')
+          setMessages(prev => prev.map(m =>
+            m.id === msg.id
+              ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: Boolean(voiceAutoPlayEnabledRef.current && messageHasPlayableAudio(data.message!)) }
+              : m
+          ))
+          setTimeout(scrollToBottom, 100)
+        } catch {
+          setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, deliveryStatus: 'failed' as const, progress: undefined } : m))
+        }
+      })()
+      return
+    }
+
+    const socket = socketRef.current
+    if (!socket) {
+      setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, deliveryStatus: 'failed' as const, progress: undefined } : m))
+      return
+    }
+    socket.timeout(8000).emit(
+      'message:text',
+      { text: msg.original, clientMsgId: msg.id, ...(isSolo ? { senderLang: msg.senderLang } : {}) },
+      (err: Error | null, res?: { ok: boolean; id?: string; error?: string }) => {
+        setMessages(prev => prev.map(m => {
+          if (m.id !== msg.id) return m
+          if (err || !res?.ok) return { ...m, deliveryStatus: 'failed' as const, progress: undefined }
+          return { ...m, deliveryStatus: 'queued' as const, progress: undefined }
+        }))
+      },
+    )
+  }, [code, nickname, roomConfig.mode, scrollToBottom, t])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText() }
@@ -1075,9 +1134,10 @@ function RoomScreen() {
                   key={msg.id}
                   message={msg}
                   soloLanguages={roomConfig.soloLanguages}
+                  onRetry={retryMessage}
                 />
               ) : (
-                <MessageBubble key={msg.id} message={msg} />
+                <MessageBubble key={msg.id} message={msg} onRetry={retryMessage} />
               )
             )}
           </div>
@@ -1206,28 +1266,40 @@ function DeliveryIcon({ status }: { status?: Message['deliveryStatus'] }) {
 //     toward ~92% during translation + audio processing
 //   • fills to 100% on delivery, then fades out and unmounts
 // Never shows for messages that mount already-delivered (e.g. chat history).
-function TranslationProgress({ status, translating, align }: {
+function TranslationProgress({ status, translating, align, progress }: {
   status?: Message['deliveryStatus']
   translating?: boolean
   align?: 'left' | 'right'
+  progress?: number
 }) {
-  const inFlight = translating || status === 'sending' || status === 'queued'
+  const hasServerProgress = typeof progress === 'number' && progress > 0
+  const inFlight = translating || status === 'sending' || status === 'queued' || (hasServerProgress && progress < 100)
   const seenInFlight = useRef(inFlight)
   const [render, setRender] = useState(inFlight)
   const [fading, setFading] = useState(false)
-  const [width, setWidth] = useState(12)
+  const [width, setWidth] = useState(hasServerProgress ? progress : 12)
   const [durationMs, setDurationMs] = useState(300)
 
   if (inFlight) seenInFlight.current = true
 
   useEffect(() => {
+    if (hasServerProgress) {
+      setRender(true); setFading(false)
+      setDurationMs(600)
+      setWidth(progress)
+      if (progress >= 100 && seenInFlight.current) {
+        const fade = setTimeout(() => setFading(true), 380)
+        const remove = setTimeout(() => setRender(false), 720)
+        return () => { clearTimeout(fade); clearTimeout(remove) }
+      }
+      return
+    }
+
     let crawl: ReturnType<typeof setTimeout> | undefined
     let fade: ReturnType<typeof setTimeout> | undefined
     let remove: ReturnType<typeof setTimeout> | undefined
 
     if (translating) {
-      // "…" placeholder (e.g. voice in normal mode, or an incoming translation):
-      // crawl toward ~92% and stay there until the real message replaces it.
       setRender(true); setFading(false)
       setDurationMs(280); setWidth(25)
       crawl = setTimeout(() => { setDurationMs(9000); setWidth(92) }, 340)
@@ -1245,11 +1317,11 @@ function TranslationProgress({ status, translating, align }: {
       fade = setTimeout(() => setFading(true), 380)
       remove = setTimeout(() => setRender(false), 720)
     } else {
-      setRender(false) // 'failed' / undefined
+      setRender(false)
     }
 
     return () => { clearTimeout(crawl); clearTimeout(fade); clearTimeout(remove) }
-  }, [status, translating])
+  }, [status, translating, hasServerProgress, progress])
 
   if (!render) return null
 
@@ -1424,8 +1496,8 @@ function AudioPlayer({
 // ── Solo message bubble ────────────────────────────────────────────────────
 // Always shows both original + translation, aligned by which side spoke.
 
-function SoloMessageBubble({ message, soloLanguages }: { message: Message; soloLanguages: [string, string] }) {
-  const { senderLang, original, translated, isTranslating, isAudio, originalAudio, translatedAudio, timestamp, deliveryStatus } = message
+function SoloMessageBubble({ message, soloLanguages, onRetry }: { message: Message; soloLanguages: [string, string]; onRetry?: (msg: Message) => void }) {
+  const { senderLang, original, translated, isTranslating, isAudio, originalAudio, translatedAudio, timestamp, deliveryStatus, progress } = message
   const isA = senderLang === soloLanguages[0]
   const senderInfo = getLang(senderLang)
   const targetInfo = getLang(isA ? soloLanguages[1] : soloLanguages[0])
@@ -1443,7 +1515,7 @@ function SoloMessageBubble({ message, soloLanguages }: { message: Message; soloL
         <div className="max-w-[75%] px-4 py-3 rounded-2xl bg-lt-card border border-lt-border rounded-bl-sm">
           <span className="text-lt-muted text-sm">…</span>
         </div>
-        <TranslationProgress translating align={isA ? 'left' : 'right'} />
+        <TranslationProgress translating align={isA ? 'left' : 'right'} progress={progress} />
       </div>
     )
   }
@@ -1480,11 +1552,20 @@ function SoloMessageBubble({ message, soloLanguages }: { message: Message; soloL
         </div>
       )}
 
-      <TranslationProgress status={deliveryStatus} align={isA ? 'left' : 'right'} />
+      <TranslationProgress status={deliveryStatus} align={isA ? 'left' : 'right'} progress={progress} />
 
       <div className={`flex items-center gap-1 mt-1 mx-1 ${deliveryStatus === 'failed' ? 'text-lt-danger' : 'text-lt-muted'}`}>
         <span className="text-xs">{time}</span>
         {!isA && <DeliveryIcon status={deliveryStatus} />}
+        {deliveryStatus === 'failed' && !isA && !isAudio && onRetry && (
+          <button
+            type="button"
+            onClick={() => onRetry(message)}
+            className="text-lt-danger text-xs underline hover:opacity-70 transition-opacity ml-1"
+          >
+            Retry
+          </button>
+        )}
       </div>
     </div>
   )
@@ -1492,7 +1573,7 @@ function SoloMessageBubble({ message, soloLanguages }: { message: Message; soloL
 
 // ── Message bubble ─────────────────────────────────────────────────────────
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({ message, onRetry }: { message: Message; onRetry?: (msg: Message) => void }) {
   const { isMine, sender, senderLang, translated, original, isTranslating, isAudio, originalAudio, translatedAudio, timestamp, deliveryStatus } = message
   const [showOriginal, setShowOriginal] = useState(false)
   const [failedTranslatedAudioKey, setFailedTranslatedAudioKey] = useState('')
@@ -1520,7 +1601,7 @@ function MessageBubble({ message }: { message: Message }) {
         <div className={`max-w-[75%] px-4 py-3 rounded-2xl ${isMine ? 'bg-lt-primary rounded-br-sm' : 'bg-lt-card rounded-bl-sm border border-lt-border'}`}>
           <span className="text-lt-muted text-sm">…</span>
         </div>
-        <TranslationProgress translating align={isMine ? 'right' : 'left'} />
+        <TranslationProgress translating align={isMine ? 'right' : 'left'} progress={message.progress} />
       </div>
     )
   }
@@ -1560,11 +1641,20 @@ function MessageBubble({ message }: { message: Message }) {
           </p>
         )}
       </div>
-      {isMine && <TranslationProgress status={deliveryStatus} align="right" />}
+      {isMine && <TranslationProgress status={deliveryStatus} align="right" progress={message.progress} />}
       {/* Timestamp + delivery icon (only shown on my messages) */}
       <div className={`flex items-center gap-1 mt-1 mx-1 ${deliveryStatus === 'failed' ? 'text-lt-danger' : 'text-lt-muted'}`}>
         <span className="text-xs">{time}</span>
         {isMine && <DeliveryIcon status={deliveryStatus} />}
+        {deliveryStatus === 'failed' && isMine && !isAudio && onRetry && (
+          <button
+            type="button"
+            onClick={() => onRetry(message)}
+            className="text-lt-danger text-xs underline hover:opacity-70 transition-opacity ml-1"
+          >
+            Retry
+          </button>
+        )}
       </div>
     </div>
   )

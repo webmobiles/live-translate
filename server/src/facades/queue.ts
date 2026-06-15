@@ -44,6 +44,10 @@ export async function publishTranslating(roomCode: string, msgId: string) {
   return getProvider().publish('message:translating', { roomCode, msgId });
 }
 
+export async function publishMessageProgress(roomCode: string, msgId: string, progress: number) {
+  return getProvider().publish('message:progress', { roomCode, msgId, progress });
+}
+
 export async function publishMessageReady(roomCode: string, message: Record<string, unknown>) {
   return getProvider().publish('message:incoming', { roomCode, message });
 }

@@ -140,6 +140,11 @@ export const transcribeAndTranslate = inngest.createFunction(
     id: 'transcribe-and-translate',
     retries: 3,
     triggers: [{ event: 'message/transcribe' }],
+    onFailure: async ({ event: fnEvent, error: fnError }) => {
+      const { roomCode, msgId } = fnEvent?.data as any ?? {};
+      if (!roomCode || !msgId) return;
+      await queue.publishSocketEvent('message:error', { roomCode, msgId });
+    },
   },
   async ({ event, step }) => {
     const { msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, participants, knownLanguages } = event.data;
@@ -163,9 +168,13 @@ export const transcribeAndTranslate = inngest.createFunction(
         text,
       });
 
+      await queue.publishMessageProgress(roomCode, msgId, 50);
+
       await step.run('save-to-db', () =>
         db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true }),
       );
+
+      await queue.publishMessageProgress(roomCode, msgId, 100);
 
       await step.run('broadcast', () =>
         queue.publishMessageReady(roomCode, {
@@ -198,14 +207,19 @@ export const transcribeAndTranslate = inngest.createFunction(
       language: senderLang,
       text,
     });
+    await queue.publishMessageProgress(roomCode, msgId, 50);
 
-    const translations = await step.run('translate-text', () =>
-      buildTranslations(text, senderLang, targetLangs, roomConfig.translationProvider),
-    );
+    const translations = await step.run('translate-text', async () => {
+      const result = await buildTranslations(text, senderLang, targetLangs, roomConfig.translationProvider);
+      await queue.publishMessageProgress(roomCode, msgId, 75);
+      return result;
+    });
 
-    const audioOutputs = await step.run('generate-audio-output', () =>
-      buildAudioOutputs(translations, targetLangs, roomConfig, senderLang),
-    );
+    const audioOutputs = await step.run('generate-audio-output', async () => {
+      const result = await buildAudioOutputs(translations, targetLangs, roomConfig, senderLang);
+      await queue.publishMessageProgress(roomCode, msgId, 100);
+      return result;
+    });
 
     await step.run('save-to-db', () =>
       db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true }),
