@@ -1805,10 +1805,13 @@ function SoloMessageBubble({ code, message, soloLanguages, onRetry }: { code: st
 
 
           <div className={`max-w-[78%] px-4 py-3 rounded-2xl ${translationBubbleClass}`}>
-          <div className={`flex items-center mt-2 mb-1 ${isA ? 'ml-1' : 'mr-1'}`}>
+          <div className={`flex'}`}>
               <p> <span className="text-base text-gray-500">{emitterInfo.code}: </span><span className="text-foreground/60 text-base  leading-relaxed">{original}</span></p>
     
           </div>
+            <p>
+                <span className="text-base text-gray-500">{receiverInfo.code}: </span>
+              <span className="text-lt-text text-base leading-relaxed">{translated}</span></p>
             {translatedAudioToPlay && (
               <AudioPlayer
                 audioBase64={translatedAudioToPlay.audioBase64}
@@ -1817,9 +1820,6 @@ function SoloMessageBubble({ code, message, soloLanguages, onRetry }: { code: st
                 autoPlay={Boolean(message.autoPlay)}
               />
             )}
-            <p>
-                <span className="text-base text-gray-500">{receiverInfo.code}: </span>
-              <span className="text-lt-text text-base leading-relaxed">{translated}</span></p>
 
           </div>
         </>

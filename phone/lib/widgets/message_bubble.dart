@@ -852,6 +852,13 @@ class _SoloMessageBubble extends StatelessWidget {
                     codeColor: AppColors.muted,
                     textColor: AppColors.text.withValues(alpha: 0.65),
                   ),
+                  const SizedBox(height: 10),
+                  _codedTextLine(
+                    code: receiverInfo.code,
+                    text: message.translated,
+                    codeColor: AppColors.muted,
+                    textColor: AppColors.text,
+                  ),
                   if (message.isAudio || translatedAudio != null) ...[
                     const SizedBox(height: 10),
                     if (translatedAudio != null)
@@ -866,13 +873,6 @@ class _SoloMessageBubble extends StatelessWidget {
                       _FakeWaveform(
                           isMine: false, seed: '${message.id}:translated'),
                   ],
-                  const SizedBox(height: 10),
-                  _codedTextLine(
-                    code: receiverInfo.code,
-                    text: message.translated,
-                    codeColor: AppColors.muted,
-                    textColor: AppColors.text,
-                  ),
                 ],
               ),
             ),
