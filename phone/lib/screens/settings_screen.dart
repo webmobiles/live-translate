@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/language.dart';
+import '../services/auth_service.dart';
 import '../services/user_prefs.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/language_selector.dart';
 import '../widgets/ui.dart';
+import 'home_screen.dart';
 
 const _uiLanguageNames = {
   'en': 'English',
@@ -95,6 +97,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _handleLogout() async {
+    final s = context.appState;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.card,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Text(
+          s.t('settings.signOutConfirm'),
+          style: const TextStyle(color: Colors.white, fontSize: 15),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(s.t('common.cancel'),
+                style: const TextStyle(color: AppColors.muted)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(s.t('common.signOut'),
+                style: const TextStyle(
+                    color: AppColors.danger, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await AuthService.signOut();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
+      (route) => false,
+    );
   }
 
   @override
@@ -275,6 +313,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       color: Colors.white,
                       fontSize: 18,
                       fontWeight: FontWeight.bold),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Log out
+              AppButton(
+                variant: AppButtonVariant.secondary,
+                onPressed: _handleLogout,
+                child: Text(
+                  s.t('common.signOut'),
+                  style: const TextStyle(
+                      color: AppColors.danger,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600),
                 ),
               ),
             ],
