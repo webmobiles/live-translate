@@ -23,6 +23,16 @@ function GoogleIcon() {
   )
 }
 
+function EyeIcon({ off }: { off?: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" xmlns="http://www.w3.org/2000/svg">
+      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
+      <circle cx="12" cy="12" r="3" />
+      {off && <line x1="3" y1="3" x2="21" y2="21" />}
+    </svg>
+  )
+}
+
 function LoginScreen() {
   const { t } = useTranslation()
   const { error } = useSearch({ from: '/login' })
@@ -32,6 +42,7 @@ function LoginScreen() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -118,16 +129,27 @@ function LoginScreen() {
               required
               className="w-full rounded-xl border border-lt-border bg-lt-bg px-4 py-3 text-white outline-none transition-colors placeholder:text-lt-muted focus:border-lt-primary"
             />
-            <input
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder={t('login.passwordPlaceholder')}
-              type="password"
-              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-              minLength={mode === 'signup' ? 8 : undefined}
-              required
-              className="w-full rounded-xl border border-lt-border bg-lt-bg px-4 py-3 text-white outline-none transition-colors placeholder:text-lt-muted focus:border-lt-primary"
-            />
+            <div className="relative">
+              <input
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder={t('login.passwordPlaceholder')}
+                type={showPassword ? 'text' : 'password'}
+                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                minLength={mode === 'signup' ? 8 : undefined}
+                required
+                className="w-full rounded-xl border border-lt-border bg-lt-bg px-4 py-3 pr-11 text-white outline-none transition-colors placeholder:text-lt-muted focus:border-lt-primary"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? t('login.hidePassword', 'Hide password') : t('login.showPassword', 'Show password')}
+                aria-pressed={showPassword}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-lt-muted hover:text-lt-primary transition-colors"
+              >
+                <EyeIcon off={showPassword} />
+              </button>
+            </div>
             <button
               type="submit"
               disabled={submitting}

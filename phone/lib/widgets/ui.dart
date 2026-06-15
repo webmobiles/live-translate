@@ -143,7 +143,7 @@ class AppCard extends StatelessWidget {
 }
 
 /// Port of mobile/src/components/ui/input.tsx
-class AppInput extends StatelessWidget {
+class AppInput extends StatefulWidget {
   final String? label;
   final String? hint;
   final TextEditingController controller;
@@ -174,13 +174,20 @@ class AppInput extends StatelessWidget {
   });
 
   @override
+  State<AppInput> createState() => _AppInputState();
+}
+
+class _AppInputState extends State<AppInput> {
+  late bool _obscured = widget.obscureText;
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (label != null) ...[
+        if (widget.label != null) ...[
           Text(
-            label!.toUpperCase(),
+            widget.label!.toUpperCase(),
             style: const TextStyle(
               color: AppColors.muted,
               fontSize: 12,
@@ -191,27 +198,40 @@ class AppInput extends StatelessWidget {
           const SizedBox(height: 6),
         ],
         TextField(
-          controller: controller,
-          onChanged: onChanged,
-          autofocus: autofocus,
-          textAlign: textAlign,
-          textCapitalization: textCapitalization,
-          inputFormatters: inputFormatters,
-          obscureText: obscureText,
-          keyboardType: keyboardType,
-          maxLength: maxLength,
+          controller: widget.controller,
+          onChanged: widget.onChanged,
+          autofocus: widget.autofocus,
+          textAlign: widget.textAlign,
+          textCapitalization: widget.textCapitalization,
+          inputFormatters: widget.inputFormatters,
+          obscureText: _obscured,
+          keyboardType: widget.keyboardType,
+          maxLength: widget.maxLength,
           maxLines: 1,
-          style: textStyle ??
+          style: widget.textStyle ??
               const TextStyle(color: Colors.white, fontSize: 16),
           cursorColor: AppColors.primary,
           decoration: InputDecoration(
             counterText: '',
-            hintText: hint,
+            hintText: widget.hint,
             hintStyle: const TextStyle(color: AppColors.muted),
             filled: true,
             fillColor: AppColors.card,
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            // Reveal toggle, shown only for obscured (password) fields.
+            suffixIcon: widget.obscureText
+                ? IconButton(
+                    icon: Icon(
+                      _obscured ? Icons.visibility_off : Icons.visibility,
+                      color: AppColors.muted,
+                      size: 20,
+                    ),
+                    splashRadius: 20,
+                    tooltip: _obscured ? 'Show password' : 'Hide password',
+                    onPressed: () => setState(() => _obscured = !_obscured),
+                  )
+                : null,
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: AppColors.border),
