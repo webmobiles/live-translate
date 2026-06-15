@@ -62,18 +62,50 @@ function messageHasPlayableAudio(message: Pick<Message, 'originalAudio' | 'trans
     || (messageCanUseOriginalAudio(message) && isPlayableAudioPayload(message.originalAudio))
 }
 
-// Whether a freshly-arrived message should autoplay.
-// - Solo: the emitter's device is the shared device, so play the TRANSLATED
-//   audio out loud (never replay the original the sender just spoke).
-// - Normal room: never autoplay your own outgoing message — the recipients
-//   hear it in their language; the sender doesn't need it replayed.
-function shouldAutoPlayMessage(
+// ── Emitter / receiver roles ────────────────────────────────────────────────
+// Every message has an emitter half (senderLang + original) and a receiver half
+// (receiverLang + translation) in BOTH normal and solo rooms. The viewer's role
+// toward a message drives what shows and what autoplays.
+//
+// - Normal room: the receiver is the viewer, in their own (user-changeable)
+//   language; the viewer is the emitter only of their own messages.
+// - Solo room: the one device holds both halves; the emitter is whoever the
+//   toggle had active (senderLang) and the receiver is the other solo language.
+interface MessageView {
+  emitterLang: string
+  receiverLang: string
+  viewerIsEmitter: boolean
+  canRecoverOriginal: boolean
+  shouldAutoPlay: boolean
+}
+
+function messageView(
   message: Pick<Message, 'isMine' | 'senderLang' | 'targetLang' | 'originalAudio' | 'translatedAudio'>,
-  isSolo: boolean,
-) {
-  if (isSolo) return isPlayableAudioPayload(message.translatedAudio)
-  if (message.isMine) return false
-  return messageHasPlayableAudio(message)
+  ctx: { isSolo: boolean; soloLanguages?: readonly [string, string] | null; autoPlayEnabled?: boolean },
+): MessageView {
+  const emitterLang = message.senderLang
+  // Solo: the receiver is the other toggle side. Normal: the translation target
+  // (which equals the viewer's current, changeable language).
+  const receiverLang = ctx.isSolo && ctx.soloLanguages
+    ? (emitterLang === ctx.soloLanguages[0] ? ctx.soloLanguages[1] : ctx.soloLanguages[0])
+    : message.targetLang
+  // In a normal room you are the emitter only of your own messages; in solo the
+  // single device represents both roles, so there's no single emitter viewer.
+  const viewerIsEmitter = !ctx.isSolo && message.isMine
+
+  // The emitter side (and same-language listeners) may recover the original audio.
+  const canRecoverOriginal = ctx.isSolo || viewerIsEmitter || emitterLang === receiverLang
+
+  // Autoplay = the receiver-side translated audio. Solo plays it out loud for
+  // the in-person listener; in a normal room only receivers hear it — the
+  // emitter never has their own message replayed.
+  const shouldAutoPlay = Boolean(ctx.autoPlayEnabled) && (
+    ctx.isSolo
+      ? isPlayableAudioPayload(message.translatedAudio)
+      : !viewerIsEmitter && messageHasPlayableAudio(message)
+  )
+
+  return { emitterLang, receiverLang, viewerIsEmitter, canRecoverOriginal, shouldAutoPlay }
 }
 
 function progressStageFromPercent(progress?: number): MessageProgressStage {
@@ -617,7 +649,7 @@ function RoomScreen() {
           isMine,
           isTranslating: false,
           deliveryStatus: isMine ? 'delivered' : undefined,
-          autoPlay: Boolean(voiceAutoPlayEnabledRef.current && shouldAutoPlayMessage({ ...msg, isMine }, soloActiveLangRef.current !== null)),
+          autoPlay: messageView({ ...msg, isMine }, { isSolo: soloActiveLangRef.current !== null, autoPlayEnabled: voiceAutoPlayEnabledRef.current }).shouldAutoPlay,
         }]
       })
       // Tell the server we've seen these incoming (not-mine) messages
@@ -860,7 +892,7 @@ function RoomScreen() {
           if (!res.ok || !data.ok || !data.message) throw new Error('Solo text failed')
           setMessages(prev => prev.map(m =>
             m.id === id
-              ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: Boolean(voiceAutoPlayEnabledRef.current && shouldAutoPlayMessage(data.message!, soloActiveLangRef.current !== null)) }
+              ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: messageView(data.message!, { isSolo: soloActiveLangRef.current !== null, autoPlayEnabled: voiceAutoPlayEnabledRef.current }).shouldAutoPlay }
               : m
           ))
           setTimeout(scrollToBottom, 100)
@@ -914,7 +946,7 @@ function RoomScreen() {
           if (!res.ok || !data.ok || !data.message) throw new Error('Retry failed')
           setMessages(prev => prev.map(m =>
             m.id === msg.id
-              ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: Boolean(voiceAutoPlayEnabledRef.current && shouldAutoPlayMessage(data.message!, soloActiveLangRef.current !== null)) }
+              ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: messageView(data.message!, { isSolo: soloActiveLangRef.current !== null, autoPlayEnabled: voiceAutoPlayEnabledRef.current }).shouldAutoPlay }
               : m
           ))
           setTimeout(scrollToBottom, 100)
@@ -1032,7 +1064,7 @@ function RoomScreen() {
                 if (!res.ok || !data.ok || !data.message) throw new Error('Solo audio failed')
                 setMessages(prev => prev.map(m =>
                   m.id === id
-                    ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: Boolean(voiceAutoPlayEnabledRef.current && shouldAutoPlayMessage(data.message!, soloActiveLangRef.current !== null)) }
+                    ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: messageView(data.message!, { isSolo: soloActiveLangRef.current !== null, autoPlayEnabled: voiceAutoPlayEnabledRef.current }).shouldAutoPlay }
                     : m
                 ))
                 setTimeout(scrollToBottom, 100)
@@ -1725,18 +1757,19 @@ function PendingAudioPreview({ isMine, seed }: { isMine: boolean; seed: string }
 
 function SoloMessageBubble({ code, message, soloLanguages, onRetry }: { code: string; message: Message; soloLanguages: [string, string]; onRetry?: (msg: Message) => void }) {
   const { t } = useTranslation()
-  const { senderLang, original, translated, isTranslating, isAudio, originalAudio, translatedAudio, timestamp, deliveryStatus, progress } = message
-  const isA = senderLang === soloLanguages[0]
-  const senderInfo = getLang(senderLang)
-  const targetInfo = getLang(isA ? soloLanguages[1] : soloLanguages[0])
+  const { original, translated, isTranslating, isAudio, originalAudio, translatedAudio, timestamp, deliveryStatus, progress } = message
+  // Solo: emitter = the toggle side that spoke, receiver = the other side.
+  const view = messageView(message, { isSolo: true, soloLanguages })
+  const isA = view.emitterLang === soloLanguages[0]
+  const emitterInfo = getLang(view.emitterLang)
+  const receiverInfo = getLang(view.receiverLang)
   const time = formatMessageTime(timestamp)
   const hasTranslation = translated !== original
   const isInFlight = deliveryStatus === 'sending' || deliveryStatus === 'queued' || (typeof progress === 'number' && progress > 0 && progress < 100)
 
   const stageLabel = isInFlight ? getProgressStageLabel(t, message) : null
 
-  const canUseOriginalAudio = messageCanUseOriginalAudio(message)
-  const playableOriginalAudio = canUseOriginalAudio && isPlayableAudioPayload(originalAudio) ? originalAudio : null
+  const playableOriginalAudio = view.canRecoverOriginal && isPlayableAudioPayload(originalAudio) ? originalAudio : null
   const playableTranslatedAudio = isPlayableAudioPayload(translatedAudio) ? translatedAudio : null
   const originalAudioToPlay = playableOriginalAudio
   const translatedAudioToPlay = playableTranslatedAudio
@@ -1769,8 +1802,8 @@ function SoloMessageBubble({ code, message, soloLanguages, onRetry }: { code: st
   return (
     <div className={`flex flex-col ${isA ? 'items-start' : 'items-end'}`}>
       <div className={`flex items-center gap-1.5 mb-1 ${isA ? 'ml-1' : 'mr-1'}`}>
-        <span className="text-base">{senderInfo.flag}</span>
-        <span className="text-lt-muted text-xs">{senderInfo.name}</span>
+        <span className="text-base">{emitterInfo.flag}</span>
+        <span className="text-lt-muted text-xs">{emitterInfo.name}</span>
       </div>
       <div className={`max-w-[78%] px-4 py-3 rounded-2xl ${sourceBubbleClass} ${deliveryStatus === 'failed' ? 'border-lt-danger' : ''}`}>
         {isAudio && (
@@ -1785,8 +1818,8 @@ function SoloMessageBubble({ code, message, soloLanguages, onRetry }: { code: st
       {hasTranslation && (
         <>
           <div className={`flex items-center gap-1.5 mt-2 mb-1 ${isA ? 'ml-1' : 'mr-1'}`}>
-            <span className="text-base">{targetInfo.flag}</span>
-            <span className="text-lt-accent text-xs font-semibold">{targetInfo.name}</span>
+            <span className="text-base">{receiverInfo.flag}</span>
+            <span className="text-lt-accent text-xs font-semibold">{receiverInfo.name}</span>
           </div>
           <div className={`max-w-[78%] px-4 py-3 rounded-2xl ${translationBubbleClass}`}>
             {translatedAudioToPlay && (
@@ -1825,17 +1858,18 @@ function SoloMessageBubble({ code, message, soloLanguages, onRetry }: { code: st
 
 function MessageBubble({ code, message, onRetry }: { code: string; message: Message; onRetry?: (msg: Message) => void }) {
   const { t } = useTranslation()
-  const { isMine, sender, senderLang, translated, original, isTranslating, isAudio, originalAudio, translatedAudio, timestamp, deliveryStatus, progress } = message
+  const { isMine, sender, translated, original, isTranslating, isAudio, originalAudio, translatedAudio, timestamp, deliveryStatus, progress } = message
   const [showOriginal, setShowOriginal] = useState(false)
   const [failedTranslatedAudioKey, setFailedTranslatedAudioKey] = useState('')
-  const senderInfo = getLang(senderLang)
+  // Normal room: emitter = the sender; receiver = me (in my changeable language).
+  const view = messageView(message, { isSolo: false })
+  const emitterInfo = getLang(view.emitterLang)
   const time = formatMessageTime(timestamp)
   const hasTranslation = translated !== original
   const isInFlight = deliveryStatus === 'sending' || deliveryStatus === 'queued' || (typeof progress === 'number' && progress > 0 && progress < 100)
 
   const stageLabel = isInFlight ? getProgressStageLabel(t, message) : null
-  const canUseOriginalAudio = messageCanUseOriginalAudio(message)
-  const playableOriginalAudio = canUseOriginalAudio && isPlayableAudioPayload(originalAudio) ? originalAudio : null
+  const playableOriginalAudio = view.canRecoverOriginal && isPlayableAudioPayload(originalAudio) ? originalAudio : null
   const playableTranslatedAudio = isPlayableAudioPayload(translatedAudio) ? translatedAudio : null
   const translatedAudioKey = playableTranslatedAudio
     ? `${message.id}:${playableTranslatedAudio.mimeType}:${playableTranslatedAudio.audioBase64}`
@@ -1883,7 +1917,7 @@ function MessageBubble({ code, message, onRetry }: { code: string; message: Mess
     <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
       {!isMine && (
         <div className="flex items-center gap-1.5 mb-1 ml-1">
-          <span className="text-base">{senderInfo.flag}</span>
+          <span className="text-base">{emitterInfo.flag}</span>
           <span className="text-lt-muted text-xs font-medium">{sender}</span>
         </div>
       )}
@@ -1919,7 +1953,7 @@ function MessageBubble({ code, message, onRetry }: { code: string; message: Mess
           <p className={`text-xs mt-1.5 ${isMine ? 'text-white/50' : 'text-lt-muted'}`}>
             {showOriginal
               ? '↩ tap to show translation'
-              : `${senderInfo.flag} tap to show original${isAudio && hasRecoverableOriginal ? ' audio' : ''}`}
+              : `${emitterInfo.flag} tap to show original${isAudio && hasRecoverableOriginal ? ' audio' : ''}`}
           </p>
         )}
       </div>

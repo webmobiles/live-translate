@@ -17,6 +17,9 @@ class Message {
   final String? progressStage;
   final Map<String, dynamic>? originalAudio;
   final Map<String, dynamic>? translatedAudio;
+  // Original audio is recoverable from the server on demand (GET …/audio/original)
+  // rather than shipped inline in [originalAudio].
+  final bool hasOriginalAudio;
 
   const Message({
     required this.id,
@@ -36,6 +39,7 @@ class Message {
     this.progressStage,
     this.originalAudio,
     this.translatedAudio,
+    this.hasOriginalAudio = false,
   });
 
   bool get isSystem => sender == 'system';
@@ -61,6 +65,7 @@ class Message {
         translatedAudio: j['translatedAudio'] is Map
             ? Map<String, dynamic>.from(j['translatedAudio'] as Map)
             : null,
+        hasOriginalAudio: j['hasOriginalAudio'] as bool? ?? false,
       );
 
   Message copyWith({
@@ -75,6 +80,7 @@ class Message {
     String? progressStage,
     Map<String, dynamic>? originalAudio,
     Map<String, dynamic>? translatedAudio,
+    bool? hasOriginalAudio,
     bool clearProgress = false,
   }) =>
       Message(
@@ -95,5 +101,6 @@ class Message {
         progressStage: progressStage ?? this.progressStage,
         originalAudio: originalAudio ?? this.originalAudio,
         translatedAudio: translatedAudio ?? this.translatedAudio,
+        hasOriginalAudio: hasOriginalAudio ?? this.hasOriginalAudio,
       );
 }

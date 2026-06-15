@@ -1,11 +1,14 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 
+import '../config.dart';
 import '../models/language.dart';
 import '../models/message.dart';
+import '../models/message_view.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 
@@ -32,6 +35,7 @@ extension on TimeOfDay {
 }
 
 class MessageBubble extends StatelessWidget {
+  final String? code;
   final Message message;
   final bool isSolo;
   final List<String>? soloLanguages;
@@ -40,6 +44,7 @@ class MessageBubble extends StatelessWidget {
   final VoidCallback? onRetry;
   const MessageBubble({
     super.key,
+    this.code,
     required this.message,
     this.isSolo = false,
     this.soloLanguages,
@@ -61,6 +66,7 @@ class MessageBubble extends StatelessWidget {
 
     if (isSolo && !message.isTranslating) {
       return _SoloMessageBubble(
+        code: code,
         message: message,
         soloLanguages: soloLanguages,
         stageLabel: stageLabel,
@@ -160,7 +166,9 @@ class MessageBubble extends StatelessWidget {
     }
 
     final showOriginal = !isMine && message.translated != message.original;
-    final playableOriginalAudio = _messageCanUseOriginalAudio(message)
+    // Normal room: emitter = the sender; receiver = me (in my changeable language).
+    final view = MessageView.of(message, isSolo: false);
+    final playableOriginalAudio = view.canRecoverOriginal
         ? _audioPayloadFromMap(message.originalAudio)
         : null;
     final playableTranslatedAudio = playTranslatedAudio
@@ -169,6 +177,13 @@ class MessageBubble extends StatelessWidget {
     final audioToPlay = playableTranslatedAudio ?? playableOriginalAudio;
     final fallbackAudio =
         playableTranslatedAudio != null ? playableOriginalAudio : null;
+    // Original audio is recovered on demand (not pushed inline), offered to the
+    // emitter side. See MessageView / README "Emitter and receiver roles".
+    final showOriginalRecover = message.isAudio &&
+        message.hasOriginalAudio &&
+        view.canRecoverOriginal &&
+        playableOriginalAudio == null &&
+        code != null;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -236,8 +251,15 @@ class MessageBubble extends StatelessWidget {
                         seed: message.id,
                         autoplay: autoplay,
                       )
-                    else
+                    else if (!showOriginalRecover)
                       _FakeWaveform(isMine: isMine, seed: message.id),
+                    if (showOriginalRecover)
+                      Padding(
+                        padding:
+                            EdgeInsets.only(top: audioToPlay != null ? 8 : 0),
+                        child: _OriginalAudioRecover(
+                            code: code!, msgId: message.id, isMine: isMine),
+                      ),
                     const SizedBox(height: 8),
                   ],
                   Text(
@@ -375,8 +397,108 @@ _AudioPayload? _audioPayloadFromMap(Map<String, dynamic>? audio) {
   return _AudioPayload(audioBase64: audioBase64, mimeType: mimeType);
 }
 
-bool _messageCanUseOriginalAudio(Message message) =>
-    message.isMine || message.senderLang == message.targetLang;
+/// Recovers a voice message's original audio on demand (it is no longer pushed
+/// inline). Shows a download button; on tap it GETs the file once, then renders
+/// the normal waveform player and autoplays it.
+class _OriginalAudioRecover extends StatefulWidget {
+  final String code;
+  final String msgId;
+  final bool isMine;
+  const _OriginalAudioRecover({
+    required this.code,
+    required this.msgId,
+    required this.isMine,
+  });
+
+  @override
+  State<_OriginalAudioRecover> createState() => _OriginalAudioRecoverState();
+}
+
+class _OriginalAudioRecoverState extends State<_OriginalAudioRecover> {
+  _AudioPayload? _recovered;
+  bool _loading = false;
+  bool _error = false;
+
+  Future<void> _recover() async {
+    setState(() {
+      _loading = true;
+      _error = false;
+    });
+    final uri = Uri.parse('$kServerUrl/api/rooms/'
+        '${Uri.encodeComponent(widget.code)}/messages/'
+        '${Uri.encodeComponent(widget.msgId)}/audio/original');
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 12);
+    try {
+      final req = await client.getUrl(uri);
+      final res = await req.close().timeout(const Duration(seconds: 30));
+      if (res.statusCode != 200) throw Exception('status ${res.statusCode}');
+      final bytes = <int>[];
+      await for (final chunk in res) {
+        bytes.addAll(chunk);
+      }
+      final mime = res.headers.contentType?.mimeType ?? 'audio/mpeg';
+      if (!mounted) return;
+      setState(() {
+        _recovered =
+            _AudioPayload(audioBase64: base64Encode(bytes), mimeType: mime);
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = true;
+      });
+    } finally {
+      client.close();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_recovered != null) {
+      return _AudioWaveformPlayer(
+        primary: _recovered!,
+        fallback: null,
+        isMine: widget.isMine,
+        seed: '${widget.msgId}:original',
+        autoplay: true,
+      );
+    }
+    final color = widget.isMine ? Colors.white70 : AppColors.muted;
+    return GestureDetector(
+      onTap: _loading ? null : _recover,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: widget.isMine
+              ? Colors.white.withValues(alpha: 0.12)
+              : AppColors.bg,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _loading
+                  ? Icons.hourglass_top
+                  : (_error ? Icons.refresh : Icons.download_rounded),
+              size: 16,
+              color: color,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              _loading ? 'Loading…' : (_error ? 'Retry' : 'Original audio'),
+              style: TextStyle(
+                  color: color, fontSize: 12, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _AudioWaveformPlayer extends StatefulWidget {
   final _AudioPayload primary;
@@ -584,6 +706,7 @@ class _FakeWaveform extends StatelessWidget {
 }
 
 class _SoloMessageBubble extends StatelessWidget {
+  final String? code;
   final Message message;
   final List<String>? soloLanguages;
   final String? stageLabel;
@@ -593,6 +716,7 @@ class _SoloMessageBubble extends StatelessWidget {
   final VoidCallback? onRetry;
 
   const _SoloMessageBubble({
+    required this.code,
     required this.message,
     required this.soloLanguages,
     required this.stageLabel,
@@ -605,26 +729,34 @@ class _SoloMessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final langs = soloLanguages ?? [message.senderLang, message.targetLang];
-    final isA = langs.isNotEmpty && message.senderLang == langs.first;
-    final senderInfo = getLang(message.senderLang);
-    final targetInfo = getLang(message.targetLang);
+    // Solo: emitter = the toggle side that spoke, receiver = the other side.
+    final view = MessageView.of(message, isSolo: true, soloLanguages: langs);
+    final isA = langs.isNotEmpty && view.emitterLang == langs.first;
+    final emitterInfo = getLang(view.emitterLang);
+    final receiverInfo = getLang(view.receiverLang);
     final hasTranslation = message.translated != message.original;
     final align = isA ? CrossAxisAlignment.start : CrossAxisAlignment.end;
     final sourceColor = isA ? AppColors.card : AppColors.primary;
     final sourceBorder = isA ? Border.all(color: AppColors.border) : null;
-    final originalAudio = _messageCanUseOriginalAudio(message)
+    final originalAudio = view.canRecoverOriginal
         ? _audioPayloadFromMap(message.originalAudio)
         : null;
     final translatedAudio = playTranslatedAudio
         ? _audioPayloadFromMap(message.translatedAudio)
         : null;
+    // Original audio recovered on demand when there's none inline.
+    final showOriginalRecover = message.isAudio &&
+        message.hasOriginalAudio &&
+        view.canRecoverOriginal &&
+        originalAudio == null &&
+        code != null;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: align,
         children: [
-          _langHeader(senderInfo, muted: true),
+          _langHeader(emitterInfo, muted: true),
           _bubble(
             color: sourceColor,
             border: message.failed
@@ -649,6 +781,9 @@ class _SoloMessageBubble extends StatelessWidget {
                       seed: '${message.id}:source',
                       autoplay: autoplay && translatedAudio == null,
                     )
+                  else if (showOriginalRecover)
+                    _OriginalAudioRecover(
+                        code: code!, msgId: message.id, isMine: !isA)
                   else
                     _FakeWaveform(isMine: !isA, seed: '${message.id}:source'),
                   const SizedBox(height: 8),
@@ -661,7 +796,7 @@ class _SoloMessageBubble extends StatelessWidget {
           ),
           if (hasTranslation) ...[
             const SizedBox(height: 8),
-            _langHeader(targetInfo, muted: false),
+            _langHeader(receiverInfo, muted: false),
             _bubble(
               color: AppColors.accent.withValues(alpha: 0.15),
               border:

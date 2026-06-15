@@ -11,6 +11,7 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 import '../config.dart';
 import '../models/language.dart';
 import '../models/message.dart';
+import '../models/message_view.dart';
 import '../models/participant.dart';
 import '../services/client_log_service.dart';
 import '../services/socket_service.dart';
@@ -368,13 +369,16 @@ class _RoomScreenState extends State<RoomScreen> {
 
   bool _shouldAutoplay(Message message) {
     if (!_autoplayVoice) return false;
-    // Solo: this device is the shared device — play the TRANSLATED audio out loud
-    // (never replay the original the sender just spoke).
+    // Autoplay = the receiver half (translated audio). Solo plays it out loud on
+    // the shared device; in a normal room only receivers hear it — the emitter
+    // never has their own message replayed. See MessageView / README roles.
+    final view = MessageView.of(message,
+        isSolo: widget.isSolo,
+        soloLanguages: widget.isSolo ? _soloLanguages : null);
     if (widget.isSolo) {
       return _translatedAudio && _isPlayableAudio(message.translatedAudio);
     }
-    // Normal room: never autoplay your own outgoing message; recipients hear it.
-    if (message.isMine) return false;
+    if (view.viewerIsEmitter) return false;
     return _hasPlayableAudio(message);
   }
 
@@ -895,6 +899,7 @@ class _RoomScreenState extends State<RoomScreen> {
                           );
                         }
                         return MessageBubble(
+                          code: widget.code,
                           message: m,
                           isSolo: widget.isSolo,
                           soloLanguages: widget.isSolo ? _soloLanguages : null,
