@@ -71,11 +71,10 @@ async function buildTranslations(text: string, senderLang: string, targetLangs: 
   return Object.fromEntries([[senderLang, text], ...entries]);
 }
 
-async function buildAudioOutputs(translations: any, targetLangs: any[], roomConfig: any, senderLang?: string) {
+async function buildAudioOutputs(translations: any, targetLangs: any[], roomConfig: any) {
   if (!roomConfig.output.translatedAudio) return {};
 
-  // Never synthesize audio in the sender's own language — they already know what they said
-  const unique = [...new Set(targetLangs)].filter(lang => lang !== senderLang);
+  const unique = [...new Set(targetLangs)];
   const entries = await Promise.all(
     unique.map(async lang => {
       const text = translations[lang];
@@ -112,6 +111,9 @@ export const translateMessage = inngest.createFunction(
     const { msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, participants, knownLanguages } = event.data;
     const roomConfig = normalizeRoomConfig(event.data.roomConfig);
     const targetLangs = (knownLanguages?.length ? knownLanguages : participants.map((p: any) => p.language)) as string[];
+    const audioTargetLangs = participants
+      .filter((p: any) => p.socketId !== senderSocketId)
+      .map((p: any) => p.language) as string[];
 
     await queue.publishMessageProgress(roomCode, msgId, 35, 'translating');
 
@@ -123,7 +125,7 @@ export const translateMessage = inngest.createFunction(
 
     const audioOutputs = await step.run('generate-audio-output', async () => {
       await queue.publishMessageProgress(roomCode, msgId, 75, 'generatingAudio');
-      const result = await buildAudioOutputs(translations, targetLangs, roomConfig, senderLang);
+      const result = await buildAudioOutputs(translations, audioTargetLangs, roomConfig);
       await queue.publishMessageProgress(roomCode, msgId, 88, 'saving');
       return result;
     });
@@ -158,6 +160,9 @@ export const transcribeAndTranslate = inngest.createFunction(
     const { msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, participants, knownLanguages } = event.data;
     const roomConfig = normalizeRoomConfig(event.data.roomConfig);
     const targetLangs = (knownLanguages?.length ? knownLanguages : participants.map((p: any) => p.language)) as string[];
+    const audioTargetLangs = participants
+      .filter((p: any) => p.socketId !== senderSocketId && p.language !== senderLang)
+      .map((p: any) => p.language) as string[];
 
     if (roomConfig.voicePipeline === 'direct-voice-translation') {
       await queue.publishMessageProgress(roomCode, msgId, 35, 'directVoiceTranslation');
@@ -233,7 +238,7 @@ export const transcribeAndTranslate = inngest.createFunction(
 
     const audioOutputs = await step.run('generate-audio-output', async () => {
       await queue.publishMessageProgress(roomCode, msgId, 78, 'generatingAudio');
-      const result = await buildAudioOutputs(translations, targetLangs, roomConfig, senderLang);
+      const result = await buildAudioOutputs(translations, audioTargetLangs, roomConfig);
       await queue.publishMessageProgress(roomCode, msgId, 88, 'saving');
       return result;
     });

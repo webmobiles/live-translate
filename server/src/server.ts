@@ -515,7 +515,7 @@ async function startQueueConsumer() {
           ?? message.original;
         const isSender = participant.socketId === message.senderSocketId;
         const canUseOriginalAudio = isSender || participant.language === message.senderLang;
-        const translatedAudio = message.audioOutputs?.[participant.language] ?? null;
+        const translatedAudio = isSender ? null : (message.audioOutputs?.[participant.language] ?? null);
 
         io.to(participant.socketId).emit('message:incoming', {
           id:         message.id,

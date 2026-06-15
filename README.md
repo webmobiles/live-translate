@@ -357,7 +357,7 @@ The web (`./web`) and phone (`./phone`) apps share the same backend and implemen
 | 2 | Room creation (solo mode) | ✅ | ✅ | Web: HTTP or socket (env `VITE_SOLOROOM_SOCKET`). Phone: HTTP only |
 | 3 | Room join by code (normal) | ✅ | ✅ | Socket.io `room:join` + code peek for guest language |
 | 4 | Solo room — double-language toggle UI | ✅ | ❌ | Web: `SoloLanguageToggle` A⇄B with equal-size source bubbles and consistent green translated-result bubbles for text/audio. Phone: fallback to first language only |
-| 5 | Text message send (normal) | ✅ | ✅ | Socket.io `message:text` with ack |
+| 5 | Text message send (normal) | ✅ | ✅ | Socket.io `message:text` with ack; same-language receivers keep original text and can still receive generated audio |
 | 6 | Text message send (solo) | ✅ | ✅ | Web: HTTP or socket. Phone: HTTP `POST /api/solo/rooms/:code/text` |
 | 7 | Voice message send (normal) | ✅ | ✅ | Press & hold mic → socket `message:audio` |
 | 8 | Voice message send (solo) | ✅ | ✅ | Web: HTTP or socket. Phone: HTTP `POST /api/solo/rooms/:code/audio` |
