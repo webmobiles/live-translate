@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../config.dart';
 import '../models/room_config.dart';
 import '../services/client_log_service.dart';
 import '../services/socket_service.dart';
@@ -67,8 +68,8 @@ class _CreateScreenState extends State<CreateScreen> {
       outputTranslatedAudio: _translatedAudio,
     );
 
-    // Solo rooms use plain HTTP — only one user, so no socket is needed.
-    if (_isSolo) {
+    // Solo rooms default to HTTP, but can use Socket.IO for parity with web.
+    if (_isSolo && !kPhoneSoloRoomSocket) {
       _createSolo(config);
       return;
     }

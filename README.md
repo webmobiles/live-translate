@@ -354,13 +354,13 @@ The web (`./web`) and phone (`./phone`) apps share the same backend and implemen
 | # | Feature | Web | Phone | Notes |
 |---|---------|:---:|:-----:|-------|
 | 1 | Room creation (normal mode) | ✅ | ✅ | Both use socket.io `room:create` |
-| 2 | Room creation (solo mode) | ✅ | ✅ | Web: HTTP or socket (env `VITE_SOLOROOM_SOCKET`). Phone: HTTP only |
+| 2 | Room creation (solo mode) | ✅ | ✅ | Web: HTTP or socket (env `WEB_SOLOROOM_SOCKET=yes`). Phone: HTTP or socket (dart define `PHONE_SOLOROOM_SOCKET=yes`) |
 | 3 | Room join by code (normal) | ✅ | ✅ | Socket.io `room:join` + code peek for guest language |
 | 4 | Solo room — double-language toggle UI | ✅ | ❌ | Web: `SoloLanguageToggle` A⇄B with equal-size source bubbles and consistent green translated-result bubbles for text/audio. Phone: fallback to first language only |
 | 5 | Text message send (normal) | ✅ | ✅ | Socket.io `message:text` with ack; same-language receivers keep original text and can still receive generated audio |
-| 6 | Text message send (solo) | ✅ | ✅ | Web: HTTP or socket; socket solo sends translated audio back to the same room socket. Phone: HTTP `POST /api/solo/rooms/:code/text` |
+| 6 | Text message send (solo) | ✅ | ✅ | Web and Phone: HTTP or socket; socket solo sends translated audio back to the same room socket |
 | 7 | Voice message send (normal) | ✅ | ✅ | Press & hold mic → socket `message:audio` |
-| 8 | Voice message send (solo) | ✅ | ✅ | Web: HTTP or socket. Phone: HTTP `POST /api/solo/rooms/:code/audio` |
+| 8 | Voice message send (solo) | ✅ | ✅ | Web and Phone: HTTP or socket |
 | 9 | Translation spinner while in-flight | ✅ | ✅ | Web: progress bar + delivery icons + instant mic placeholder with fake waveform + audio client stages (`preparing audio`, `encoding audio`, `sending audio`) + server-confirmed stage labels (`received`, `transcribing`, `translating`, `generating audio`, `saving`, `delivering`). Phone: ActivityIndicator only |
 | 10 | Delivery status icons (sending / queued / delivered / read / failed) | ✅ | ❌ | Web: WhatsApp-style checkmarks. Phone: not tracked |
 | 11 | Message bubble — tap to toggle original / translation | ✅ | ❌ | Web only. Phone shows both simultaneously |

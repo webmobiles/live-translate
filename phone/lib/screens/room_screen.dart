@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
+import '../config.dart';
 import '../models/language.dart';
 import '../models/message.dart';
 import '../models/participant.dart';
@@ -74,15 +75,18 @@ class _RoomScreenState extends State<RoomScreen> {
     _recorder.hasPermission(); // prompt for mic up front
 
     if (widget.isSolo) {
-      // Solo rooms run over HTTP (single user) — no socket, always "ready".
       final langs = _soloLanguages;
       _soloActiveLanguage = langs.first;
       _myLanguage = _otherSoloLanguage(_soloActiveLanguage!);
+    }
+
+    if (widget.isSolo && !kPhoneSoloRoomSocket) {
+      // HTTP solo mode: no live socket needed.
       _isConnected = true;
       return;
     }
 
-    final socket = SocketService.getSocket();
+    final socket = SocketService.connect();
     _socket = socket;
     _mySocketId = socket.id ?? '';
 
@@ -92,8 +96,11 @@ class _RoomScreenState extends State<RoomScreen> {
     socket.on('room:participant-joined', _onParticipantJoined);
     socket.on('room:participant-left', _onParticipantLeft);
     socket.on('message:translating', _onTranslating);
+    socket.on('message:progress', _onMessageProgress);
     socket.on('message:incoming', _onIncoming);
     socket.on('message:error', _onMessageError);
+    socket.on('message:delivered', _onMessageDelivered);
+    socket.on('message:read', _onMessageRead);
 
     _isConnected = socket.connected;
   }
@@ -108,8 +115,11 @@ class _RoomScreenState extends State<RoomScreen> {
       socket.off('room:participant-joined', _onParticipantJoined);
       socket.off('room:participant-left', _onParticipantLeft);
       socket.off('message:translating', _onTranslating);
+      socket.off('message:progress', _onMessageProgress);
       socket.off('message:incoming', _onIncoming);
       socket.off('message:error', _onMessageError);
+      socket.off('message:delivered', _onMessageDelivered);
+      socket.off('message:read', _onMessageRead);
     }
     _input.dispose();
     _scroll.dispose();
@@ -177,9 +187,28 @@ class _RoomScreenState extends State<RoomScreen> {
         isMine: false,
         timestamp: DateTime.now().millisecondsSinceEpoch,
         isTranslating: true,
+        progressStage: 'received',
       ));
     });
     _scrollToEnd();
+  }
+
+  void _onMessageProgress(dynamic data) {
+    if (!mounted || data is! Map) return;
+    final map = Map<String, dynamic>.from(data);
+    final id = map['id'] as String?;
+    if (id == null) return;
+    final progress = (map['progress'] as num?)?.toDouble();
+    final stage = map['stage'] as String?;
+    setState(() {
+      final i = _messages.indexWhere((m) => m.id == id);
+      if (i >= 0) {
+        _messages[i] = _messages[i].copyWith(
+          progress: progress,
+          progressStage: stage,
+        );
+      }
+    });
   }
 
   void _onIncoming(dynamic data) {
@@ -187,7 +216,7 @@ class _RoomScreenState extends State<RoomScreen> {
     final msg = Message.fromJson(Map<String, dynamic>.from(data as Map));
     setState(() {
       _messages.removeWhere((m) => m.id == msg.id);
-      _messages.add(msg.copyWith(isTranslating: false));
+      _messages.add(msg.copyWith(isTranslating: false, deliveryStatus: 'delivered'));
     });
     _scrollToEnd();
   }
@@ -195,7 +224,41 @@ class _RoomScreenState extends State<RoomScreen> {
   void _onMessageError(dynamic data) {
     if (!mounted) return;
     final id = data['id'] as String?;
-    setState(() => _messages.removeWhere((m) => m.id == id));
+    setState(() {
+      final i = _messages.indexWhere((m) => m.id == id);
+      if (i >= 0) {
+        _messages[i] = _messages[i].copyWith(
+          isTranslating: false,
+          failed: true,
+          deliveryStatus: 'failed',
+          clearProgress: true,
+        );
+      }
+    });
+  }
+
+  void _onMessageDelivered(dynamic data) {
+    if (!mounted || data is! Map) return;
+    final id = data['id'] as String?;
+    if (id == null) return;
+    setState(() {
+      final i = _messages.indexWhere((m) => m.id == id);
+      if (i >= 0) {
+        _messages[i] = _messages[i].copyWith(deliveryStatus: 'delivered');
+      }
+    });
+  }
+
+  void _onMessageRead(dynamic data) {
+    if (!mounted || data is! Map) return;
+    final id = data['id'] as String?;
+    if (id == null) return;
+    setState(() {
+      final i = _messages.indexWhere((m) => m.id == id);
+      if (i >= 0) {
+        _messages[i] = _messages[i].copyWith(deliveryStatus: 'read');
+      }
+    });
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -228,16 +291,71 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
+  void _updateMessageProgress(String id, {double? progress, String? stage}) {
+    if (!mounted) return;
+    setState(() {
+      final i = _messages.indexWhere((m) => m.id == id);
+      if (i >= 0) {
+        _messages[i] = _messages[i].copyWith(
+          progress: progress,
+          progressStage: stage,
+        );
+      }
+    });
+  }
+
   void _sendText() {
     final text = _input.text.trim();
     if (text.isEmpty || !_isConnected) return;
     _input.clear();
     setState(() {});
-    if (widget.isSolo) {
+    if (widget.isSolo && !kPhoneSoloRoomSocket) {
       _sendTextSolo(text);
       return;
     }
-    _socket?.emit('message:text', {'text': text});
+    final id = SoloApi.newId();
+    final senderLang =
+        widget.isSolo ? (_soloActiveLanguage ?? _soloLanguages.first) : _myLanguage;
+    final targetLang =
+        widget.isSolo ? _otherSoloLanguage(senderLang) : _myLanguage;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    setState(() {
+      _messages.add(Message(
+        id: id,
+        original: text,
+        translated: text,
+        sender: widget.nickname,
+        senderLang: senderLang,
+        targetLang: targetLang,
+        isMine: true,
+        timestamp: now,
+        deliveryStatus: 'sending',
+        progress: 10,
+        progressStage: 'sending',
+      ));
+    });
+    _scrollToEnd();
+    final payload = <String, dynamic>{
+      'text': text,
+      'clientMsgId': id,
+    };
+    if (widget.isSolo) payload['senderLang'] = senderLang;
+    _socket?.emitWithAck('message:text', {
+      ...payload,
+    }, ack: (ack) {
+      if (!mounted) return;
+      final res = SocketService.unwrapAck(ack);
+      setState(() {
+        final i = _messages.indexWhere((m) => m.id == id);
+        if (i < 0) return;
+        _messages[i] = _messages[i].copyWith(
+          deliveryStatus: res['ok'] == true ? 'queued' : 'failed',
+          failed: res['ok'] != true,
+          progressStage: res['ok'] == true ? 'received' : _messages[i].progressStage,
+          clearProgress: res['ok'] != true,
+        );
+      });
+    });
   }
 
   void _copyCode() {
@@ -289,18 +407,49 @@ class _RoomScreenState extends State<RoomScreen> {
         return;
       }
 
+      final id = SoloApi.newId();
+      final senderLang =
+          widget.isSolo ? (_soloActiveLanguage ?? _soloLanguages.first) : _myLanguage;
+      final targetLang =
+          widget.isSolo ? _otherSoloLanguage(senderLang) : _myLanguage;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      setState(() {
+        _messages.add(Message(
+          id: id,
+          original: '…',
+          translated: '…',
+          sender: widget.nickname,
+          senderLang: senderLang,
+          targetLang: targetLang,
+          isMine: true,
+          isAudio: true,
+          timestamp: now,
+          isTranslating: true,
+          deliveryStatus: 'sending',
+          progress: 5,
+          progressStage: 'preparingAudio',
+        ));
+      });
+      _scrollToEnd();
+
       final bytes = await file.readAsBytes();
+      _updateMessageProgress(id, progress: 10, stage: 'encodingAudio');
       final base64Audio = base64Encode(bytes);
+      _updateMessageProgress(id, progress: 18, stage: 'sendingAudio');
       if (await file.exists()) await file.delete();
-      if (widget.isSolo) {
-        await _sendAudioSolo(base64Audio, durationMs);
+      if (widget.isSolo && !kPhoneSoloRoomSocket) {
+        await _sendAudioSolo(base64Audio, durationMs,
+            id: id, senderLangOverride: senderLang);
         return;
       }
-      _socket?.emit('message:audio', {
+      final payload = <String, dynamic>{
         'audioBase64': base64Audio,
         'mimeType': 'audio/m4a',
         'durationMs': durationMs,
-      });
+        'clientMsgId': id,
+      };
+      if (widget.isSolo) payload['senderLang'] = senderLang;
+      _socket?.emit('message:audio', payload);
     } catch (e) {
       debugPrint('stopAndSend $e');
       _recordingStartedAt = 0;
@@ -358,10 +507,15 @@ class _RoomScreenState extends State<RoomScreen> {
         isMine: true,
         timestamp: now,
         isTranslating: true,
+        deliveryStatus: 'sending',
+        progress: 10,
+        progressStage: 'sending',
       ));
     });
     _scrollToEnd();
     try {
+      _updateMessageProgress(id, progress: 25, stage: 'received');
+      _updateMessageProgress(id, progress: 45, stage: 'translating');
       final msg = await SoloApi.sendText(
         code: widget.code,
         text: text,
@@ -378,7 +532,7 @@ class _RoomScreenState extends State<RoomScreen> {
       });
       setState(() {
         _messages.removeWhere((m) => m.id == id);
-        _messages.add(msg);
+        _messages.add(msg.copyWith(deliveryStatus: 'delivered'));
       });
       _scrollToEnd();
     } catch (e) {
@@ -396,8 +550,13 @@ class _RoomScreenState extends State<RoomScreen> {
       setState(() {
         final i = _messages.indexWhere((m) => m.id == id);
         if (i >= 0) {
-          _messages[i] = _messages[i]
-              .copyWith(isTranslating: false, failed: true, error: e.toString());
+          _messages[i] = _messages[i].copyWith(
+            isTranslating: false,
+            failed: true,
+            error: e.toString(),
+            deliveryStatus: 'failed',
+            clearProgress: true,
+          );
         }
       });
       _snack('Translation failed: $e');
@@ -405,8 +564,8 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   Future<void> _sendAudioSolo(String audioBase64, int durationMs,
-      {String? senderLangOverride}) async {
-    final id = SoloApi.newId();
+      {String? id, String? senderLangOverride}) async {
+    final msgId = id ?? SoloApi.newId();
     final senderLang =
         senderLangOverride ?? _soloActiveLanguage ?? _soloLanguages.first;
     final targetLang = _otherSoloLanguage(senderLang);
@@ -418,28 +577,35 @@ class _RoomScreenState extends State<RoomScreen> {
       'durationMs': durationMs,
       'audioBytesApprox': (audioBase64.length * 0.75).round(),
     });
-    // Optimistic "…" bubble until transcription + translation return.
-    setState(() {
-      _messages.add(Message(
-        id: id,
-        original: '…',
-        translated: '…',
-        sender: widget.nickname,
-        senderLang: senderLang,
-        targetLang: targetLang,
-        isMine: true,
-        isAudio: true,
-        timestamp: now,
-        isTranslating: true,
-      ));
-    });
-    _scrollToEnd();
+    if (!_messages.any((m) => m.id == msgId)) {
+      setState(() {
+        _messages.add(Message(
+          id: msgId,
+          original: '…',
+          translated: '…',
+          sender: widget.nickname,
+          senderLang: senderLang,
+          targetLang: targetLang,
+          isMine: true,
+          isAudio: true,
+          timestamp: now,
+          isTranslating: true,
+          deliveryStatus: 'sending',
+          progress: 18,
+          progressStage: 'sendingAudio',
+        ));
+      });
+      _scrollToEnd();
+    }
     try {
+      _updateMessageProgress(msgId, progress: 25, stage: 'received');
+      _updateMessageProgress(msgId, progress: 35, stage: 'transcribing');
       final msg = await SoloApi.sendAudio(
         code: widget.code,
         audioBase64: audioBase64,
         mimeType: 'audio/m4a',
         durationMs: durationMs,
+        clientMsgId: msgId,
         sender: widget.nickname,
         senderLang: senderLang,
         targetLang: targetLang,
@@ -452,8 +618,8 @@ class _RoomScreenState extends State<RoomScreen> {
         'translatedLength': msg.translated.length,
       });
       setState(() {
-        _messages.removeWhere((m) => m.id == id);
-        _messages.add(msg);
+        _messages.removeWhere((m) => m.id == msgId);
+        _messages.add(msg.copyWith(deliveryStatus: 'delivered'));
       });
       _scrollToEnd();
     } catch (e) {
@@ -462,7 +628,7 @@ class _RoomScreenState extends State<RoomScreen> {
         'code': widget.code,
         'error': e.toString(),
       });
-      _retry[id] = _RetryPayload(
+      _retry[msgId] = _RetryPayload(
         isAudio: true,
         audioBase64: audioBase64,
         durationMs: durationMs,
@@ -470,10 +636,15 @@ class _RoomScreenState extends State<RoomScreen> {
         targetLang: targetLang,
       );
       setState(() {
-        final i = _messages.indexWhere((m) => m.id == id);
+        final i = _messages.indexWhere((m) => m.id == msgId);
         if (i >= 0) {
-          _messages[i] = _messages[i]
-              .copyWith(isTranslating: false, failed: true, error: e.toString());
+          _messages[i] = _messages[i].copyWith(
+            isTranslating: false,
+            failed: true,
+            error: e.toString(),
+            deliveryStatus: 'failed',
+            clearProgress: true,
+          );
         }
       });
       _snack('Voice translation failed: $e');
@@ -534,6 +705,8 @@ class _RoomScreenState extends State<RoomScreen> {
                         }
                         return MessageBubble(
                           message: m,
+                          isSolo: widget.isSolo,
+                          soloLanguages: widget.isSolo ? _soloLanguages : null,
                           onRetry: m.failed ? () => _retrySolo(m.id) : null,
                         );
                       },

@@ -12,6 +12,11 @@ class Message {
   final bool isTranslating;
   final bool failed;
   final String? error;
+  final String? deliveryStatus;
+  final double? progress;
+  final String? progressStage;
+  final Map<String, dynamic>? originalAudio;
+  final Map<String, dynamic>? translatedAudio;
 
   const Message({
     required this.id,
@@ -26,6 +31,11 @@ class Message {
     this.isTranslating = false,
     this.failed = false,
     this.error,
+    this.deliveryStatus,
+    this.progress,
+    this.progressStage,
+    this.originalAudio,
+    this.translatedAudio,
   });
 
   bool get isSystem => sender == 'system';
@@ -42,21 +52,48 @@ class Message {
         timestamp: (j['timestamp'] as num?)?.toInt() ??
             DateTime.now().millisecondsSinceEpoch,
         isTranslating: j['isTranslating'] as bool? ?? false,
+        deliveryStatus: j['deliveryStatus'] as String?,
+        progress: (j['progress'] as num?)?.toDouble(),
+        progressStage: j['progressStage'] as String?,
+        originalAudio: j['originalAudio'] is Map
+            ? Map<String, dynamic>.from(j['originalAudio'] as Map)
+            : null,
+        translatedAudio: j['translatedAudio'] is Map
+            ? Map<String, dynamic>.from(j['translatedAudio'] as Map)
+            : null,
       );
 
-  Message copyWith({bool? isTranslating, bool? failed, String? error}) =>
+  Message copyWith({
+    String? original,
+    String? translated,
+    bool? isMine,
+    bool? isTranslating,
+    bool? failed,
+    String? error,
+    String? deliveryStatus,
+    double? progress,
+    String? progressStage,
+    Map<String, dynamic>? originalAudio,
+    Map<String, dynamic>? translatedAudio,
+    bool clearProgress = false,
+  }) =>
       Message(
         id: id,
-        original: original,
-        translated: translated,
+        original: original ?? this.original,
+        translated: translated ?? this.translated,
         sender: sender,
         senderLang: senderLang,
         targetLang: targetLang,
-        isMine: isMine,
+        isMine: isMine ?? this.isMine,
         isAudio: isAudio,
         timestamp: timestamp,
         isTranslating: isTranslating ?? this.isTranslating,
         failed: failed ?? this.failed,
         error: error ?? this.error,
+        deliveryStatus: deliveryStatus ?? this.deliveryStatus,
+        progress: clearProgress ? null : (progress ?? this.progress),
+        progressStage: progressStage ?? this.progressStage,
+        originalAudio: originalAudio ?? this.originalAudio,
+        translatedAudio: translatedAudio ?? this.translatedAudio,
       );
 }

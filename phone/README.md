@@ -161,6 +161,7 @@ Flutter's built-in `--dart-define-from-file` (no package needed):
 # phone/.env
 SERVER_URL=https://livetranslate.hellovia.app
 REQUIRE_AUTH=false      # skip the Google sign-in gate during dev
+PHONE_SOLOROOM_SOCKET=yes # use Socket.IO for solo rooms, matching WEB_SOLOROOM_SOCKET=yes
 ```
 
 ```bash
@@ -168,8 +169,9 @@ flutter run --dart-define-from-file=.env
 ```
 
 The keys map to `fromEnvironment()` constants in `lib/config.dart`
-(`SERVER_URL` → `kServerUrl`, `REQUIRE_AUTH` → `kRequireAuth`). To require login
-again, set `REQUIRE_AUTH=true` (or just run without the flag — the default).
+(`SERVER_URL` → `kServerUrl`, `REQUIRE_AUTH` → `kRequireAuth`,
+`PHONE_SOLOROOM_SOCKET` → `kPhoneSoloRoomSocket`). To require login again, set
+`REQUIRE_AUTH=true` (or just run without the flag — the default).
 
 ---
 
@@ -205,6 +207,8 @@ in `../mobile/README.md` (App Bundle → Internal testing → Production). Set
 - **Socket**: `SocketService` is a lazily-created singleton mirroring
   `socket.ts` (manual connect, polling→websocket, 5 reconnect attempts). Room
   create/join/peek use `emitWithAck`; messaging uses fire-and-forget `emit`.
+  Solo rooms default to HTTP, or use Socket.IO when
+  `PHONE_SOLOROOM_SOCKET=yes`.
 - **Voice**: hold the mic to record AAC/m4a via `record`, base64-encode, and
   emit `message:audio` — identical payload shape to the RN app
   (`{ audioBase64, mimeType: 'audio/m4a', durationMs }`). Clips under 1s are

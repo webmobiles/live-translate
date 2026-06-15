@@ -167,9 +167,19 @@
     },
     "progress": {
       "sending": "Invio al server",
+      "preparingAudio": "Preparazione audio…",
+      "encodingAudio": "Codifica audio…",
+      "sendingAudio": "Invio audio al server",
       "received": "Ricevuto dal server",
+      "transcribing": "Trascrizione voce…",
+      "transcribed": "Voce trascritta",
       "translating": "Traduzione\u2026",
-      "generatingAudio": "Generazione audio"
+      "translated": "Traduzione pronta",
+      "directVoiceTranslation": "Traduzione vocale diretta…",
+      "generatingAudio": "Generazione audio",
+      "saving": "Salvataggio messaggio",
+      "delivering": "Invio alla stanza",
+      "delivered": "Consegnato"
     }
   },
   "settings": {

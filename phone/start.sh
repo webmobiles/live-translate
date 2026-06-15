@@ -7,5 +7,6 @@ if [[ ! -f .env ]]; then
   echo "Missing phone/.env. Create it from .env.example first." >&2
   exit 1
 fi
-
-exec flutter run -d emulator-5554 --dart-define-from-file=.env "$@"
+flutter clean
+flutter pub get
+exec flutter run -v -d emulator-5554 --dart-define-from-file=.env "$@"

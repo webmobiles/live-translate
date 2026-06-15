@@ -18,6 +18,18 @@ const String kServerUrl = String.fromEnvironment(
 const bool kRequireAuth =
     bool.fromEnvironment('REQUIRE_AUTH', defaultValue: true);
 
+/// When true, solo rooms use Socket.IO like the web app's
+/// `WEB_SOLOROOM_SOCKET=yes` mode. Default stays HTTP for compatibility.
+///
+/// Toggle via:
+///   flutter run --dart-define=PHONE_SOLOROOM_SOCKET=yes
+/// or:
+///   flutter run --dart-define=PHONE_SOLOROOM_SOCKET=true
+const String kPhoneSoloRoomSocketValue =
+    String.fromEnvironment('PHONE_SOLOROOM_SOCKET', defaultValue: '');
+const bool kPhoneSoloRoomSocket = kPhoneSoloRoomSocketValue == 'yes' ||
+    kPhoneSoloRoomSocketValue == 'true';
+
 /// Deep-link scheme used for the OAuth callback. Must match:
 ///   - the `scheme` in app config
 ///   - `appAuthRedirectScheme` in android/app/build.gradle
