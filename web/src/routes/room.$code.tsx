@@ -1588,18 +1588,19 @@ function OriginalAudioBlock({ code, message, isMine, inline }: {
       type="button"
       onClick={(e) => { e.stopPropagation(); void recover() }}
       disabled={loadState === 'loading'}
-      className={`inline-flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-60 ${
+      className={`inline-flex items-center text-xs  px-2.5 py-1.5 transition-colors disabled:opacity-60 ${
         isMine ? 'text-white/80 bg-white/10 hover:bg-white/20' : 'text-lt-muted bg-lt-bg hover:text-white'
       }`}
     >
-      <DownloadAudioIcon />
+     
       <span>
         {loadState === 'loading'
           ? t('room.loadingOriginalAudio', 'Loading…')
           : loadState === 'error'
             ? t('room.retry')
-            : t('room.playOriginalAudio', 'Original audio')}
+            : ''}
       </span>
+      <DownloadAudioIcon />
     </button>
   )
 }
@@ -1801,27 +1802,25 @@ function SoloMessageBubble({ code, message, soloLanguages, onRetry }: { code: st
 
   return (
     <div className={`flex flex-col ${isA ? 'items-start' : 'items-end'}`}>
-      <div className={`flex items-center gap-1.5 mb-1 ${isA ? 'ml-1' : 'mr-1'}`}>
-        <span className="text-base">{emitterInfo.flag}</span>
-        <span className="text-lt-muted text-xs">{emitterInfo.name}</span>
-      </div>
+    {!hasTranslation  &&
       <div className={`max-w-[78%] px-4 py-3 rounded-2xl ${sourceBubbleClass} ${deliveryStatus === 'failed' ? 'border-lt-danger' : ''}`}>
-        {isAudio && (
-          <p className={`text-xs mb-1 ${isA ? 'text-lt-muted' : 'text-white/60'}`}>🎤 Voice</p>
-        )}
-        {isAudio && (
-          <OriginalAudioBlock code={code} message={message} isMine={!isA} inline={originalAudioToPlay} />
-        )}
-        <p className="text-white text-base leading-relaxed">{original}</p>
-      </div>
 
+        <p> <span className="text-xs text-gray-500 ">{emitterInfo.code}</span>: <span className="text-white text-base leading-relaxed">{original}</span>
+    
+          <OriginalAudioBlock code={code} message={message} isMine={!isA} inline={originalAudioToPlay} />
+ 
+        </p>
+      </div>
+      }
       {hasTranslation && (
         <>
-          <div className={`flex items-center gap-1.5 mt-2 mb-1 ${isA ? 'ml-1' : 'mr-1'}`}>
-            <span className="text-base">{receiverInfo.flag}</span>
-            <span className="text-lt-accent text-xs font-semibold">{receiverInfo.name}</span>
-          </div>
+
+
           <div className={`max-w-[78%] px-4 py-3 rounded-2xl ${translationBubbleClass}`}>
+          <div className={`flex items-center mt-2 mb-1 ${isA ? 'ml-1' : 'mr-1'}`}>
+              <p> <span className="text-base text-gray-500">{emitterInfo.code}: </span><span className="text-foreground/60 text-base  leading-relaxed">{original}</span></p>
+    
+          </div>
             {translatedAudioToPlay && (
               <AudioPlayer
                 audioBase64={translatedAudioToPlay.audioBase64}
@@ -1830,7 +1829,10 @@ function SoloMessageBubble({ code, message, soloLanguages, onRetry }: { code: st
                 autoPlay={Boolean(message.autoPlay)}
               />
             )}
-            <p className="text-white text-base leading-relaxed">{translated}</p>
+            <p>
+                <span className="text-base text-gray-500">{receiverInfo.code}: </span>
+              <span className="text-white text-base leading-relaxed">{translated}</span></p>
+
           </div>
         </>
       )}
