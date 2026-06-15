@@ -14,6 +14,7 @@ import '../models/participant.dart';
 import '../services/client_log_service.dart';
 import '../services/socket_service.dart';
 import '../services/solo_api.dart';
+import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/language_selector.dart';
 import '../widgets/message_bubble.dart';
@@ -30,6 +31,8 @@ class RoomScreen extends StatefulWidget {
   final bool isHost;
   final String mode;
   final List<String>? soloLanguages;
+  final bool initialTranslatedAudio;
+  final Map<String, dynamic>? initialConfig;
 
   const RoomScreen({
     super.key,
@@ -40,6 +43,8 @@ class RoomScreen extends StatefulWidget {
     required this.isHost,
     required this.mode,
     this.soloLanguages,
+    this.initialTranslatedAudio = true,
+    this.initialConfig,
   });
 
   bool get isSolo => mode == 'solo_multilang';
@@ -57,8 +62,12 @@ class _RoomScreenState extends State<RoomScreen> {
 
   bool _isRecording = false;
   bool _isConnected = false;
+  bool _autoplayVoice = true;
+  bool _translatedAudio = true;
   late String _myLanguage;
   String? _soloActiveLanguage;
+  String? _autoplayMessageId;
+  late Map<String, dynamic> _roomConfig;
   String _mySocketId = '';
   String? _recordingPath;
   int _recordingStartedAt = 0;
@@ -72,6 +81,8 @@ class _RoomScreenState extends State<RoomScreen> {
   void initState() {
     super.initState();
     _myLanguage = widget.language;
+    _translatedAudio = widget.initialTranslatedAudio;
+    _roomConfig = _defaultRoomConfig();
     _recorder.hasPermission(); // prompt for mic up front
 
     if (widget.isSolo) {
@@ -101,6 +112,7 @@ class _RoomScreenState extends State<RoomScreen> {
     socket.on('message:error', _onMessageError);
     socket.on('message:delivered', _onMessageDelivered);
     socket.on('message:read', _onMessageRead);
+    socket.on('room:config-updated', _onConfigUpdated);
 
     _isConnected = socket.connected;
   }
@@ -120,6 +132,7 @@ class _RoomScreenState extends State<RoomScreen> {
       socket.off('message:error', _onMessageError);
       socket.off('message:delivered', _onMessageDelivered);
       socket.off('message:read', _onMessageRead);
+      socket.off('room:config-updated', _onConfigUpdated);
     }
     _input.dispose();
     _scroll.dispose();
@@ -214,10 +227,14 @@ class _RoomScreenState extends State<RoomScreen> {
   void _onIncoming(dynamic data) {
     if (!mounted) return;
     final msg = Message.fromJson(Map<String, dynamic>.from(data as Map));
+    final autoPlay = _shouldAutoplay(msg);
     setState(() {
       _messages.removeWhere((m) => m.id == msg.id);
-      _messages.add(msg.copyWith(isTranslating: false, deliveryStatus: 'delivered'));
+      _messages
+          .add(msg.copyWith(isTranslating: false, deliveryStatus: 'delivered'));
+      if (autoPlay) _autoplayMessageId = msg.id;
     });
+    if (autoPlay) _clearAutoplayAfter(msg.id);
     _scrollToEnd();
   }
 
@@ -258,6 +275,20 @@ class _RoomScreenState extends State<RoomScreen> {
       if (i >= 0) {
         _messages[i] = _messages[i].copyWith(deliveryStatus: 'read');
       }
+    });
+  }
+
+  void _onConfigUpdated(dynamic data) {
+    if (!mounted || data is! Map) return;
+    final config = data['config'];
+    if (config is! Map) return;
+    final output = config['output'];
+    final translatedAudio =
+        output is Map ? output['translatedAudio'] as bool? : null;
+    if (translatedAudio == null) return;
+    setState(() {
+      _translatedAudio = translatedAudio;
+      _roomConfig = Map<String, dynamic>.from(config);
     });
   }
 
@@ -304,6 +335,103 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
+  bool _isPlayableAudio(Map<String, dynamic>? audio) {
+    final audioBase64 = audio?['audioBase64'];
+    final mimeType = audio?['mimeType'];
+    return audioBase64 is String &&
+        audioBase64.isNotEmpty &&
+        mimeType is String &&
+        mimeType.isNotEmpty;
+  }
+
+  bool _canUseOriginalAudio(Message message) =>
+      message.isMine || message.senderLang == message.targetLang;
+
+  bool _hasPlayableAudio(Message message) =>
+      (_translatedAudio && _isPlayableAudio(message.translatedAudio)) ||
+      (_canUseOriginalAudio(message) &&
+          _isPlayableAudio(message.originalAudio));
+
+  bool _shouldAutoplay(Message message) =>
+      _autoplayVoice && _hasPlayableAudio(message);
+
+  void _clearAutoplayAfter(String id) {
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (!mounted || _autoplayMessageId != id) return;
+      setState(() => _autoplayMessageId = null);
+    });
+  }
+
+  Map<String, dynamic> _defaultRoomConfig() => Map<String, dynamic>.from(
+        widget.initialConfig ??
+            {
+              'mode': widget.mode,
+              'soloLanguages': widget.isSolo ? _soloLanguages : null,
+              'guestDefaultLanguage': null,
+              'input': {'text': true, 'voice': true},
+              'voicePipeline': 'stt-text-translate',
+              'output': {
+                'translatedText': true,
+                'translatedAudio': widget.initialTranslatedAudio,
+              },
+            },
+      );
+
+  Map<String, dynamic> _roomConfigWithTranslatedAudio(bool enabled) {
+    final next = Map<String, dynamic>.from(_roomConfig);
+    final output = Map<String, dynamic>.from(
+      next['output'] is Map ? next['output'] as Map : const {},
+    );
+    output['translatedAudio'] = enabled;
+    output['translatedText'] = output['translatedText'] ?? true;
+    next['output'] = output;
+    next['mode'] = next['mode'] ?? widget.mode;
+    if (widget.isSolo) next['soloLanguages'] = _soloLanguages;
+    return next;
+  }
+
+  void _setTranslatedAudio(bool enabled) {
+    final previous = _translatedAudio;
+    final previousConfig = Map<String, dynamic>.from(_roomConfig);
+    final nextConfig = _roomConfigWithTranslatedAudio(enabled);
+    setState(() {
+      _translatedAudio = enabled;
+      _roomConfig = nextConfig;
+    });
+
+    if (widget.isSolo && !kPhoneSoloRoomSocket) {
+      SoloApi.updateConfig(
+        code: widget.code,
+        config: nextConfig,
+      ).catchError((_) {
+        if (mounted) {
+          setState(() {
+            _translatedAudio = previous;
+            _roomConfig = previousConfig;
+          });
+        }
+      });
+      return;
+    }
+
+    final socket = _socket;
+    if (socket == null || !widget.isHost) return;
+    socket.emitWithAck(
+      'room:update-config',
+      {'config': nextConfig},
+      ack: (ack) {
+        if (!mounted) return;
+        final res = SocketService.unwrapAck(ack);
+        if (res['ok'] != true) {
+          setState(() {
+            _translatedAudio = previous;
+            _roomConfig = previousConfig;
+          });
+        }
+      },
+    );
+  }
+
   void _sendText() {
     final text = _input.text.trim();
     if (text.isEmpty || !_isConnected) return;
@@ -314,8 +442,9 @@ class _RoomScreenState extends State<RoomScreen> {
       return;
     }
     final id = SoloApi.newId();
-    final senderLang =
-        widget.isSolo ? (_soloActiveLanguage ?? _soloLanguages.first) : _myLanguage;
+    final senderLang = widget.isSolo
+        ? (_soloActiveLanguage ?? _soloLanguages.first)
+        : _myLanguage;
     final targetLang =
         widget.isSolo ? _otherSoloLanguage(senderLang) : _myLanguage;
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -351,7 +480,8 @@ class _RoomScreenState extends State<RoomScreen> {
         _messages[i] = _messages[i].copyWith(
           deliveryStatus: res['ok'] == true ? 'queued' : 'failed',
           failed: res['ok'] != true,
-          progressStage: res['ok'] == true ? 'received' : _messages[i].progressStage,
+          progressStage:
+              res['ok'] == true ? 'received' : _messages[i].progressStage,
           clearProgress: res['ok'] != true,
         );
       });
@@ -408,8 +538,9 @@ class _RoomScreenState extends State<RoomScreen> {
       }
 
       final id = SoloApi.newId();
-      final senderLang =
-          widget.isSolo ? (_soloActiveLanguage ?? _soloLanguages.first) : _myLanguage;
+      final senderLang = widget.isSolo
+          ? (_soloActiveLanguage ?? _soloLanguages.first)
+          : _myLanguage;
       final targetLang =
           widget.isSolo ? _otherSoloLanguage(senderLang) : _myLanguage;
       final now = DateTime.now().millisecondsSinceEpoch;
@@ -459,8 +590,7 @@ class _RoomScreenState extends State<RoomScreen> {
 
   void _snack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   List<String> get _soloLanguages {
@@ -530,10 +660,13 @@ class _RoomScreenState extends State<RoomScreen> {
         'id': msg.id,
         'translatedLength': msg.translated.length,
       });
+      final autoPlay = _shouldAutoplay(msg);
       setState(() {
         _messages.removeWhere((m) => m.id == id);
         _messages.add(msg.copyWith(deliveryStatus: 'delivered'));
+        if (autoPlay) _autoplayMessageId = msg.id;
       });
+      if (autoPlay) _clearAutoplayAfter(msg.id);
       _scrollToEnd();
     } catch (e) {
       if (!mounted) return;
@@ -617,10 +750,13 @@ class _RoomScreenState extends State<RoomScreen> {
         'originalLength': msg.original.length,
         'translatedLength': msg.translated.length,
       });
+      final autoPlay = _shouldAutoplay(msg);
       setState(() {
         _messages.removeWhere((m) => m.id == msgId);
         _messages.add(msg.copyWith(deliveryStatus: 'delivered'));
+        if (autoPlay) _autoplayMessageId = msg.id;
       });
+      if (autoPlay) _clearAutoplayAfter(msg.id);
       _scrollToEnd();
     } catch (e) {
       if (!mounted) return;
@@ -673,9 +809,9 @@ class _RoomScreenState extends State<RoomScreen> {
         child: Column(
           children: [
             _header(),
-            if (widget.isSolo)
-              _soloLanguageToggle()
-            else
+            if (widget.isSolo) _soloLanguageToggle(),
+            _audioControls(),
+            if (!widget.isSolo)
               ParticipantList(
                   participants: _participants, mySocketId: _mySocketId),
             Expanded(
@@ -707,6 +843,8 @@ class _RoomScreenState extends State<RoomScreen> {
                           message: m,
                           isSolo: widget.isSolo,
                           soloLanguages: widget.isSolo ? _soloLanguages : null,
+                          autoplay: _autoplayMessageId == m.id,
+                          playTranslatedAudio: _translatedAudio,
                           onRetry: m.failed ? () => _retrySolo(m.id) : null,
                         );
                       },
@@ -731,8 +869,8 @@ class _RoomScreenState extends State<RoomScreen> {
             onTap: () => Navigator.of(context).pop(),
             child: const Padding(
               padding: EdgeInsets.all(4),
-              child:
-                  Text('←', style: TextStyle(color: AppColors.muted, fontSize: 20)),
+              child: Text('←',
+                  style: TextStyle(color: AppColors.muted, fontSize: 20)),
             ),
           ),
           const SizedBox(width: 12),
@@ -822,8 +960,7 @@ class _RoomScreenState extends State<RoomScreen> {
             child: Stack(
               children: [
                 AnimatedAlign(
-                  alignment:
-                      isA ? Alignment.centerLeft : Alignment.centerRight,
+                  alignment: isA ? Alignment.centerLeft : Alignment.centerRight,
                   duration: const Duration(milliseconds: 180),
                   curve: Curves.easeOut,
                   child: FractionallySizedBox(
@@ -876,6 +1013,82 @@ class _RoomScreenState extends State<RoomScreen> {
             style: TextStyle(color: AppColors.muted, fontSize: 12),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _audioControls() {
+    final s = context.appState;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      decoration: const BoxDecoration(
+        color: AppColors.bg,
+        border: Border(bottom: BorderSide(color: AppColors.border)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _audioSwitch(
+              label: s.t('room.autoplayVoice', fallback: 'Autoplay voice'),
+              value: _autoplayVoice,
+              onChanged: (value) => setState(() => _autoplayVoice = value),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _audioSwitch(
+              label: s.t('room.config.audioOut', fallback: 'Translated audio'),
+              value: _translatedAudio,
+              onChanged: _setTranslatedAudio,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _audioSwitch({
+    required String label,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => onChanged(!value),
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.only(left: 10),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: value ? AppColors.accent : AppColors.border,
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            Transform.scale(
+              scale: 0.74,
+              child: Switch(
+                value: value,
+                activeThumbColor: AppColors.accent,
+                onChanged: onChanged,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -988,8 +1201,8 @@ class _RoomScreenState extends State<RoomScreen> {
                   hintStyle: const TextStyle(color: AppColors.muted),
                   filled: true,
                   fillColor: AppColors.card,
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                     borderSide: const BorderSide(color: AppColors.border),

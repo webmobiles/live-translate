@@ -356,19 +356,19 @@ The web (`./web`) and phone (`./phone`) apps share the same backend and implemen
 | 1 | Room creation (normal mode) | ✅ | ✅ | Both use socket.io `room:create` |
 | 2 | Room creation (solo mode) | ✅ | ✅ | Web: HTTP or socket (env `WEB_SOLOROOM_SOCKET=yes`). Phone: HTTP or socket (dart define `PHONE_SOLOROOM_SOCKET=yes`) |
 | 3 | Room join by code (normal) | ✅ | ✅ | Socket.io `room:join` + code peek for guest language |
-| 4 | Solo room — double-language toggle UI | ✅ | ❌ | Web: `SoloLanguageToggle` A⇄B with equal-size source bubbles and consistent green translated-result bubbles for text/audio. Phone: fallback to first language only |
+| 4 | Solo room — double-language toggle UI | ✅ | ✅ | Web and Phone: A⇄B language toggle with equal-size source bubbles and consistent green translated-result bubbles for text/audio |
 | 5 | Text message send (normal) | ✅ | ✅ | Socket.io `message:text` with ack; same-language receivers keep original text and can still receive generated audio |
 | 6 | Text message send (solo) | ✅ | ✅ | Web and Phone: HTTP or socket; socket solo sends translated audio back to the same room socket |
 | 7 | Voice message send (normal) | ✅ | ✅ | Press & hold mic → socket `message:audio` |
 | 8 | Voice message send (solo) | ✅ | ✅ | Web and Phone: HTTP or socket |
-| 9 | Translation spinner while in-flight | ✅ | ✅ | Web: progress bar + delivery icons + instant mic placeholder with fake waveform + audio client stages (`preparing audio`, `encoding audio`, `sending audio`) + server-confirmed stage labels (`received`, `transcribing`, `translating`, `generating audio`, `saving`, `delivering`). Phone: ActivityIndicator only |
-| 10 | Delivery status icons (sending / queued / delivered / read / failed) | ✅ | ❌ | Web: WhatsApp-style checkmarks. Phone: not tracked |
+| 9 | Translation spinner while in-flight | ✅ | ✅ | Web and Phone: progress bar + delivery icons + instant mic placeholder with fake waveform + audio client stages (`preparing audio`, `encoding audio`, `sending audio`) + server-confirmed stage labels (`received`, `transcribing`, `translating`, `generating audio`, `saving`, `delivering`) |
+| 10 | Delivery status icons (sending / queued / delivered / read / failed) | ✅ | ✅ | Web and Phone: WhatsApp-style checkmarks/status markers |
 | 11 | Message bubble — tap to toggle original / translation | ✅ | ❌ | Web only. Phone shows both simultaneously |
-| 12 | Audio autoplay with shared player element | ✅ | ❌ | Web: unified Audio element, queued retry, gesture unlock |
-| 13 | Audio waveform visualization | ✅ | ❌ | Web: SVG waveform with seek, play/pause, duration |
-| 14 | Audio playback fallback (translated → original on error) | ✅ | ❌ | Web: falls back to `originalAudio` when TTS fails |
-| 15 | Voice autoplay toggle (host checkbox) | ✅ | ❌ | Web: checkbox in room header |
-| 16 | Room config edit in-room (voice pipeline, audio output) | ✅ | ❌ | Web: host can toggle STT/direct-voice and TTS audio from inside the room |
+| 12 | Audio autoplay with shared player element | ✅ | ✅ | Web: unified Audio element with queued retry/gesture unlock. Phone: per-bubble player with room-level autoplay enabled by default |
+| 13 | Audio waveform visualization | ✅ | ✅ | Web: SVG waveform with seek/play/pause/duration. Phone: waveform-style play/pause row; pending audio keeps the optimistic fake waveform |
+| 14 | Audio playback fallback (translated → original on error) | ✅ | ✅ | Web and Phone: prefer `translatedAudio`, then fall back to allowed `originalAudio` |
+| 15 | Voice autoplay toggle (host checkbox) | ✅ | ✅ | Web and Phone: room-level autoplay control, enabled by default |
+| 16 | Room config edit in-room (voice pipeline, audio output) | ✅ | ⚠️ | Web: host can toggle STT/direct-voice and TTS audio. Phone: translated-audio output toggle is in-room; voice pipeline toggle remains create-room only |
 | 17 | System messages (join / left / reconnect) | ✅ | ✅ | Both platforms |
 | 18 | Participant list with language badges | ✅ | ✅ | Web: tailwind chips. Phone: horizontal scroll |
 | 19 | Language picker | ✅ | ✅ | Web: modal with search. Phone: bottom sheet with flag+name |

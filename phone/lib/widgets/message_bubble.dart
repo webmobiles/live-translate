@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 
 import '../models/language.dart';
@@ -31,12 +35,16 @@ class MessageBubble extends StatelessWidget {
   final Message message;
   final bool isSolo;
   final List<String>? soloLanguages;
+  final bool autoplay;
+  final bool playTranslatedAudio;
   final VoidCallback? onRetry;
   const MessageBubble({
     super.key,
     required this.message,
     this.isSolo = false,
     this.soloLanguages,
+    this.autoplay = false,
+    this.playTranslatedAudio = true,
     this.onRetry,
   });
 
@@ -57,6 +65,8 @@ class MessageBubble extends StatelessWidget {
         soloLanguages: soloLanguages,
         stageLabel: stageLabel,
         time: time,
+        autoplay: autoplay,
+        playTranslatedAudio: playTranslatedAudio,
         onRetry: onRetry,
       );
     }
@@ -112,9 +122,8 @@ class MessageBubble extends StatelessWidget {
                         child: Text('🎤 Voice',
                             style: TextStyle(
                                 fontSize: 12,
-                                color: isMine
-                                    ? Colors.white70
-                                    : AppColors.muted)),
+                                color:
+                                    isMine ? Colors.white70 : AppColors.muted)),
                       ),
                     if (message.isAudio)
                       _FakeWaveform(isMine: isMine, seed: message.id)
@@ -136,8 +145,8 @@ class MessageBubble extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(stageLabel ?? time,
-                      style:
-                          const TextStyle(color: AppColors.muted, fontSize: 12)),
+                      style: const TextStyle(
+                          color: AppColors.muted, fontSize: 12)),
                   if (isMine) ...[
                     const SizedBox(width: 4),
                     _DeliveryIcon(status: message.deliveryStatus),
@@ -151,6 +160,15 @@ class MessageBubble extends StatelessWidget {
     }
 
     final showOriginal = !isMine && message.translated != message.original;
+    final playableOriginalAudio = _messageCanUseOriginalAudio(message)
+        ? _audioPayloadFromMap(message.originalAudio)
+        : null;
+    final playableTranslatedAudio = playTranslatedAudio
+        ? _audioPayloadFromMap(message.translatedAudio)
+        : null;
+    final audioToPlay = playableTranslatedAudio ?? playableOriginalAudio;
+    final fallbackAudio =
+        playableTranslatedAudio != null ? playableOriginalAudio : null;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -209,8 +227,17 @@ class MessageBubble extends StatelessWidget {
                         ),
                       ),
                     ),
-                  if (message.isAudio) ...[
-                    _FakeWaveform(isMine: isMine, seed: message.id),
+                  if (message.isAudio || audioToPlay != null) ...[
+                    if (audioToPlay != null)
+                      _AudioWaveformPlayer(
+                        primary: audioToPlay,
+                        fallback: fallbackAudio,
+                        isMine: isMine,
+                        seed: message.id,
+                        autoplay: autoplay,
+                      )
+                    else
+                      _FakeWaveform(isMine: isMine, seed: message.id),
                     const SizedBox(height: 8),
                   ],
                   Text(
@@ -282,8 +309,8 @@ class MessageBubble extends StatelessWidget {
 String _progressLabel(BuildContext context, Message message) {
   final stage = message.progressStage ?? _stageFromProgress(message.progress);
   return context.appState.t('room.progress.$stage',
-      fallback: context.appState.t('room.progress.sending',
-          fallback: 'Sending to server'));
+      fallback: context.appState
+          .t('room.progress.sending', fallback: 'Sending to server'));
 }
 
 String _stageFromProgress(double? progress) {
@@ -317,9 +344,191 @@ class _DeliveryIcon extends StatelessWidget {
     };
     if (text.isEmpty) return const SizedBox.shrink();
     return Text(text,
-        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700));
+        style:
+            TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700));
   }
 }
+
+class _AudioPayload {
+  final String audioBase64;
+  final String mimeType;
+  const _AudioPayload({required this.audioBase64, required this.mimeType});
+
+  Uint8List? get bytes {
+    try {
+      return base64Decode(audioBase64);
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+_AudioPayload? _audioPayloadFromMap(Map<String, dynamic>? audio) {
+  final audioBase64 = audio?['audioBase64'];
+  final mimeType = audio?['mimeType'];
+  if (audioBase64 is! String ||
+      audioBase64.isEmpty ||
+      mimeType is! String ||
+      mimeType.isEmpty) {
+    return null;
+  }
+  return _AudioPayload(audioBase64: audioBase64, mimeType: mimeType);
+}
+
+bool _messageCanUseOriginalAudio(Message message) =>
+    message.isMine || message.senderLang == message.targetLang;
+
+class _AudioWaveformPlayer extends StatefulWidget {
+  final _AudioPayload primary;
+  final _AudioPayload? fallback;
+  final bool isMine;
+  final String seed;
+  final bool autoplay;
+
+  const _AudioWaveformPlayer({
+    required this.primary,
+    required this.fallback,
+    required this.isMine,
+    required this.seed,
+    required this.autoplay,
+  });
+
+  @override
+  State<_AudioWaveformPlayer> createState() => _AudioWaveformPlayerState();
+}
+
+class _AudioWaveformPlayerState extends State<_AudioWaveformPlayer> {
+  late final AudioPlayer _player;
+  bool _isPlaying = false;
+  bool _usingFallback = false;
+  String _lastAutoplayKey = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _player = AudioPlayer();
+    _player.onPlayerStateChanged.listen((state) {
+      if (!mounted) return;
+      setState(() => _isPlaying = state == PlayerState.playing);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAutoplay());
+  }
+
+  @override
+  void didUpdateWidget(covariant _AudioWaveformPlayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAutoplay());
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  String get _sourceKey {
+    final payload =
+        _usingFallback ? widget.fallback ?? widget.primary : widget.primary;
+    return '${widget.seed}:${payload.mimeType}:${payload.audioBase64.length}:$_usingFallback';
+  }
+
+  void _maybeAutoplay() {
+    if (!mounted || !widget.autoplay || _lastAutoplayKey == _sourceKey) return;
+    _lastAutoplayKey = _sourceKey;
+    _play();
+  }
+
+  Future<void> _toggle() async {
+    if (_isPlaying) {
+      await _player.pause();
+      return;
+    }
+    await _play();
+  }
+
+  Future<void> _play() async {
+    final payload =
+        _usingFallback ? widget.fallback ?? widget.primary : widget.primary;
+    final bytes = payload.bytes;
+    if (bytes == null || bytes.isEmpty) {
+      await _tryFallback();
+      return;
+    }
+    try {
+      await _player.stop();
+      await _player.play(BytesSource(bytes, mimeType: payload.mimeType));
+    } catch (_) {
+      await _tryFallback();
+    }
+  }
+
+  Future<void> _tryFallback() async {
+    if (_usingFallback || widget.fallback == null) return;
+    setState(() => _usingFallback = true);
+    await _play();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final active = widget.isMine ? Colors.white70 : AppColors.primary;
+    final inactive = widget.isMine ? Colors.white24 : AppColors.primaryMuted;
+    final bars = _waveBars(widget.seed);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        InkWell(
+          onTap: _toggle,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 34,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: widget.isMine ? Colors.white12 : AppColors.primaryMuted,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              _isPlaying ? Icons.pause : Icons.play_arrow,
+              color: widget.isMine ? Colors.white : AppColors.primary,
+              size: 18,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 150,
+          height: 30,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              for (var i = 0; i < bars.length; i++)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 1),
+                  child: Container(
+                    width: 3,
+                    height: bars[i],
+                    decoration: BoxDecoration(
+                      color: _isPlaying && i < 10 ? active : inactive,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+List<double> _waveBars(String seed) => List<double>.generate(28, (i) {
+      final code = seed.isEmpty ? 17 : seed.codeUnitAt(i % seed.length);
+      final envelope = 0.35 + (i % 9) / 12;
+      final noise = ((code + i * 31) % 10) / 12;
+      return 6 + (envelope + noise) * 16;
+    });
 
 class _FakeWaveform extends StatelessWidget {
   final bool isMine;
@@ -330,12 +539,7 @@ class _FakeWaveform extends StatelessWidget {
   Widget build(BuildContext context) {
     final active = isMine ? Colors.white70 : AppColors.primary;
     final inactive = isMine ? Colors.white24 : AppColors.primaryMuted;
-    final bars = List<double>.generate(28, (i) {
-      final code = seed.isEmpty ? 17 : seed.codeUnitAt(i % seed.length);
-      final envelope = 0.35 + (i % 9) / 12;
-      final noise = ((code + i * 31) % 10) / 12;
-      return 6 + (envelope + noise) * 16;
-    });
+    final bars = _waveBars(seed);
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -349,7 +553,8 @@ class _FakeWaveform extends StatelessWidget {
             color: isMine ? Colors.white12 : AppColors.primaryMuted,
             shape: BoxShape.circle,
           ),
-          child: Icon(Icons.mic, color: isMine ? Colors.white : AppColors.primary, size: 16),
+          child: Icon(Icons.mic,
+              color: isMine ? Colors.white : AppColors.primary, size: 16),
         ),
         const SizedBox(width: 8),
         SizedBox(
@@ -383,6 +588,8 @@ class _SoloMessageBubble extends StatelessWidget {
   final List<String>? soloLanguages;
   final String? stageLabel;
   final String time;
+  final bool autoplay;
+  final bool playTranslatedAudio;
   final VoidCallback? onRetry;
 
   const _SoloMessageBubble({
@@ -390,6 +597,8 @@ class _SoloMessageBubble extends StatelessWidget {
     required this.soloLanguages,
     required this.stageLabel,
     required this.time,
+    required this.autoplay,
+    required this.playTranslatedAudio,
     required this.onRetry,
   });
 
@@ -403,6 +612,12 @@ class _SoloMessageBubble extends StatelessWidget {
     final align = isA ? CrossAxisAlignment.start : CrossAxisAlignment.end;
     final sourceColor = isA ? AppColors.card : AppColors.primary;
     final sourceBorder = isA ? Border.all(color: AppColors.border) : null;
+    final originalAudio = _messageCanUseOriginalAudio(message)
+        ? _audioPayloadFromMap(message.originalAudio)
+        : null;
+    final translatedAudio = playTranslatedAudio
+        ? _audioPayloadFromMap(message.translatedAudio)
+        : null;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -412,7 +627,9 @@ class _SoloMessageBubble extends StatelessWidget {
           _langHeader(senderInfo, muted: true),
           _bubble(
             color: sourceColor,
-            border: message.failed ? Border.all(color: AppColors.danger) : sourceBorder,
+            border: message.failed
+                ? Border.all(color: AppColors.danger)
+                : sourceBorder,
             leftTail: isA,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -423,12 +640,22 @@ class _SoloMessageBubble extends StatelessWidget {
                     child: Text('🎤 Voice',
                         style: TextStyle(color: AppColors.muted, fontSize: 12)),
                   ),
-                if (message.isAudio) ...[
-                  _FakeWaveform(isMine: !isA, seed: '${message.id}:source'),
+                if (message.isAudio || originalAudio != null) ...[
+                  if (originalAudio != null)
+                    _AudioWaveformPlayer(
+                      primary: originalAudio,
+                      fallback: null,
+                      isMine: !isA,
+                      seed: '${message.id}:source',
+                      autoplay: autoplay && translatedAudio == null,
+                    )
+                  else
+                    _FakeWaveform(isMine: !isA, seed: '${message.id}:source'),
                   const SizedBox(height: 8),
                 ],
                 Text(message.original,
-                    style: const TextStyle(color: Colors.white, fontSize: 16, height: 1.4)),
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 16, height: 1.4)),
               ],
             ),
           ),
@@ -437,13 +664,24 @@ class _SoloMessageBubble extends StatelessWidget {
             _langHeader(targetInfo, muted: false),
             _bubble(
               color: AppColors.accent.withValues(alpha: 0.15),
-              border: Border.all(color: AppColors.accent.withValues(alpha: 0.35)),
+              border:
+                  Border.all(color: AppColors.accent.withValues(alpha: 0.35)),
               leftTail: isA,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (message.isAudio) ...[
-                    _FakeWaveform(isMine: false, seed: '${message.id}:translated'),
+                  if (message.isAudio || translatedAudio != null) ...[
+                    if (translatedAudio != null)
+                      _AudioWaveformPlayer(
+                        primary: translatedAudio,
+                        fallback: originalAudio,
+                        isMine: false,
+                        seed: '${message.id}:translated',
+                        autoplay: autoplay,
+                      )
+                    else
+                      _FakeWaveform(
+                          isMine: false, seed: '${message.id}:translated'),
                     const SizedBox(height: 8),
                   ],
                   Text(message.translated,
@@ -544,8 +782,8 @@ class _TranslationProgressBarState extends State<TranslationProgressBar>
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
-        vsync: this, duration: const Duration(seconds: 9));
+    _ctrl =
+        AnimationController(vsync: this, duration: const Duration(seconds: 9));
     _fill = Tween<double>(begin: 0.08, end: 0.92)
         .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
     _ctrl.forward();
@@ -575,9 +813,8 @@ class _TranslationProgressBarState extends State<TranslationProgressBar>
           animation: _fill,
           builder: (context, _) => FractionallySizedBox(
             alignment: Alignment.centerLeft,
-            widthFactor: fixed != null
-                ? (fixed.clamp(0, 100) / 100)
-                : _fill.value,
+            widthFactor:
+                fixed != null ? (fixed.clamp(0, 100) / 100) : _fill.value,
             child: Container(
               decoration: BoxDecoration(
                 gradient: const LinearGradient(

@@ -71,8 +71,7 @@ class _JoinScreenState extends State<JoinScreen> {
   }
 
   void _snack(String msg) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   void _handleJoin() {
@@ -107,6 +106,8 @@ class _JoinScreenState extends State<JoinScreen> {
             final soloLanguages = (config?['soloLanguages'] as List?)
                 ?.whereType<String>()
                 .toList();
+            final output = config?['output'] as Map?;
+            final translatedAudio = output?['translatedAudio'] as bool? ?? true;
             Navigator.of(context).pushReplacement(MaterialPageRoute(
               builder: (_) => RoomScreen(
                 code: room['code'] as String,
@@ -119,6 +120,9 @@ class _JoinScreenState extends State<JoinScreen> {
                     soloLanguages != null && soloLanguages.length >= 2
                         ? soloLanguages.take(2).toList()
                         : null,
+                initialTranslatedAudio: translatedAudio,
+                initialConfig:
+                    config != null ? Map<String, dynamic>.from(config) : null,
               ),
             ));
           } else {
@@ -248,8 +252,9 @@ class _JoinScreenState extends State<JoinScreen> {
                 label: s.t('join.cta'),
                 loading: _loading,
                 disabled: !ready,
-                variant:
-                    ready ? AppButtonVariant.primary : AppButtonVariant.secondary,
+                variant: ready
+                    ? AppButtonVariant.primary
+                    : AppButtonVariant.secondary,
                 labelColor: ready ? Colors.white : AppColors.muted,
                 onPressed: _handleJoin,
               ),

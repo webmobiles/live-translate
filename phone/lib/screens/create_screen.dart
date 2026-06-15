@@ -40,8 +40,7 @@ class _CreateScreenState extends State<CreateScreen> {
   }
 
   void _snack(String msg) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   void _handleCreate() {
@@ -102,6 +101,8 @@ class _CreateScreenState extends State<CreateScreen> {
                 isHost: true,
                 mode: _isSolo ? 'solo_multilang' : 'normal',
                 soloLanguages: _isSolo ? [_soloLangA, _soloLangB] : null,
+                initialTranslatedAudio: _translatedAudio,
+                initialConfig: config.toJson(),
               ),
             ));
           } else {
@@ -141,6 +142,8 @@ class _CreateScreenState extends State<CreateScreen> {
           isHost: true,
           mode: 'solo_multilang',
           soloLanguages: [_soloLangA, _soloLangB],
+          initialTranslatedAudio: _translatedAudio,
+          initialConfig: config.toJson(),
         ),
       ));
     } catch (e) {
@@ -195,8 +198,7 @@ class _CreateScreenState extends State<CreateScreen> {
                       title: s.t('create.mode.solo'),
                       sub: s.t('create.mode.soloSub'),
                       selected: _isSolo,
-                      onTap: () =>
-                          setState(() => _roomMode = 'solo_multilang'),
+                      onTap: () => setState(() => _roomMode = 'solo_multilang'),
                     ),
                   ),
                 ],
@@ -413,8 +415,8 @@ class _ModeCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected ? AppColors.primaryMuted : AppColors.card,
           borderRadius: BorderRadius.circular(12),
-          border:
-              Border.all(color: selected ? AppColors.primary : AppColors.border),
+          border: Border.all(
+              color: selected ? AppColors.primary : AppColors.border),
         ),
         child: Column(
           children: [
@@ -464,8 +466,8 @@ class _PickerRow extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(text,
-                style: TextStyle(
-                    color: textColor ?? Colors.white, fontSize: 16)),
+                style:
+                    TextStyle(color: textColor ?? Colors.white, fontSize: 16)),
             LanguageBadge(code: code),
           ],
         ),

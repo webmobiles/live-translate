@@ -84,18 +84,101 @@ class SoloApi {
     }
   }
 
+  static Future<Map<String, dynamic>> _patch(
+    String path,
+    Map<String, dynamic> body, {
+    required String label,
+    Duration timeout = const Duration(seconds: 45),
+  }) async {
+    final uri = Uri.parse('$kServerUrl$path');
+    final startedAt = DateTime.now();
+    ClientLogService.info('client.solo.$label.request', {
+      'url': uri.toString(),
+      'path': path,
+      'bodyKeys': body.keys.toList(),
+      'timeoutMs': timeout.inMilliseconds,
+    });
+
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 12);
+    try {
+      final req = await client.patchUrl(uri);
+      req.headers.contentType = ContentType.json;
+      req.write(jsonEncode(body));
+      final res = await req.close().timeout(timeout);
+      final text = await utf8.decoder
+          .bind(res)
+          .join()
+          .timeout(const Duration(seconds: 15));
+      final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
+      final decoded = text.isNotEmpty
+          ? jsonDecode(text) as Map<String, dynamic>
+          : <String, dynamic>{};
+
+      ClientLogService.info('client.solo.$label.response', {
+        'url': uri.toString(),
+        'statusCode': res.statusCode,
+        'ok': decoded['ok'],
+        'durationMs': durationMs,
+        'error': decoded['error']?.toString(),
+      });
+
+      if (res.statusCode < 200 ||
+          res.statusCode >= 300 ||
+          decoded['ok'] != true) {
+        throw SoloApiException(
+          decoded['error']?.toString() ?? 'Request failed (${res.statusCode})',
+        );
+      }
+      return decoded;
+    } on TimeoutException {
+      ClientLogService.error('client.solo.$label.timeout', {
+        'url': uri.toString(),
+        'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+      });
+      throw const SoloApiException('No response from server — timed out');
+    } catch (err) {
+      ClientLogService.error('client.solo.$label.exception', {
+        'url': uri.toString(),
+        'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        'error': err.toString(),
+      });
+      rethrow;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
   /// `POST /api/solo/rooms` — create a solo room. Returns its code + name.
   static Future<SoloRoom> createRoom({
     String? name,
     required RoomConfig config,
   }) async {
-    final res = await _post('/api/solo/rooms', {
-      if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
-      'config': config.toJson(),
-    }, label: 'create', timeout: const Duration(seconds: 20));
+    final res = await _post(
+        '/api/solo/rooms',
+        {
+          if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
+          'config': config.toJson(),
+        },
+        label: 'create',
+        timeout: const Duration(seconds: 20));
     final room = res['room'] as Map?;
     final code = res['code'] as String;
     return SoloRoom(code: code, name: (room?['name'] as String?) ?? code);
+  }
+
+  /// `PATCH /api/solo/rooms/:code/config` — update room media settings.
+  static Future<void> updateConfig({
+    required String code,
+    required Map<String, dynamic> config,
+  }) async {
+    await _patch(
+        '/api/solo/rooms/${Uri.encodeComponent(code)}/config',
+        {
+          'config': config,
+        },
+        label: 'config',
+        timeout: const Duration(seconds: 20));
   }
 
   /// `POST /api/solo/rooms/:code/text` — translate a typed message.
@@ -107,13 +190,17 @@ class SoloApi {
     required String senderLang,
     required String targetLang,
   }) async {
-    final res = await _post('/api/solo/rooms/${Uri.encodeComponent(code)}/text', {
-      'text': text,
-      'clientMsgId': clientMsgId,
-      'sender': sender,
-      'senderLang': senderLang,
-      'targetLang': targetLang,
-    }, label: 'text', timeout: const Duration(seconds: 30));
+    final res = await _post(
+        '/api/solo/rooms/${Uri.encodeComponent(code)}/text',
+        {
+          'text': text,
+          'clientMsgId': clientMsgId,
+          'sender': sender,
+          'senderLang': senderLang,
+          'targetLang': targetLang,
+        },
+        label: 'text',
+        timeout: const Duration(seconds: 30));
     return Message.fromJson(Map<String, dynamic>.from(res['message'] as Map));
   }
 
@@ -128,16 +215,19 @@ class SoloApi {
     required String senderLang,
     required String targetLang,
   }) async {
-    final res =
-        await _post('/api/solo/rooms/${Uri.encodeComponent(code)}/audio', {
-      'audioBase64': audioBase64,
-      'mimeType': mimeType,
-      'durationMs': durationMs,
-      'clientMsgId': clientMsgId,
-      'sender': sender,
-      'senderLang': senderLang,
-      'targetLang': targetLang,
-    }, label: 'audio', timeout: const Duration(seconds: 60));
+    final res = await _post(
+        '/api/solo/rooms/${Uri.encodeComponent(code)}/audio',
+        {
+          'audioBase64': audioBase64,
+          'mimeType': mimeType,
+          'durationMs': durationMs,
+          'clientMsgId': clientMsgId,
+          'sender': sender,
+          'senderLang': senderLang,
+          'targetLang': targetLang,
+        },
+        label: 'audio',
+        timeout: const Duration(seconds: 60));
     return Message.fromJson(Map<String, dynamic>.from(res['message'] as Map));
   }
 
