@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 import { CircleAlert, Mic, Pause, Play, Send, Square, X } from 'lucide-react'
 import { connectSocket, disconnectSocket, SOLOROOM_SOCKET } from '@/lib/socket'
 import { getLang } from '@/lib/languages'
-import { LanguageSelector, LanguageBadge } from '@/components/LanguageSelector'
 import { SoloLanguageToggle } from '@/components/SoloLanguageToggle'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import type { Message, Participant, RoomConfig } from '@/types'
@@ -327,7 +326,6 @@ function RoomScreen() {
   const [participants, setParticipants] = useState<Participant[]>([])
   const [inputText, setInputText] = useState('')
   const [isConnected, setIsConnected] = useState(false)
-  const [showLangPicker, setShowLangPicker] = useState(false)
   const [myLanguage, setMyLanguage] = useState(initialLang)
   const [roomLost, setRoomLost] = useState(false)
   const [connectionError, setConnectionError] = useState('')
@@ -1189,9 +1187,6 @@ function RoomScreen() {
             </span>
           </div>
         </div>
-        {roomConfig.mode !== 'solo_multilang' && (
-          <LanguageBadge code={myLanguage} onClick={() => setShowLangPicker(true)} />
-        )}
       </div>
 
       {/* Solo language toggle (replaces participant bar in solo mode) */}
@@ -1361,13 +1356,6 @@ function RoomScreen() {
           </button>
         )}
       </div>
-
-      <LanguageSelector
-        visible={showLangPicker}
-        selected={myLanguage}
-        onSelect={updateLanguage}
-        onClose={() => setShowLangPicker(false)}
-      />
     </div>
   )
 }
