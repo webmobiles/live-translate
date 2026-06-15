@@ -167,9 +167,19 @@
     },
     "progress": {
       "sending": "Sende an Server",
+      "preparingAudio": "Audio wird vorbereitet…",
+      "encodingAudio": "Audio wird codiert…",
+      "sendingAudio": "Sende Audio an Server",
       "received": "Vom Server empfangen",
+      "transcribing": "Sprache wird transkribiert…",
+      "transcribed": "Sprache transkribiert",
       "translating": "Übersetze\u2026",
-      "generatingAudio": "Erstelle Audio"
+      "translated": "Übersetzung bereit",
+      "directVoiceTranslation": "Sprache wird direkt übersetzt…",
+      "generatingAudio": "Erstelle Audio",
+      "saving": "Nachricht wird gespeichert",
+      "delivering": "Wird an Raum gesendet",
+      "delivered": "Zugestellt"
     }
   },
   "settings": {

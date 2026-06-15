@@ -498,7 +498,7 @@ async function startQueueConsumer() {
     }
 
     if (type === 'message:progress') {
-      emitToRoom(roomCode, 'message:progress', { id: data.msgId, progress: data.progress });
+      emitToRoom(roomCode, 'message:progress', { id: data.msgId, progress: data.progress, stage: data.stage });
     }
 
     if (type === 'message:incoming') {
@@ -778,8 +778,9 @@ io.on('connection', (socket) => {
         textLength: text.trim().length,
       }, 'Text message received');
 
-      // 1. Immediately notify all servers to show the "translating" spinner
+      // 1. Immediately notify all servers to show the in-flight message
       await queue.publishTranslating(roomCode, msgId);
+      await queue.publishMessageProgress(roomCode, msgId, 25, 'received');
 
       // 2. Trigger Inngest workflow (translate → save → broadcast)
       await workflows.triggerTranslate({
@@ -803,14 +804,14 @@ io.on('connection', (socket) => {
   });
 
   // ── Audio message → queue + Inngest ──────────────────────────────────────
-  socket.on('message:audio', async ({ audioBase64, mimeType, durationMs, durationSeconds, audioDurationMs, audioDurationSeconds, senderLang: clientSenderLang }: any = {}) => {
+  socket.on('message:audio', async ({ audioBase64, mimeType, durationMs, durationSeconds, audioDurationMs, audioDurationSeconds, senderLang: clientSenderLang, clientMsgId }: any = {}) => {
     const { roomCode, roomId, participant } = socket.data;
     if (!roomCode || !participant || !audioBase64) return;
     const effectiveSenderLang = (typeof clientSenderLang === 'string' && clientSenderLang)
       ? clientSenderLang
       : participant.language;
 
-    const msgId        = makeMsgId();
+    const msgId        = isUuid(clientMsgId) ? clientMsgId : makeMsgId();
     const participants = roomManager.getParticipants(roomCode);
     const roomConfig   = roomManager.get(roomCode)?.config;
 
@@ -853,13 +854,11 @@ io.on('connection', (socket) => {
         audioBytesApprox: Math.round(audioBase64.length * 0.75),
       }, 'Audio message received');
 
-      // 1. Emit 25% progress immediately to sender (audio arrived at server)
-      socket.emit('message:progress', { id: msgId, progress: 25 });
-
-      // 2. Show spinner on all servers immediately (backward-compat)
+      // 1. Show spinner on all servers immediately (backward-compat)
       await queue.publishTranslating(roomCode, msgId);
+      await queue.publishMessageProgress(roomCode, msgId, 25, 'received');
 
-      // 3. Trigger Inngest workflow (transcribe → translate → save → broadcast)
+      // 2. Trigger Inngest workflow (transcribe → translate → save → broadcast)
       await workflows.triggerTranscribe({
         msgId,
         roomCode,

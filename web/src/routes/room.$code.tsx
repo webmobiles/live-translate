@@ -16,6 +16,7 @@ const DEFAULT_ROOM_CONFIG: RoomConfig = {
   output: { translatedText: true, translatedAudio: true },
 }
 const MIN_VOICE_MESSAGE_DURATION_MS = 1000
+const MIN_SENDING_STAGE_MS = 450
 const SILENT_AUDIO_SRC = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=='
 
 type AudioPlayFailureHandler = (error: unknown) => void
@@ -32,6 +33,21 @@ type SharedAudioSnapshot = {
 }
 type MessageAudioPayload = NonNullable<Message['translatedAudio']>
 type RoomTransport = 'loading' | 'solo-http' | 'socket'
+type MessageProgressStage =
+  | 'sending'
+  | 'preparingAudio'
+  | 'encodingAudio'
+  | 'sendingAudio'
+  | 'received'
+  | 'transcribing'
+  | 'transcribed'
+  | 'translating'
+  | 'translated'
+  | 'directVoiceTranslation'
+  | 'generatingAudio'
+  | 'saving'
+  | 'delivering'
+  | 'delivered'
 
 function isPlayableAudioPayload(audio?: MessageAudioPayload | null): audio is MessageAudioPayload {
   return Boolean(audio?.audioBase64 && audio.mimeType?.startsWith('audio/'))
@@ -44,6 +60,21 @@ function messageCanUseOriginalAudio(message: Pick<Message, 'isMine' | 'senderLan
 function messageHasPlayableAudio(message: Pick<Message, 'originalAudio' | 'translatedAudio' | 'isMine' | 'senderLang' | 'targetLang'>) {
   return isPlayableAudioPayload(message.translatedAudio)
     || (messageCanUseOriginalAudio(message) && isPlayableAudioPayload(message.originalAudio))
+}
+
+function progressStageFromPercent(progress?: number): MessageProgressStage {
+  if (typeof progress !== 'number' || progress < 25) return 'sending'
+  if (progress < 35) return 'received'
+  if (progress < 55) return 'transcribing'
+  if (progress < 75) return 'translating'
+  if (progress < 90) return 'generatingAudio'
+  if (progress < 96) return 'delivering'
+  return 'delivered'
+}
+
+function getProgressStageLabel(t: ReturnType<typeof useTranslation>['t'], message: Message) {
+  const stage = (message.progressStage || progressStageFromPercent(message.progress)) as MessageProgressStage
+  return t(`room.progress.${stage}`, t('room.progress.sending'))
 }
 
 const pendingAutoPlayRequests: SharedAudioRequest[] = []
@@ -310,6 +341,7 @@ function RoomScreen() {
   const hasSyncedRoom = useRef(false)
   const syncInFlight = useRef(false)
   const wasDisconnected = useRef(false)
+  const sendingStageStartedAt = useRef(new Map<string, number>())
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -556,10 +588,12 @@ function RoomScreen() {
         return [...prev, {
           id, original: '…', translated: '…', sender: '', senderLang: myLanguageRef.current,
           targetLang: myLanguageRef.current, isMine: false, timestamp: Date.now(), isTranslating: true,
+          progressStage: 'received',
         }]
       })
     }
     const onMessageIncoming = (msg: Message) => {
+      sendingStageStartedAt.current.delete(msg.id)
       setMessages(prev => {
         const existing = prev.find(m => m.id === msg.id)
         const filtered = prev.filter(m => m.id !== msg.id)
@@ -579,17 +613,29 @@ function RoomScreen() {
       setTimeout(scrollToBottom, 100)
     }
     const onMessageError = ({ id }: { id: string }) => {
+      sendingStageStartedAt.current.delete(id)
       setMessages(prev => prev.flatMap(m => {
         if (m.id !== id) return [m]
         return m.isMine ? [{ ...m, deliveryStatus: 'failed' as const, progress: undefined }] : []
       }))
     }
-    const onMessageProgress = ({ id, progress }: { id: string; progress: number }) => {
+    const onMessageProgress = ({ id, progress, stage }: { id: string; progress: number; stage?: string }) => {
+      const startedAt = sendingStageStartedAt.current.get(id)
+      const remainingSendingMs = startedAt
+        ? MIN_SENDING_STAGE_MS - (Date.now() - startedAt)
+        : 0
+
+      if (stage && stage !== 'sending' && remainingSendingMs > 0) {
+        window.setTimeout(() => onMessageProgress({ id, progress, stage }), remainingSendingMs)
+        return
+      }
+
       setMessages(prev => prev.map(m =>
-        m.id === id ? { ...m, progress } : m
+        m.id === id ? { ...m, progress, progressStage: stage ?? m.progressStage } : m
       ))
     }
     const onMessageDelivered = ({ id }: { id: string }) => {
+      sendingStageStartedAt.current.delete(id)
       setMessages(prev => prev.map(m =>
         m.id === id && m.isMine && m.deliveryStatus !== 'read'
           ? { ...m, deliveryStatus: 'delivered' as const }
@@ -597,6 +643,7 @@ function RoomScreen() {
       ))
     }
     const onMessageRead = ({ id }: { id: string }) => {
+      sendingStageStartedAt.current.delete(id)
       setMessages(prev => prev.map(m =>
         m.id === id && m.isMine ? { ...m, deliveryStatus: 'read' as const } : m
       ))
@@ -765,6 +812,7 @@ function RoomScreen() {
     const effectiveSenderLang = isSolo && effectiveSoloLang
       ? effectiveSoloLang
       : myLanguageRef.current
+    sendingStageStartedAt.current.set(id, Date.now())
     setMessages(prev => [...prev, {
       id,
       original: text,
@@ -776,6 +824,7 @@ function RoomScreen() {
       timestamp: Date.now(),
       isTranslating: false,
       deliveryStatus: 'sending',
+      progressStage: 'sending',
     }])
     if (isSolo && !SOLOROOM_SOCKET) {
       setInputText('')
@@ -820,7 +869,7 @@ function RoomScreen() {
         setMessages(prev => prev.map(m => {
           if (m.id !== id) return m
           if (err || !res?.ok) return { ...m, deliveryStatus: 'failed' as const }
-          return { ...m, deliveryStatus: 'queued' as const }
+          return { ...m, deliveryStatus: 'queued' as const, progressStage: m.progressStage ?? 'received' }
         }))
       },
     )
@@ -830,8 +879,9 @@ function RoomScreen() {
   const retryMessage = useCallback((msg: Message) => {
     if (msg.deliveryStatus !== 'failed' || !msg.isMine) return
     const isSolo = roomConfig.mode === 'solo_multilang'
+    sendingStageStartedAt.current.set(msg.id, Date.now())
     setMessages(prev => prev.map(m =>
-      m.id === msg.id ? { ...m, deliveryStatus: 'sending' as const, progress: 25 } : m
+      m.id === msg.id ? { ...m, deliveryStatus: 'sending' as const, progress: 10, progressStage: 'sending' } : m
     ))
 
     if (isSolo && !SOLOROOM_SOCKET) {
@@ -873,7 +923,7 @@ function RoomScreen() {
         setMessages(prev => prev.map(m => {
           if (m.id !== msg.id) return m
           if (err || !res?.ok) return { ...m, deliveryStatus: 'failed' as const, progress: undefined }
-          return { ...m, deliveryStatus: 'queued' as const, progress: undefined }
+          return { ...m, deliveryStatus: 'queued' as const, progress: undefined, progressStage: m.progressStage ?? 'received' }
         }))
       },
     )
@@ -913,29 +963,45 @@ function RoomScreen() {
         return
       }
       const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+      const id = crypto.randomUUID()
+      const isSolo = roomConfig.mode === 'solo_multilang'
+      const senderLang = isSolo && soloActiveLangRef.current ? soloActiveLangRef.current : myLanguageRef.current
+
+      sendingStageStartedAt.current.set(id, Date.now())
+      setMessages(prev => [...prev, {
+        id,
+        original: '…',
+        translated: '…',
+        sender: nickname || t('room.me'),
+        senderLang,
+        targetLang: myLanguageRef.current,
+        isMine: true,
+        isAudio: true,
+        timestamp: Date.now(),
+        isTranslating: true,
+        deliveryStatus: 'sending',
+        progress: 5,
+        progressStage: 'preparingAudio',
+      }])
+      setTimeout(scrollToBottom, 100)
+
       const reader = new FileReader()
+      window.setTimeout(() => {
+        setMessages(prev => prev.map(m =>
+          m.id === id && m.progressStage === 'preparingAudio'
+            ? { ...m, progress: 10, progressStage: 'encodingAudio' }
+            : m
+        ))
+      }, 120)
       reader.onloadend = () => {
         const base64 = (reader.result as string).split(',')[1]
-        const isSolo = roomConfig.mode === 'solo_multilang'
-        const payload: Record<string, unknown> = { audioBase64: base64, mimeType: 'audio/webm', durationMs }
+        const payload: Record<string, unknown> = { audioBase64: base64, mimeType: 'audio/webm', durationMs, clientMsgId: id }
+        setMessages(prev => prev.map(m =>
+          m.id === id ? { ...m, progress: 18, progressStage: 'sendingAudio' } : m
+        ))
         if (isSolo && soloActiveLangRef.current) {
           payload.senderLang = soloActiveLangRef.current
           if (!SOLOROOM_SOCKET) {
-            const id = crypto.randomUUID()
-            const senderLang = soloActiveLangRef.current
-            setMessages(prev => [...prev, {
-              id,
-              original: '…',
-              translated: '…',
-              sender: nickname || t('room.me'),
-              senderLang,
-              targetLang: myLanguageRef.current,
-              isMine: true,
-              isAudio: true,
-              timestamp: Date.now(),
-              isTranslating: true,
-              deliveryStatus: 'sending',
-            }])
             void (async () => {
               try {
                 const res = await fetch(`/api/solo/rooms/${encodeURIComponent(code)}/audio`, {
@@ -965,7 +1031,13 @@ function RoomScreen() {
             return
           }
         }
-        socketRef.current?.emit('message:audio', payload)
+        const socket = socketRef.current
+        if (!socket) {
+          sendingStageStartedAt.current.delete(id)
+          setMessages(prev => prev.map(m => m.id === id ? { ...m, isTranslating: false, deliveryStatus: 'failed' as const } : m))
+          return
+        }
+        socket.emit('message:audio', payload)
       }
       reader.readAsDataURL(blob)
     }
@@ -1525,6 +1597,39 @@ function AudioPlayer({
   )
 }
 
+function PendingAudioPreview({ isMine, seed }: { isMine: boolean; seed: string }) {
+  const bars = useMemo(() => generateWaveformBars(seed, 36), [seed])
+  const barColor = isMine ? 'rgba(255,255,255,0.72)' : 'rgba(124,58,237,0.56)'
+  const mutedBarColor = isMine ? 'rgba(255,255,255,0.24)' : 'rgba(124,58,237,0.18)'
+
+  return (
+    <div className="flex min-w-[180px] items-center gap-2">
+      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isMine ? 'bg-white/20' : 'bg-lt-primary/20'}`}>
+        <Mic size={16} className={isMine ? 'text-white' : 'text-lt-primary'} />
+      </div>
+      <div className="flex flex-1 flex-col gap-0.5">
+        <svg height="28" viewBox={`0 0 ${bars.length * 5} 28`} preserveAspectRatio="none" className="w-full">
+          {bars.map((h, i) => {
+            const barH = Math.max(3, h * 26)
+            return (
+              <rect
+                key={i}
+                x={i * 5 + 1}
+                y={(28 - barH) / 2}
+                width={3}
+                height={barH}
+                rx={1.5}
+                fill={i < 5 ? barColor : mutedBarColor}
+              />
+            )
+          })}
+        </svg>
+        <span className={`text-[10px] leading-none ${isMine ? 'text-white/50' : 'text-lt-muted'}`}>…</span>
+      </div>
+    </div>
+  )
+}
+
 // ── Solo message bubble ────────────────────────────────────────────────────
 // Always shows both original + translation, aligned by which side spoke.
 
@@ -1538,14 +1643,7 @@ function SoloMessageBubble({ message, soloLanguages, onRetry }: { message: Messa
   const hasTranslation = translated !== original
   const isInFlight = deliveryStatus === 'sending' || deliveryStatus === 'queued' || (typeof progress === 'number' && progress > 0 && progress < 100)
 
-  const stageLabel = isInFlight
-    ? (typeof progress === 'number' && progress > 0
-        ? progress < 25 ? t('room.progress.sending')
-        : progress < 50 ? t('room.progress.received')
-        : progress < 75 ? t('room.progress.translating')
-        : t('room.progress.generatingAudio')
-        : t('room.progress.sending'))
-    : null
+  const stageLabel = isInFlight ? getProgressStageLabel(t, message) : null
 
   const canUseOriginalAudio = messageCanUseOriginalAudio(message)
   const playableOriginalAudio = canUseOriginalAudio && isPlayableAudioPayload(originalAudio) ? originalAudio : null
@@ -1556,9 +1654,17 @@ function SoloMessageBubble({ message, soloLanguages, onRetry }: { message: Messa
     return (
       <div className={`flex flex-col mb-1 ${isA ? 'items-start' : 'items-end'}`}>
         <div className="max-w-[75%] px-4 py-3 rounded-2xl bg-lt-card border border-lt-border rounded-bl-sm">
-          <span className="text-lt-muted text-sm">…</span>
+          {isAudio ? (
+            <PendingAudioPreview isMine={!isA} seed={message.id} />
+          ) : (
+            <span className="text-lt-muted text-sm">…</span>
+          )}
         </div>
         <TranslationProgress translating align={isA ? 'left' : 'right'} progress={progress} />
+        <div className={`flex items-center gap-1 mt-1 mx-1 ${deliveryStatus === 'failed' ? 'text-lt-danger' : 'text-lt-muted'}`}>
+          <span className="text-xs">{stageLabel ?? time}</span>
+          {!isA && <DeliveryIcon status={deliveryStatus} />}
+        </div>
       </div>
     )
   }
@@ -1626,14 +1732,7 @@ function MessageBubble({ message, onRetry }: { message: Message; onRetry?: (msg:
   const hasTranslation = translated !== original
   const isInFlight = deliveryStatus === 'sending' || deliveryStatus === 'queued' || (typeof progress === 'number' && progress > 0 && progress < 100)
 
-  const stageLabel = isInFlight
-    ? (typeof progress === 'number' && progress > 0
-        ? progress < 25 ? t('room.progress.sending')
-        : progress < 50 ? t('room.progress.received')
-        : progress < 75 ? t('room.progress.translating')
-        : t('room.progress.generatingAudio')
-        : t('room.progress.sending'))
-    : null
+  const stageLabel = isInFlight ? getProgressStageLabel(t, message) : null
   const canUseOriginalAudio = messageCanUseOriginalAudio(message)
   const playableOriginalAudio = canUseOriginalAudio && isPlayableAudioPayload(originalAudio) ? originalAudio : null
   const playableTranslatedAudio = isPlayableAudioPayload(translatedAudio) ? translatedAudio : null
@@ -1653,9 +1752,17 @@ function MessageBubble({ message, onRetry }: { message: Message; onRetry?: (msg:
     return (
       <div className={`flex flex-col mb-1 ${isMine ? 'items-end' : 'items-start'}`}>
         <div className={`max-w-[75%] px-4 py-3 rounded-2xl ${isMine ? 'bg-lt-primary rounded-br-sm' : 'bg-lt-card rounded-bl-sm border border-lt-border'}`}>
-          <span className="text-lt-muted text-sm">…</span>
+          {isAudio ? (
+            <PendingAudioPreview isMine={isMine} seed={message.id} />
+          ) : (
+            <span className="text-lt-muted text-sm">…</span>
+          )}
         </div>
         <TranslationProgress translating align={isMine ? 'right' : 'left'} progress={message.progress} />
+        <div className={`flex items-center gap-1 mt-1 mx-1 ${deliveryStatus === 'failed' ? 'text-lt-danger' : 'text-lt-muted'}`}>
+          <span className="text-xs">{stageLabel ?? time}</span>
+          {isMine && <DeliveryIcon status={deliveryStatus} />}
+        </div>
       </div>
     )
   }

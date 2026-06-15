@@ -180,9 +180,19 @@
     },
     "progress": {
       "sending": "Sending to server",
+      "preparingAudio": "Preparing audio…",
+      "encodingAudio": "Encoding audio…",
+      "sendingAudio": "Sending audio to server",
       "received": "Received by server",
+      "transcribing": "Transcribing voice…",
+      "transcribed": "Voice transcribed",
       "translating": "Translating\u2026",
-      "generatingAudio": "Generating audio"
+      "translated": "Translation ready",
+      "directVoiceTranslation": "Translating voice directly…",
+      "generatingAudio": "Generating audio",
+      "saving": "Saving message",
+      "delivering": "Delivering to room",
+      "delivered": "Delivered"
     }
   },
   "settings": {

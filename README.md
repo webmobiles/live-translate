@@ -361,7 +361,7 @@ The web (`./web`) and phone (`./phone`) apps share the same backend and implemen
 | 6 | Text message send (solo) | ✅ | ✅ | Web: HTTP or socket. Phone: HTTP `POST /api/solo/rooms/:code/text` |
 | 7 | Voice message send (normal) | ✅ | ✅ | Press & hold mic → socket `message:audio` |
 | 8 | Voice message send (solo) | ✅ | ✅ | Web: HTTP or socket. Phone: HTTP `POST /api/solo/rooms/:code/audio` |
-| 9 | Translation spinner while in-flight | ✅ | ✅ | Web: progress bar + delivery icons. Phone: ActivityIndicator only |
+| 9 | Translation spinner while in-flight | ✅ | ✅ | Web: progress bar + delivery icons + instant mic placeholder with fake waveform + audio client stages (`preparing audio`, `encoding audio`, `sending audio`) + server-confirmed stage labels (`received`, `transcribing`, `translating`, `generating audio`, `saving`, `delivering`). Phone: ActivityIndicator only |
 | 10 | Delivery status icons (sending / queued / delivered / read / failed) | ✅ | ❌ | Web: WhatsApp-style checkmarks. Phone: not tracked |
 | 11 | Message bubble — tap to toggle original / translation | ✅ | ❌ | Web only. Phone shows both simultaneously |
 | 12 | Audio autoplay with shared player element | ✅ | ❌ | Web: unified Audio element, queued retry, gesture unlock |
@@ -374,7 +374,7 @@ The web (`./web`) and phone (`./phone`) apps share the same backend and implemen
 | 19 | Language picker | ✅ | ✅ | Web: modal with search. Phone: bottom sheet with flag+name |
 | 20 | Copy room code to clipboard | ✅ | ✅ | Both platforms |
 | 21 | Room lost auto-redirect with countdown | ✅ | ❌ | Web: 4-second countdown → home. Phone: not implemented |
-| 22 | Reconnection handling | ✅ | ✅ | Web: socket reconnect + room re-sync. Phone: socket.io reconnection |
+| 22 | Reconnection handling | ✅ | ✅ | Web: socket reconnect + room re-sync; backend restart keeps users in-room with disconnected/reconnected system text instead of redirecting to login. Phone: socket.io reconnection |
 | 23 | Chat history loading on join | ✅ | ✅ | Web: HTTP `GET /api/rooms/:code`. Phone: normal mode via socket, solo via HTTP |
 | 24 | Solo message retry on failure | ❌ | ✅ | Phone: one-tap retry via `_RetryPayload` map |
 | 25 | Composer placeholder with flag + language name | ✅ | ❌ | Web: `🇫🇷 French` in input placeholder |
