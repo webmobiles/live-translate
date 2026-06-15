@@ -18,7 +18,6 @@ import '../services/socket_service.dart';
 import '../services/solo_api.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
-import '../widgets/language_selector.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/participant_list.dart';
 import '../widgets/voice_button.dart';
@@ -980,15 +979,6 @@ class _RoomScreenState extends State<RoomScreen> {
               ],
             ),
           ),
-          if (!widget.isSolo)
-            LanguageBadge(
-              code: _myLanguage,
-              onTap: () async {
-                final code =
-                    await showLanguagePicker(context, selected: _myLanguage);
-                if (code != null) setState(() => _myLanguage = code);
-              },
-            ),
         ],
       ),
     );
