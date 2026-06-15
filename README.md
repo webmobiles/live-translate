@@ -44,6 +44,27 @@ User sends voice message → same flow but:
 
 This part is easy to break accidentally. Keep the server and web client rules aligned.
 
+### Emitter and receiver roles
+
+Every message has two halves, in **both** solo and normal rooms:
+
+- **Emitter half** — the `senderLang` plus the original recording/text. The emitter is whoever produced the message.
+- **Receiver half** — the `receiverLang` plus the translation (text + TTS audio). The receiver consumes it in their own language.
+
+**Roles are per-message, not per-person — every emitter is also a receiver.** In a normal room you are the *emitter* of the messages you send and a *receiver* of everyone else's. In a solo room the single device is both at once: the language toggle picks which side is currently emitting, and the other side is the receiver.
+
+| | Emitter language | Receiver language | Who is the receiver |
+|---|---|---|---|
+| **Normal room** | `message.senderLang` | the viewer's own, user-changeable language (`message.targetLang`) | each *other* participant |
+| **Solo room** | the active toggle side | the other toggle side | the same device, played out loud |
+
+Behaviors fall out of the roles:
+
+- **Autoplay = the receiver half only.** The translated audio autoplays for receivers (in solo, out loud on the shared device). The emitter never has their own message replayed.
+- **Original audio belongs to the emitter.** Only the emitter (and same-language listeners) may recover the original recording.
+
+The clients derive all of this from one place. The web exposes a pure helper `messageView(message, ctx)` → `{ emitterLang, receiverLang, viewerIsEmitter, canRecoverOriginal, shouldAutoPlay }` (in `web/src/routes/room.$code.tsx`); the phone mirrors it. The server carries the same concept over the wire under different names — `senderLang` (emitter language), the recipient's `participant.language` (receiver language), and `isMine`/`isSender` (viewer is the emitter) — so the clients re-derive the roles without extra fields.
+
 ### Audio payload names
 
 `translatedAudio` is generated TTS for one participant's configured language. It must come from:
@@ -54,29 +75,29 @@ message.audioOutputs?.[participant.language] ?? null
 
 Do not fall back to `message.audioOutputs?.[message.senderLang]` for guests. That makes a guest hear the sender's language instead of the language they selected when joining the room.
 
-`originalAudio` is the raw recording sent by the speaker. It is allowed only when the listener can understand the sender language:
+`originalAudio` is the raw recording sent by the speaker. **It is no longer pushed inline over the socket — it is heavy and most receivers never need it.** Instead it is persisted on disk and recovered on demand (see *Original audio storage and recovery* below). The live message payload carries `originalAudio: null` plus a small flag:
 
 ```ts
-const isSender = participant.socketId === message.senderSocketId
-const canUseOriginalAudio = isSender || participant.language === message.senderLang
+// Offered only to the emitter and same-language listeners.
+hasOriginalAudio: message.isAudio && (isSender || participant.language === message.senderLang)
+translatedAudio:  isSender && !isSoloRoom ? null : (message.audioOutputs?.[participant.language] ?? null)
 ```
 
-So the server should emit:
+When `hasOriginalAudio` is set, the client shows a **download button**; clicking it fetches the file once, then renders the normal waveform player. This means:
 
-```ts
-originalAudio: canUseOriginalAudio ? (message.originalAudio ?? null) : null
-translatedAudio: message.audioOutputs?.[participant.language] ?? null
-```
-
-This means:
-
-| Listener | `translatedAudio` | `originalAudio` |
+| Listener | `translatedAudio` | Original audio |
 |---|---|---|
-| Sender | Usually none, because we do not synthesize TTS in the sender's own language | Allowed for voice messages |
-| Guest with same language as sender | Their language audio if generated | Allowed |
-| Guest with different language | Their language audio if generated | Not allowed |
+| Sender | Usually none, because we do not synthesize TTS in the sender's own language | Recoverable on demand |
+| Guest with same language as sender | Their language audio if generated | Recoverable on demand |
+| Guest with different language | Their language audio if generated | Not offered |
 
 If translated TTS is missing for a guest with a different language, play no audio. Do not play the original recording as a fallback, because that is the wrong language for that guest.
+
+#### Original audio storage and recovery
+
+- Voice-message audio (original + each translated language) is written to disk under **`AUDIOS_PATH`** (default `server/audios`), keyed by message id: `<msgId>.orig.<ext>` and `<msgId>.<lang>.<ext>`.
+- The chat-history table records the **filenames + text** for each message — original text (script), `original_audio_file`, translated text, `translated_audio_files` — rather than base64 blobs.
+- The emitter (or a same-language listener) recovers the original with `GET /api/rooms/:code/messages/:msgId/audio/original`, which streams the file from `AUDIOS_PATH` (room-authed).
 
 ### TTS target language and voice selection
 
@@ -117,42 +138,46 @@ Kokoro must return no TTS audio for languages that are not in this map. Do not f
 
 ### Frontend playback choice
 
-The web client uses the same rule before rendering or autoplaying audio:
+The client decides what to render and play from the message's **role view** (`messageView` — see *Emitter and receiver roles*), not from ad-hoc field checks:
 
-```ts
-message.isMine || message.targetLang === message.senderLang
-```
+- `view.canRecoverOriginal` — may this viewer fetch the original recording? (emitter, or same-language listener, or solo).
+- `view.shouldAutoPlay` — should the receiver-side translated audio autoplay?
 
-Only then can it use `originalAudio`. Otherwise it must use only `translatedAudio`.
+The bubble chooses audio like this:
 
-The bubble chooses audio in this order:
-
-1. Use playable `translatedAudio`.
-2. If translated audio fails and original audio is allowed, use playable `originalAudio`.
-3. If neither is available, show text only.
+1. Play the playable `translatedAudio` (the receiver half).
+2. Original and translation are a single **toggle** for both text and audio: when `canRecoverOriginal`, the viewer can switch to the original (download-on-demand) and back to the translation. The toggle is only offered when there are two real views to flip between — recovering an original with nothing to switch back to (e.g. your own message) shows no toggle.
+3. If nothing is playable, show text only.
 
 ### Autoplay rules
 
 Autoplay is a local browser-window preference. Every room window starts with **Autoplay voice** checked. If the participant unchecks it, new audio messages keep the play component but require manual play.
 
-Autoplay must be based on actual playable audio payloads, not only on `isAudio`:
+Autoplay is the **receiver half only** — never the emitter's own message. The rule is centralized in `messageView(...).shouldAutoPlay`:
 
 ```ts
-isPlayableAudioPayload(message.translatedAudio)
-  || (messageCanUseOriginalAudio(message) && isPlayableAudioPayload(message.originalAudio))
+// Solo: play the translated audio out loud on the shared device.
+// Normal room: receivers autoplay; the emitter never replays their own message.
+shouldAutoPlay = autoPlayEnabled && (
+  isSolo
+    ? isPlayableAudioPayload(message.translatedAudio)
+    : !viewerIsEmitter && messageHasPlayableAudio(message)
+)
 ```
 
-Why: typed text messages can have generated TTS audio even when `isAudio` is false, and voice messages can lack translated TTS but still have allowed original audio for the sender.
+Autoplay must be based on actual playable audio payloads, not only on `isAudio`: typed text messages can have generated TTS audio even when `isAudio` is false.
 
 The web client reuses one shared audio element for autoplay. This improves browser autoplay behavior after a user gesture. Browsers can still block sound until the user interacts with the page; in that case playback is queued and retried on the next click, touch, or key press.
 
 ### Regression guardrails
 
 - Do not send sender-language `translatedAudio` to guests as a fallback.
-- Do not send `originalAudio` to guests whose language differs from `senderLang`.
+- Do not push `originalAudio` inline — it is recovered on demand from `AUDIOS_PATH`; only set `hasOriginalAudio` for the emitter and same-language listeners.
+- Do not autoplay the emitter's own message; autoplay is the receiver half only.
 - Do not put the target TTS language in `.env`; use the receiver `lang` passed to `tts.synthesize(text, lang)`.
 - Do not make autoplay depend only on `isAudio`.
 - Do not replace the audio player with text after playback; the audio component should remain visible.
+- Derive role behavior from `messageView` (web/phone), not from scattered `isSolo`/`isMine` checks, so the two clients do not drift.
 - If you patch `server/src/server.ts` and the app is running from `dist`, patch `server/dist/server.js` too or rebuild intentionally.
 
 ---
