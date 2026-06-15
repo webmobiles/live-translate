@@ -62,6 +62,20 @@ function messageHasPlayableAudio(message: Pick<Message, 'originalAudio' | 'trans
     || (messageCanUseOriginalAudio(message) && isPlayableAudioPayload(message.originalAudio))
 }
 
+// Whether a freshly-arrived message should autoplay.
+// - Solo: the emitter's device is the shared device, so play the TRANSLATED
+//   audio out loud (never replay the original the sender just spoke).
+// - Normal room: never autoplay your own outgoing message — the recipients
+//   hear it in their language; the sender doesn't need it replayed.
+function shouldAutoPlayMessage(
+  message: Pick<Message, 'isMine' | 'senderLang' | 'targetLang' | 'originalAudio' | 'translatedAudio'>,
+  isSolo: boolean,
+) {
+  if (isSolo) return isPlayableAudioPayload(message.translatedAudio)
+  if (message.isMine) return false
+  return messageHasPlayableAudio(message)
+}
+
 function progressStageFromPercent(progress?: number): MessageProgressStage {
   if (typeof progress !== 'number' || progress < 25) return 'sending'
   if (progress < 35) return 'received'
@@ -603,7 +617,7 @@ function RoomScreen() {
           isMine,
           isTranslating: false,
           deliveryStatus: isMine ? 'delivered' : undefined,
-          autoPlay: Boolean(voiceAutoPlayEnabledRef.current && messageHasPlayableAudio({ ...msg, isMine })),
+          autoPlay: Boolean(voiceAutoPlayEnabledRef.current && shouldAutoPlayMessage({ ...msg, isMine }, soloActiveLangRef.current !== null)),
         }]
       })
       // Tell the server we've seen these incoming (not-mine) messages
@@ -846,7 +860,7 @@ function RoomScreen() {
           if (!res.ok || !data.ok || !data.message) throw new Error('Solo text failed')
           setMessages(prev => prev.map(m =>
             m.id === id
-              ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: Boolean(voiceAutoPlayEnabledRef.current && messageHasPlayableAudio(data.message!)) }
+              ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: Boolean(voiceAutoPlayEnabledRef.current && shouldAutoPlayMessage(data.message!, soloActiveLangRef.current !== null)) }
               : m
           ))
           setTimeout(scrollToBottom, 100)
@@ -900,7 +914,7 @@ function RoomScreen() {
           if (!res.ok || !data.ok || !data.message) throw new Error('Retry failed')
           setMessages(prev => prev.map(m =>
             m.id === msg.id
-              ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: Boolean(voiceAutoPlayEnabledRef.current && messageHasPlayableAudio(data.message!)) }
+              ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: Boolean(voiceAutoPlayEnabledRef.current && shouldAutoPlayMessage(data.message!, soloActiveLangRef.current !== null)) }
               : m
           ))
           setTimeout(scrollToBottom, 100)
@@ -1018,7 +1032,7 @@ function RoomScreen() {
                 if (!res.ok || !data.ok || !data.message) throw new Error('Solo audio failed')
                 setMessages(prev => prev.map(m =>
                   m.id === id
-                    ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: Boolean(voiceAutoPlayEnabledRef.current && messageHasPlayableAudio(data.message!)) }
+                    ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: Boolean(voiceAutoPlayEnabledRef.current && shouldAutoPlayMessage(data.message!, soloActiveLangRef.current !== null)) }
                     : m
                 ))
                 setTimeout(scrollToBottom, 100)

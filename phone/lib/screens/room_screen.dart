@@ -234,14 +234,21 @@ class _RoomScreenState extends State<RoomScreen> {
   void _onIncoming(dynamic data) {
     if (!mounted) return;
     final msg = Message.fromJson(Map<String, dynamic>.from(data as Map));
-    final autoPlay = _shouldAutoplay(msg);
+    // The server echo may not carry isMine, but our optimistic local copy did —
+    // preserve it so own messages stay "mine" (don't autoplay back to the sender).
+    final wasMine = _messages.any((m) => m.id == msg.id && m.isMine);
+    final resolved = msg.copyWith(
+      isMine: msg.isMine || wasMine,
+      isTranslating: false,
+      deliveryStatus: 'delivered',
+    );
+    final autoPlay = _shouldAutoplay(resolved);
     setState(() {
-      _messages.removeWhere((m) => m.id == msg.id);
-      _messages
-          .add(msg.copyWith(isTranslating: false, deliveryStatus: 'delivered'));
-      if (autoPlay) _autoplayMessageId = msg.id;
+      _messages.removeWhere((m) => m.id == resolved.id);
+      _messages.add(resolved);
+      if (autoPlay) _autoplayMessageId = resolved.id;
     });
-    if (autoPlay) _clearAutoplayAfter(msg.id);
+    if (autoPlay) _clearAutoplayAfter(resolved.id);
     _scrollToEnd();
   }
 
@@ -359,8 +366,17 @@ class _RoomScreenState extends State<RoomScreen> {
       (_canUseOriginalAudio(message) &&
           _isPlayableAudio(message.originalAudio));
 
-  bool _shouldAutoplay(Message message) =>
-      _autoplayVoice && _hasPlayableAudio(message);
+  bool _shouldAutoplay(Message message) {
+    if (!_autoplayVoice) return false;
+    // Solo: this device is the shared device — play the TRANSLATED audio out loud
+    // (never replay the original the sender just spoke).
+    if (widget.isSolo) {
+      return _translatedAudio && _isPlayableAudio(message.translatedAudio);
+    }
+    // Normal room: never autoplay your own outgoing message; recipients hear it.
+    if (message.isMine) return false;
+    return _hasPlayableAudio(message);
+  }
 
   void _clearAutoplayAfter(String id) {
     Future.delayed(const Duration(milliseconds: 800), () {
