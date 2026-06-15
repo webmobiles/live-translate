@@ -7,7 +7,7 @@
 ```bash
 docker-compose down --remove-orphans
 docker stop $(docker ps -q) 2>&1; docker rm $(docker ps -aq) 2>&1
-docker-compose --env-file ../.env  --profile local-tts --profile local-stt --profile local-llm --profile tikv --profile grafana up -d --force-recreate
+docker-compose --env-file ../.env  --profile local-tts  --profile local-tts --profile local-stt --profile local-llm --profile tikv --profile grafana up -d --force-recreate
 #docker-compose --profile observability up -d openobserve
 ```
 
