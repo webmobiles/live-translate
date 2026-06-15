@@ -1648,7 +1648,14 @@ function SoloMessageBubble({ message, soloLanguages, onRetry }: { message: Messa
   const canUseOriginalAudio = messageCanUseOriginalAudio(message)
   const playableOriginalAudio = canUseOriginalAudio && isPlayableAudioPayload(originalAudio) ? originalAudio : null
   const playableTranslatedAudio = isPlayableAudioPayload(translatedAudio) ? translatedAudio : null
-  const audioToPlay = playableTranslatedAudio ?? playableOriginalAudio ?? null
+  const originalAudioToPlay = playableOriginalAudio
+  const translatedAudioToPlay = playableTranslatedAudio
+  const sourceBubbleClass = isA
+    ? 'bg-lt-card border border-lt-border rounded-bl-sm'
+    : 'bg-lt-primary rounded-br-sm'
+  const translationBubbleClass = isA
+    ? 'bg-lt-accent/15 border border-lt-accent/35 rounded-bl-sm'
+    : 'bg-lt-accent/15 border border-lt-accent/35 rounded-br-sm'
 
   if (isTranslating) {
     return (
@@ -1671,34 +1678,43 @@ function SoloMessageBubble({ message, soloLanguages, onRetry }: { message: Messa
 
   return (
     <div className={`flex flex-col ${isA ? 'items-start' : 'items-end'}`}>
-      {/* Original text bubble */}
       <div className={`flex items-center gap-1.5 mb-1 ${isA ? 'ml-1' : 'mr-1'}`}>
         <span className="text-base">{senderInfo.flag}</span>
         <span className="text-lt-muted text-xs">{senderInfo.name}</span>
       </div>
-      <div className={`max-w-[78%] px-4 py-3 rounded-2xl ${
-        isA ? 'bg-lt-card border border-lt-border rounded-bl-sm' : 'bg-lt-primary rounded-br-sm'
-      } ${deliveryStatus === 'failed' ? 'border-lt-danger' : ''}`}>
+      <div className={`max-w-[78%] px-4 py-3 rounded-2xl ${sourceBubbleClass} ${deliveryStatus === 'failed' ? 'border-lt-danger' : ''}`}>
         {isAudio && (
           <p className={`text-xs mb-1 ${isA ? 'text-lt-muted' : 'text-white/60'}`}>🎤 Voice</p>
         )}
-        {audioToPlay && (
+        {originalAudioToPlay && (
           <AudioPlayer
-            audioBase64={audioToPlay.audioBase64}
-            mimeType={audioToPlay.mimeType}
+            audioBase64={originalAudioToPlay.audioBase64}
+            mimeType={originalAudioToPlay.mimeType}
             isMine={!isA}
-            autoPlay={Boolean(message.autoPlay)}
+            autoPlay={false}
           />
         )}
         <p className="text-white text-base leading-relaxed">{original}</p>
       </div>
 
-      {/* Translation pill */}
       {hasTranslation && (
-        <div className={`flex items-center gap-1.5 mt-1.5 max-w-[78%] ${isA ? 'ml-1' : 'mr-1'}`}>
-          <span className="text-sm">{targetInfo.flag}</span>
-          <p className="text-lt-muted text-sm leading-relaxed italic">{translated}</p>
-        </div>
+        <>
+          <div className={`flex items-center gap-1.5 mt-2 mb-1 ${isA ? 'ml-1' : 'mr-1'}`}>
+            <span className="text-base">{targetInfo.flag}</span>
+            <span className="text-lt-accent text-xs font-semibold">{targetInfo.name}</span>
+          </div>
+          <div className={`max-w-[78%] px-4 py-3 rounded-2xl ${translationBubbleClass}`}>
+            {translatedAudioToPlay && (
+              <AudioPlayer
+                audioBase64={translatedAudioToPlay.audioBase64}
+                mimeType={translatedAudioToPlay.mimeType}
+                isMine={false}
+                autoPlay={Boolean(message.autoPlay)}
+              />
+            )}
+            <p className="text-white text-base leading-relaxed">{translated}</p>
+          </div>
+        </>
       )}
 
       <TranslationProgress status={deliveryStatus} align={isA ? 'left' : 'right'} progress={progress} />
