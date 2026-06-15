@@ -144,6 +144,9 @@
       "recreate": "Could not recreate the room."
     },
     "gone": "This room no longer exists",
+    "retry": "Retry",
+    "disconnectedInFlight": "Disconnected — {{count}} message may not be delivered",
+    "disconnectedInFlight_plural": "Disconnected — {{count}} messages may not be delivered",
     "participants": "{{count}} participant",
     "participants_plural": "{{count}} participants",
     "joined": "{{nickname}} joined ({{lang}})",
@@ -174,6 +177,12 @@
     },
     "solo": {
       "speaking": "speaking"
+    },
+    "progress": {
+      "sending": "Sending to server",
+      "received": "Received by server",
+      "translating": "Translating\u2026",
+      "generatingAudio": "Generating audio"
     }
   },
   "settings": {

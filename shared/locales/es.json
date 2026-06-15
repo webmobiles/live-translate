@@ -131,6 +131,9 @@
       "recreate": "No se pudo recrear la sala."
     },
     "gone": "Esta sala ya no existe",
+    "retry": "Reintentar",
+    "disconnectedInFlight": "Desconectado — {{count}} mensaje podría no entregarse",
+    "disconnectedInFlight_plural": "Desconectado — {{count}} mensajes podrían no entregarse",
     "participants": "{{count}} participante",
     "participants_plural": "{{count}} participantes",
     "joined": "{{nickname}} se unió ({{lang}})",
@@ -161,6 +164,12 @@
     },
     "solo": {
       "speaking": "habla"
+    },
+    "progress": {
+      "sending": "Enviando al servidor",
+      "received": "Recibido por el servidor",
+      "translating": "Traduciendo\u2026",
+      "generatingAudio": "Generando audio"
     }
   },
   "settings": {

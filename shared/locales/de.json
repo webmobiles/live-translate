@@ -131,6 +131,9 @@
       "recreate": "Der Raum konnte nicht neu erstellt werden."
     },
     "gone": "Dieser Raum existiert nicht mehr",
+    "retry": "Wiederholen",
+    "disconnectedInFlight": "Getrennt — {{count}} Nachricht könnte nicht zugestellt werden",
+    "disconnectedInFlight_plural": "Getrennt — {{count}} Nachrichten könnten nicht zugestellt werden",
     "participants": "{{count}} Teilnehmer",
     "participants_plural": "{{count}} Teilnehmer",
     "joined": "{{nickname}} ist beigetreten ({{lang}})",
@@ -161,6 +164,12 @@
     },
     "solo": {
       "speaking": "spricht"
+    },
+    "progress": {
+      "sending": "Sende an Server",
+      "received": "Vom Server empfangen",
+      "translating": "Übersetze\u2026",
+      "generatingAudio": "Erstelle Audio"
     }
   },
   "settings": {

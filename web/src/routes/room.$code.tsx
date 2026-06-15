@@ -519,6 +519,13 @@ function RoomScreen() {
     const onDisconnect = () => {
       setIsConnected(false)
       wasDisconnected.current = true
+      setMessages(prev => {
+        const inFlight = prev.filter(m => m.isMine && m.deliveryStatus !== 'delivered' && m.deliveryStatus !== 'read' && m.deliveryStatus !== 'failed')
+        if (inFlight.length > 0) {
+          addSystemMsg(t('room.disconnectedInFlight', { count: inFlight.length }))
+        }
+        return prev
+      })
     }
     const onConnectError = () => {
       setIsConnected(false)
@@ -694,6 +701,31 @@ function RoomScreen() {
   }, [addSystemMsg, code, isHost, navigate, nickname, roomName, roomTransport, scrollToBottom, t])
 
   useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
+
+  // Timeout: mark stalled messages as failed (network / server down)
+  useEffect(() => {
+    const AUDIO_TIMEOUT_MS = 60_000
+    const TEXT_TIMEOUT_MS = 20_000
+    const CHECK_INTERVAL_MS = 5_000
+
+    const interval = setInterval(() => {
+      const now = Date.now()
+      setMessages(prev => prev.map(m => {
+        if (m.deliveryStatus === 'failed' || m.deliveryStatus === 'delivered' || m.deliveryStatus === 'read') return m
+        if (!m.isMine) return m
+
+        const elapsed = now - m.timestamp
+        const timeout = m.isAudio ? AUDIO_TIMEOUT_MS : TEXT_TIMEOUT_MS
+
+        if (elapsed >= timeout) {
+          return { ...m, deliveryStatus: 'failed' as const, progress: undefined, isTranslating: false }
+        }
+        return m
+      }))
+    }, CHECK_INTERVAL_MS)
+
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     if (!voiceAlertVisible) return
@@ -1337,7 +1369,7 @@ function TranslationProgress({ status, translating, align, progress }: {
         className="h-full rounded-full"
         style={{
           width: `${width}%`,
-          background: 'linear-gradient(90deg, #7C6EFF, #00D4B4)', // lt-primary → lt-accent
+          background: 'linear-gradient(90deg, #7C6EFF, #00D4B4)',
           transitionProperty: 'width',
           transitionDuration: `${durationMs}ms`,
           transitionTimingFunction: 'ease-out',
@@ -1497,12 +1529,23 @@ function AudioPlayer({
 // Always shows both original + translation, aligned by which side spoke.
 
 function SoloMessageBubble({ message, soloLanguages, onRetry }: { message: Message; soloLanguages: [string, string]; onRetry?: (msg: Message) => void }) {
+  const { t } = useTranslation()
   const { senderLang, original, translated, isTranslating, isAudio, originalAudio, translatedAudio, timestamp, deliveryStatus, progress } = message
   const isA = senderLang === soloLanguages[0]
   const senderInfo = getLang(senderLang)
   const targetInfo = getLang(isA ? soloLanguages[1] : soloLanguages[0])
   const time = formatMessageTime(timestamp)
   const hasTranslation = translated !== original
+  const isInFlight = deliveryStatus === 'sending' || deliveryStatus === 'queued' || (typeof progress === 'number' && progress > 0 && progress < 100)
+
+  const stageLabel = isInFlight
+    ? (typeof progress === 'number' && progress > 0
+        ? progress < 25 ? t('room.progress.sending')
+        : progress < 50 ? t('room.progress.received')
+        : progress < 75 ? t('room.progress.translating')
+        : t('room.progress.generatingAudio')
+        : t('room.progress.sending'))
+    : null
 
   const canUseOriginalAudio = messageCanUseOriginalAudio(message)
   const playableOriginalAudio = canUseOriginalAudio && isPlayableAudioPayload(originalAudio) ? originalAudio : null
@@ -1555,7 +1598,7 @@ function SoloMessageBubble({ message, soloLanguages, onRetry }: { message: Messa
       <TranslationProgress status={deliveryStatus} align={isA ? 'left' : 'right'} progress={progress} />
 
       <div className={`flex items-center gap-1 mt-1 mx-1 ${deliveryStatus === 'failed' ? 'text-lt-danger' : 'text-lt-muted'}`}>
-        <span className="text-xs">{time}</span>
+        <span className="text-xs">{isInFlight && stageLabel ? stageLabel : time}</span>
         {!isA && <DeliveryIcon status={deliveryStatus} />}
         {deliveryStatus === 'failed' && !isA && !isAudio && onRetry && (
           <button
@@ -1563,7 +1606,7 @@ function SoloMessageBubble({ message, soloLanguages, onRetry }: { message: Messa
             onClick={() => onRetry(message)}
             className="text-lt-danger text-xs underline hover:opacity-70 transition-opacity ml-1"
           >
-            Retry
+            {t('room.retry')}
           </button>
         )}
       </div>
@@ -1574,12 +1617,23 @@ function SoloMessageBubble({ message, soloLanguages, onRetry }: { message: Messa
 // ── Message bubble ─────────────────────────────────────────────────────────
 
 function MessageBubble({ message, onRetry }: { message: Message; onRetry?: (msg: Message) => void }) {
-  const { isMine, sender, senderLang, translated, original, isTranslating, isAudio, originalAudio, translatedAudio, timestamp, deliveryStatus } = message
+  const { t } = useTranslation()
+  const { isMine, sender, senderLang, translated, original, isTranslating, isAudio, originalAudio, translatedAudio, timestamp, deliveryStatus, progress } = message
   const [showOriginal, setShowOriginal] = useState(false)
   const [failedTranslatedAudioKey, setFailedTranslatedAudioKey] = useState('')
   const senderInfo = getLang(senderLang)
   const time = formatMessageTime(timestamp)
   const hasTranslation = translated !== original
+  const isInFlight = deliveryStatus === 'sending' || deliveryStatus === 'queued' || (typeof progress === 'number' && progress > 0 && progress < 100)
+
+  const stageLabel = isInFlight
+    ? (typeof progress === 'number' && progress > 0
+        ? progress < 25 ? t('room.progress.sending')
+        : progress < 50 ? t('room.progress.received')
+        : progress < 75 ? t('room.progress.translating')
+        : t('room.progress.generatingAudio')
+        : t('room.progress.sending'))
+    : null
   const canUseOriginalAudio = messageCanUseOriginalAudio(message)
   const playableOriginalAudio = canUseOriginalAudio && isPlayableAudioPayload(originalAudio) ? originalAudio : null
   const playableTranslatedAudio = isPlayableAudioPayload(translatedAudio) ? translatedAudio : null
@@ -1644,7 +1698,7 @@ function MessageBubble({ message, onRetry }: { message: Message; onRetry?: (msg:
       {isMine && <TranslationProgress status={deliveryStatus} align="right" progress={message.progress} />}
       {/* Timestamp + delivery icon (only shown on my messages) */}
       <div className={`flex items-center gap-1 mt-1 mx-1 ${deliveryStatus === 'failed' ? 'text-lt-danger' : 'text-lt-muted'}`}>
-        <span className="text-xs">{time}</span>
+        <span className="text-xs">{isInFlight && stageLabel ? stageLabel : time}</span>
         {isMine && <DeliveryIcon status={deliveryStatus} />}
         {deliveryStatus === 'failed' && isMine && !isAudio && onRetry && (
           <button
@@ -1652,7 +1706,7 @@ function MessageBubble({ message, onRetry }: { message: Message; onRetry?: (msg:
             onClick={() => onRetry(message)}
             className="text-lt-danger text-xs underline hover:opacity-70 transition-opacity ml-1"
           >
-            Retry
+            {t('room.retry')}
           </button>
         )}
       </div>

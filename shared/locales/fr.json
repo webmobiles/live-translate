@@ -131,6 +131,9 @@
       "recreate": "Impossible de recréer le salon."
     },
     "gone": "Ce salon n'existe plus",
+    "retry": "Réessayer",
+    "disconnectedInFlight": "Déconnecté — {{count}} message pourrait ne pas être livré",
+    "disconnectedInFlight_plural": "Déconnecté — {{count}} messages pourraient ne pas être livrés",
     "participants": "{{count}} participant",
     "participants_plural": "{{count}} participants",
     "joined": "{{nickname}} a rejoint ({{lang}})",
@@ -161,6 +164,12 @@
     },
     "solo": {
       "speaking": "parle"
+    },
+    "progress": {
+      "sending": "Envoi au serveur",
+      "received": "Reçu par le serveur",
+      "translating": "Traduction\u2026",
+      "generatingAudio": "Génération audio"
     }
   },
   "settings": {

@@ -131,6 +131,9 @@
       "recreate": "Impossibile ricreare la stanza."
     },
     "gone": "Questa stanza non esiste più",
+    "retry": "Riprova",
+    "disconnectedInFlight": "Disconnesso — {{count}} messaggio potrebbe non essere consegnato",
+    "disconnectedInFlight_plural": "Disconnesso — {{count}} messaggi potrebbero non essere consegnati",
     "participants": "{{count}} partecipante",
     "participants_plural": "{{count}} partecipanti",
     "joined": "{{nickname}} è entrato ({{lang}})",
@@ -161,6 +164,12 @@
     },
     "solo": {
       "speaking": "sta parlando"
+    },
+    "progress": {
+      "sending": "Invio al server",
+      "received": "Ricevuto dal server",
+      "translating": "Traduzione\u2026",
+      "generatingAudio": "Generazione audio"
     }
   },
   "settings": {
