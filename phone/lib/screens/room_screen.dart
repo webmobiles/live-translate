@@ -599,6 +599,13 @@ class _RoomScreenState extends State<RoomScreen> {
     return ['es', widget.language];
   }
 
+  /// Language the user is currently typing in (shown in the input placeholder).
+  /// In solo mode this follows the toggle's active side; otherwise it's the
+  /// user's own language.
+  String get _inputLanguage => widget.isSolo
+      ? (_soloActiveLanguage ?? _soloLanguages.first)
+      : _myLanguage;
+
   String _otherSoloLanguage(String activeLanguage) {
     final langs = _soloLanguages;
     return langs.firstWhere((lang) => lang != activeLanguage,
@@ -1197,7 +1204,7 @@ class _RoomScreenState extends State<RoomScreen> {
                 style: const TextStyle(color: Colors.white, fontSize: 16),
                 cursorColor: AppColors.primary,
                 decoration: InputDecoration(
-                  hintText: 'Message in ${_myLanguage.toUpperCase()}…',
+                  hintText: 'Message in ${_inputLanguage.toUpperCase()}…',
                   hintStyle: const TextStyle(color: AppColors.muted),
                   filled: true,
                   fillColor: AppColors.card,
