@@ -385,7 +385,7 @@ The web (`./web`) and phone (`./phone`) apps share the same backend and implemen
 | 5 | Text message send (normal) | ✅ | ✅ | Socket.io `message:text` with ack; same-language receivers keep original text and can still receive generated audio |
 | 6 | Text message send (solo) | ✅ | ✅ | Web and Phone: HTTP or socket; socket solo sends translated audio back to the same room socket |
 | 7 | Voice message send (normal) | ✅ | ✅ | Press & hold mic → socket `message:audio` |
-| 8 | Voice message send (solo) | ✅ | ✅ | Web and Phone: HTTP or socket |
+| 8 | Voice message send (solo) | ✅ | ✅ | Web and Phone: HTTP or socket. Phone solo also supports press-and-hold directly on a language toggle side; pressing selects that speaker language, starts recording, and lightens the active background while held |
 | 9 | Translation spinner while in-flight | ✅ | ✅ | Web and Phone: progress bar + delivery icons + instant mic placeholder with fake waveform + audio client stages (`preparing audio`, `encoding audio`, `sending audio`) + server-confirmed stage labels (`received`, `transcribing`, `translating`, `generating audio`, `saving`, `delivering`) |
 | 10 | Delivery status icons (sending / queued / delivered / read / failed) | ✅ | ✅ | Web and Phone: WhatsApp-style checkmarks/status markers |
 | 11 | Message bubble — tap to toggle original / translation | ✅ | ❌ | Web only. Phone shows both simultaneously |

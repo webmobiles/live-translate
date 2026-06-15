@@ -70,8 +70,10 @@ class _RoomScreenState extends State<RoomScreen> {
   bool _isConnected = false;
   bool _autoplayVoice = true;
   bool _translatedAudio = true;
+  bool _soloStopRequested = false;
   late String _myLanguage;
   String? _soloActiveLanguage;
+  String? _soloPressedLanguage;
   String? _autoplayMessageId;
   late Map<String, dynamic> _roomConfig;
   String _mySocketId = '';
@@ -669,6 +671,31 @@ class _RoomScreenState extends State<RoomScreen> {
     });
   }
 
+  Future<void> _startSoloLanguageRecording(String code) async {
+    if (!_isConnected || _isRecording) return;
+    _soloStopRequested = false;
+    setState(() => _soloPressedLanguage = code);
+    _setSoloActiveLanguage(code);
+    HapticFeedback.mediumImpact();
+    await _startRecording();
+    if (_soloStopRequested && _isRecording) {
+      _soloStopRequested = false;
+      await _stopAndSend();
+    }
+  }
+
+  void _stopSoloLanguageRecording(String code) {
+    HapticFeedback.lightImpact();
+    if (_soloPressedLanguage == code) {
+      setState(() => _soloPressedLanguage = null);
+    }
+    if (_isRecording) {
+      _stopAndSend();
+    } else {
+      _soloStopRequested = true;
+    }
+  }
+
   // ── Solo send (HTTP, no socket) ─────────────────────────────────────────────
   Future<void> _sendTextSolo(String text, {String? senderLangOverride}) async {
     final id = SoloApi.newId();
@@ -998,7 +1025,7 @@ class _RoomScreenState extends State<RoomScreen> {
       child: Column(
         children: [
           Container(
-            height: 64,
+            height: 86,
             decoration: BoxDecoration(
               color: AppColors.card,
               borderRadius: BorderRadius.circular(16),
@@ -1016,9 +1043,11 @@ class _RoomScreenState extends State<RoomScreen> {
                     heightFactor: 1,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: _isConnected
-                            ? AppColors.primary
-                            : AppColors.primaryMuted,
+                        color: !_isConnected
+                            ? AppColors.primaryMuted
+                            : _soloPressedLanguage == active
+                                ? AppColors.primary.withValues(alpha: 0.7)
+                                : AppColors.primary,
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
@@ -1031,7 +1060,10 @@ class _RoomScreenState extends State<RoomScreen> {
                         info: langA,
                         active: isA,
                         leftSide: true,
-                        onTap: () => _setSoloActiveLanguage(langA.code),
+                        onPressIn: () =>
+                            _startSoloLanguageRecording(langA.code),
+                        onPressOut: () =>
+                            _stopSoloLanguageRecording(langA.code),
                       ),
                     ),
                     const SizedBox(
@@ -1047,7 +1079,10 @@ class _RoomScreenState extends State<RoomScreen> {
                         info: langB,
                         active: !isA,
                         leftSide: false,
-                        onTap: () => _setSoloActiveLanguage(langB.code),
+                        onPressIn: () =>
+                            _startSoloLanguageRecording(langB.code),
+                        onPressOut: () =>
+                            _stopSoloLanguageRecording(langB.code),
                       ),
                     ),
                   ],
@@ -1057,7 +1092,7 @@ class _RoomScreenState extends State<RoomScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Tap the language that is speaking',
+            'Hold the language that is speaking',
             style: TextStyle(color: AppColors.muted, fontSize: 12),
           ),
         ],
@@ -1145,8 +1180,10 @@ class _RoomScreenState extends State<RoomScreen> {
     required Language info,
     required bool active,
     required bool leftSide,
-    required VoidCallback onTap,
+    required VoidCallback onPressIn,
+    required VoidCallback onPressOut,
   }) {
+    final pressed = _soloPressedLanguage == info.code;
     final name = Text(
       info.name,
       maxLines: 1,
@@ -1158,8 +1195,8 @@ class _RoomScreenState extends State<RoomScreen> {
       ),
     );
     final speaking = active
-        ? const Text(
-            'SPEAKING',
+        ? Text(
+            pressed ? 'RECORDING' : 'HOLD TO SPEAK',
             style: TextStyle(
               color: Colors.white70,
               fontSize: 10,
@@ -1176,12 +1213,20 @@ class _RoomScreenState extends State<RoomScreen> {
       ),
     );
 
-    return GestureDetector(
-      onTap: _isConnected ? onTap : null,
+    return Listener(
+      onPointerDown: (_) {
+        if (_isConnected) onPressIn();
+      },
+      onPointerUp: (_) {
+        if (_isConnected) onPressOut();
+      },
+      onPointerCancel: (_) {
+        if (_isConnected) onPressOut();
+      },
       child: Opacity(
         opacity: _isConnected ? 1 : 0.45,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: leftSide
@@ -1283,12 +1328,14 @@ class _RoomScreenState extends State<RoomScreen> {
                         style: TextStyle(color: Colors.white, fontSize: 20)),
                   ),
                 )
-              : VoiceButton(
-                  isRecording: _isRecording,
-                  onPressIn: _startRecording,
-                  onPressOut: _stopAndSend,
-                  disabled: !_isConnected,
-                ),
+              : widget.isSolo
+                  ? const SizedBox.shrink()
+                  : VoiceButton(
+                      isRecording: _isRecording,
+                      onPressIn: _startRecording,
+                      onPressOut: _stopAndSend,
+                      disabled: !_isConnected,
+                    ),
         ],
       ),
     );
