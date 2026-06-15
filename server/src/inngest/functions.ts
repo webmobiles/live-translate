@@ -101,6 +101,11 @@ async function buildAudioOutputs(translations: any, targetLangs: any[], roomConf
   return Object.fromEntries(entries.filter(([, audio]) => audio));
 }
 
+function getSoloTargetLangs(roomConfig: any, senderLang: string) {
+  if (roomConfig.mode !== 'solo_multilang' || !Array.isArray(roomConfig.soloLanguages)) return null;
+  return roomConfig.soloLanguages.filter((lang: string) => lang && lang !== senderLang);
+}
+
 export const translateMessage = inngest.createFunction(
   {
     id: 'translate-message',
@@ -111,9 +116,10 @@ export const translateMessage = inngest.createFunction(
     const { msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, participants, knownLanguages } = event.data;
     const roomConfig = normalizeRoomConfig(event.data.roomConfig);
     const targetLangs = (knownLanguages?.length ? knownLanguages : participants.map((p: any) => p.language)) as string[];
-    const audioTargetLangs = participants
-      .filter((p: any) => p.socketId !== senderSocketId)
-      .map((p: any) => p.language) as string[];
+    const audioTargetLangs = getSoloTargetLangs(roomConfig, senderLang)
+      ?? participants
+        .filter((p: any) => p.socketId !== senderSocketId)
+        .map((p: any) => p.language) as string[];
 
     await queue.publishMessageProgress(roomCode, msgId, 35, 'translating');
 
@@ -160,9 +166,10 @@ export const transcribeAndTranslate = inngest.createFunction(
     const { msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, participants, knownLanguages } = event.data;
     const roomConfig = normalizeRoomConfig(event.data.roomConfig);
     const targetLangs = (knownLanguages?.length ? knownLanguages : participants.map((p: any) => p.language)) as string[];
-    const audioTargetLangs = participants
-      .filter((p: any) => p.socketId !== senderSocketId && p.language !== senderLang)
-      .map((p: any) => p.language) as string[];
+    const audioTargetLangs = getSoloTargetLangs(roomConfig, senderLang)
+      ?? participants
+        .filter((p: any) => p.socketId !== senderSocketId && p.language !== senderLang)
+        .map((p: any) => p.language) as string[];
 
     if (roomConfig.voicePipeline === 'direct-voice-translation') {
       await queue.publishMessageProgress(roomCode, msgId, 35, 'directVoiceTranslation');
