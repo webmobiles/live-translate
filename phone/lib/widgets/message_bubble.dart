@@ -93,10 +93,10 @@ class MessageBubble extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(senderInfo.flag, style: const TextStyle(fontSize: 16)),
+                    Text(senderInfo.flag, style: TextStyle(fontSize: 16)),
                     const SizedBox(width: 6),
                     Text(message.sender,
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: AppColors.muted,
                             fontSize: 12,
                             fontWeight: FontWeight.w500)),
@@ -135,8 +135,8 @@ class MessageBubble extends StatelessWidget {
                       _FakeWaveform(isMine: isMine, seed: message.id)
                     else
                       Text(placeholder,
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 16, height: 1.4)),
+                          style: TextStyle(
+                              color: AppColors.text, fontSize: 16, height: 1.4)),
                   ],
                 ),
               ),
@@ -151,7 +151,7 @@ class MessageBubble extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(stageLabel ?? time,
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: AppColors.muted, fontSize: 12)),
                   if (isMine) ...[
                     const SizedBox(width: 4),
@@ -197,11 +197,11 @@ class MessageBubble extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(senderInfo.flag, style: const TextStyle(fontSize: 16)),
+                  Text(senderInfo.flag, style: TextStyle(fontSize: 16)),
                   const SizedBox(width: 6),
                   Text(
                     message.sender,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.muted,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
@@ -264,8 +264,8 @@ class MessageBubble extends StatelessWidget {
                   ],
                   Text(
                     message.translated,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: AppColors.text,
                       fontSize: 16,
                       height: 1.4,
                     ),
@@ -275,7 +275,7 @@ class MessageBubble extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
                         message.original,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.muted,
                           fontSize: 12,
                           fontStyle: FontStyle.italic,
@@ -298,7 +298,7 @@ class MessageBubble extends StatelessWidget {
               children: [
                 Text(
                   stageLabel ?? time,
-                  style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                  style: TextStyle(color: AppColors.muted, fontSize: 12),
                 ),
                 if (isMine) ...[
                   const SizedBox(width: 4),
@@ -314,7 +314,7 @@ class MessageBubble extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 2, left: 4, right: 4),
                 child: Text(
                   '⚠ Couldn\'t translate — tap to retry',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.danger,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -473,7 +473,7 @@ class _OriginalAudioRecoverState extends State<_OriginalAudioRecover> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: widget.isMine
-              ? Colors.white.withValues(alpha: 0.12)
+              ? AppColors.text.withValues(alpha: 0.12)
               : AppColors.bg,
           borderRadius: BorderRadius.circular(10),
         ),
@@ -613,7 +613,7 @@ class _AudioWaveformPlayerState extends State<_AudioWaveformPlayer> {
             ),
             child: Icon(
               _isPlaying ? Icons.pause : Icons.play_arrow,
-              color: widget.isMine ? Colors.white : AppColors.primary,
+              color: widget.isMine ? AppColors.text : AppColors.primary,
               size: 18,
             ),
           ),
@@ -676,7 +676,7 @@ class _FakeWaveform extends StatelessWidget {
             shape: BoxShape.circle,
           ),
           child: Icon(Icons.mic,
-              color: isMine ? Colors.white : AppColors.primary, size: 16),
+              color: isMine ? AppColors.text : AppColors.primary, size: 16),
         ),
         const SizedBox(width: 8),
         SizedBox(
@@ -789,8 +789,8 @@ class _SoloMessageBubble extends StatelessWidget {
                   const SizedBox(height: 8),
                 ],
                 Text(message.original,
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 16, height: 1.4)),
+                    style: TextStyle(
+                        color: AppColors.text, fontSize: 16, height: 1.4)),
               ],
             ),
           ),
@@ -820,8 +820,8 @@ class _SoloMessageBubble extends StatelessWidget {
                     const SizedBox(height: 8),
                   ],
                   Text(message.translated,
-                      style: const TextStyle(
-                          color: Colors.white, fontSize: 16, height: 1.4)),
+                      style: TextStyle(
+                          color: AppColors.text, fontSize: 16, height: 1.4)),
                 ],
               ),
             ),
@@ -829,7 +829,7 @@ class _SoloMessageBubble extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
             child: Text(stageLabel ?? time,
-                style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                style: TextStyle(color: AppColors.muted, fontSize: 12)),
           ),
           if (message.failed)
             GestureDetector(
@@ -853,7 +853,7 @@ class _SoloMessageBubble extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(info.flag, style: const TextStyle(fontSize: 16)),
+            Text(info.flag, style: TextStyle(fontSize: 16)),
             const SizedBox(width: 6),
             Text(info.name,
                 style: TextStyle(

@@ -94,8 +94,8 @@ class _LanguageSheet extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             title,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: AppColors.text,
               fontSize: 18,
               fontWeight: FontWeight.w600,
             ),
@@ -130,7 +130,7 @@ class _LanguageSheet extends StatelessWidget {
                           children: [
                             if (item.flag != null) ...[
                               Text(item.flag!,
-                                  style: const TextStyle(fontSize: 24)),
+                                  style: TextStyle(fontSize: 24)),
                               const SizedBox(width: 12),
                             ],
                             Expanded(
@@ -142,14 +142,14 @@ class _LanguageSheet extends StatelessWidget {
                                     style: TextStyle(
                                       color: isSel
                                           ? AppColors.primary
-                                          : Colors.white,
+                                          : AppColors.text,
                                       fontWeight: FontWeight.w500,
                                       fontSize: 16,
                                     ),
                                   ),
                                   if (item.sub != null)
                                     Text(item.sub!,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                             color: AppColors.muted,
                                             fontSize: 14)),
                                 ],
@@ -204,11 +204,11 @@ class LanguageBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(lang.flag, style: const TextStyle(fontSize: 16)),
+          Text(lang.flag, style: TextStyle(fontSize: 16)),
           const SizedBox(width: 6),
           Text(
             lang.name,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.primary,
               fontWeight: FontWeight.w600,
               fontSize: 14,

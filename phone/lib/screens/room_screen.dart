@@ -892,7 +892,7 @@ class _RoomScreenState extends State<RoomScreen> {
                                 borderRadius: BorderRadius.circular(999),
                               ),
                               child: Text(m.original,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       color: AppColors.muted, fontSize: 12)),
                             ),
                           );
@@ -919,7 +919,7 @@ class _RoomScreenState extends State<RoomScreen> {
   Widget _header() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       child: Row(
@@ -941,8 +941,8 @@ class _RoomScreenState extends State<RoomScreen> {
                   widget.roomName.isNotEmpty ? widget.roomName : widget.code,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      color: Colors.white,
+                  style: TextStyle(
+                      color: AppColors.text,
                       fontWeight: FontWeight.bold,
                       fontSize: 16),
                 ),
@@ -953,7 +953,7 @@ class _RoomScreenState extends State<RoomScreen> {
                       GestureDetector(
                         onTap: _copyCode,
                         child: Text('${widget.code} 📋',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 color: AppColors.accent,
                                 fontSize: 12,
                                 fontFamily: 'monospace',
@@ -972,7 +972,7 @@ class _RoomScreenState extends State<RoomScreen> {
                     ),
                     const SizedBox(width: 6),
                     Text(_isConnected ? 'Live' : 'Reconnecting…',
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: AppColors.muted, fontSize: 12)),
                   ],
                 ),
@@ -993,7 +993,7 @@ class _RoomScreenState extends State<RoomScreen> {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.bg,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
@@ -1071,7 +1071,7 @@ class _RoomScreenState extends State<RoomScreen> {
     final s = context.appState;
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.bg,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
@@ -1122,8 +1122,8 @@ class _RoomScreenState extends State<RoomScreen> {
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: AppColors.text,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
@@ -1154,7 +1154,7 @@ class _RoomScreenState extends State<RoomScreen> {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
-        color: active ? Colors.white : AppColors.muted,
+        color: active ? AppColors.text : AppColors.muted,
         fontSize: 14,
         fontWeight: FontWeight.bold,
       ),
@@ -1188,14 +1188,14 @@ class _RoomScreenState extends State<RoomScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: leftSide
                 ? [
-                    Text(info.flag, style: const TextStyle(fontSize: 24)),
+                    Text(info.flag, style: TextStyle(fontSize: 24)),
                     const SizedBox(width: 8),
                     label,
                   ]
                 : [
                     label,
                     const SizedBox(width: 8),
-                    Text(info.flag, style: const TextStyle(fontSize: 24)),
+                    Text(info.flag, style: TextStyle(fontSize: 24)),
                   ],
           ),
         ),
@@ -1227,7 +1227,7 @@ class _RoomScreenState extends State<RoomScreen> {
   Widget _inputBar(bool hasText) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
       child: Row(
@@ -1244,26 +1244,26 @@ class _RoomScreenState extends State<RoomScreen> {
                 minLines: 1,
                 maxLines: 4,
                 textInputAction: TextInputAction.send,
-                style: const TextStyle(color: Colors.white, fontSize: 16),
+                style: TextStyle(color: AppColors.text, fontSize: 16),
                 cursorColor: AppColors.primary,
                 decoration: InputDecoration(
                   hintText: 'Message in ${_inputLanguage.toUpperCase()}…',
-                  hintStyle: const TextStyle(color: AppColors.muted),
+                  hintStyle: TextStyle(color: AppColors.muted),
                   filled: true,
                   fillColor: AppColors.card,
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: AppColors.border),
+                    borderSide: BorderSide(color: AppColors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: AppColors.border),
+                    borderSide: BorderSide(color: AppColors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: AppColors.primary),
+                    borderSide: BorderSide(color: AppColors.primary),
                   ),
                 ),
               ),
@@ -1276,13 +1276,13 @@ class _RoomScreenState extends State<RoomScreen> {
                   child: Container(
                     width: 48,
                     height: 48,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: AppColors.primary,
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
                     child: const Text('↑',
-                        style: TextStyle(color: Colors.white, fontSize: 20)),
+                        style: TextStyle(color: AppColors.text, fontSize: 20)),
                   ),
                 )
               : VoiceButton(

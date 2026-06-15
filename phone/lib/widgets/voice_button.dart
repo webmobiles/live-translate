@@ -87,7 +87,7 @@ class _VoiceButtonState extends State<VoiceButton>
             alignment: Alignment.center,
             child: Text(
               widget.isRecording ? '⏹' : '🎤',
-              style: const TextStyle(fontSize: 20),
+              style: TextStyle(fontSize: 20),
             ),
           ),
         ),

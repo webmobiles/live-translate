@@ -170,8 +170,8 @@ class _JoinScreenState extends State<JoinScreen> {
                   ),
                   const SizedBox(width: 8),
                   Text(s.t('join.title'),
-                      style: const TextStyle(
-                          color: Colors.white,
+                      style: TextStyle(
+                          color: AppColors.text,
                           fontSize: 24,
                           fontWeight: FontWeight.bold)),
                 ],
@@ -187,8 +187,8 @@ class _JoinScreenState extends State<JoinScreen> {
                 textAlign: TextAlign.center,
                 textCapitalization: TextCapitalization.characters,
                 inputFormatters: [UpperCaseTextFormatter()],
-                textStyle: const TextStyle(
-                  color: Colors.white,
+                textStyle: TextStyle(
+                  color: AppColors.text,
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 8,
@@ -209,14 +209,14 @@ class _JoinScreenState extends State<JoinScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(s.t('join.fields.yourLanguage').toUpperCase(),
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: AppColors.muted,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                           letterSpacing: 1)),
                   if (_langWasAutoSet)
                     Text(s.t('join.fields.suggestedByHost'),
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: AppColors.primary, fontSize: 12)),
                 ],
               ),
@@ -239,8 +239,8 @@ class _JoinScreenState extends State<JoinScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(s.t('join.fields.yourLanguageSub'),
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 16)),
+                          style: TextStyle(
+                              color: AppColors.text, fontSize: 16)),
                       LanguageBadge(code: _language),
                     ],
                   ),
@@ -255,7 +255,7 @@ class _JoinScreenState extends State<JoinScreen> {
                 variant: ready
                     ? AppButtonVariant.primary
                     : AppButtonVariant.secondary,
-                labelColor: ready ? Colors.white : AppColors.muted,
+                labelColor: ready ? AppColors.text : AppColors.muted,
                 onPressed: _handleJoin,
               ),
             ],

@@ -62,7 +62,7 @@ class AppButton extends StatelessWidget {
         ? const SizedBox(
             height: 22,
             width: 22,
-            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.text),
           )
         : child ??
             Text(
@@ -104,11 +104,11 @@ class AppButton extends StatelessWidget {
   Color _defaultLabelColor() {
     switch (variant) {
       case AppButtonVariant.primary:
-        return Colors.white;
+        return AppColors.text;
       case AppButtonVariant.outline:
         return AppColors.primary;
       default:
-        return Colors.white;
+        return AppColors.text;
     }
   }
 }
@@ -188,7 +188,7 @@ class _AppInputState extends State<AppInput> {
         if (widget.label != null) ...[
           Text(
             widget.label!.toUpperCase(),
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.muted,
               fontSize: 12,
               fontWeight: FontWeight.w500,
@@ -209,12 +209,12 @@ class _AppInputState extends State<AppInput> {
           maxLength: widget.maxLength,
           maxLines: 1,
           style: widget.textStyle ??
-              const TextStyle(color: Colors.white, fontSize: 16),
+              TextStyle(color: AppColors.text, fontSize: 16),
           cursorColor: AppColors.primary,
           decoration: InputDecoration(
             counterText: '',
             hintText: widget.hint,
-            hintStyle: const TextStyle(color: AppColors.muted),
+            hintStyle: TextStyle(color: AppColors.muted),
             filled: true,
             fillColor: AppColors.card,
             contentPadding:
@@ -234,11 +234,11 @@ class _AppInputState extends State<AppInput> {
                 : null,
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.border),
+              borderSide: BorderSide(color: AppColors.border),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.primary),
+              borderSide: BorderSide(color: AppColors.primary),
             ),
           ),
         ),

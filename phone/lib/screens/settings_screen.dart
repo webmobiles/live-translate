@@ -109,18 +109,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         content: Text(
           s.t('settings.signOutConfirm'),
-          style: const TextStyle(color: Colors.white, fontSize: 15),
+          style: TextStyle(color: AppColors.text, fontSize: 15),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(s.t('common.cancel'),
-                style: const TextStyle(color: AppColors.muted)),
+                style: TextStyle(color: AppColors.muted)),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text(s.t('common.signOut'),
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.danger, fontWeight: FontWeight.w600)),
           ),
         ],
@@ -162,8 +162,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(width: 8),
                   Text(s.t('settings.title'),
-                      style: const TextStyle(
-                          color: Colors.white,
+                      style: TextStyle(
+                          color: AppColors.text,
                           fontSize: 24,
                           fontWeight: FontWeight.bold)),
                 ],
@@ -208,13 +208,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             child: Container(
                               width: 28,
                               height: 28,
-                              decoration: const BoxDecoration(
+                              decoration: BoxDecoration(
                                   color: AppColors.primary,
                                   shape: BoxShape.circle),
                               alignment: Alignment.center,
                               child: const Text('✎',
                                   style: TextStyle(
-                                      color: Colors.white, fontSize: 12)),
+                                      color: AppColors.text, fontSize: 12)),
                             ),
                           ),
                         ],
@@ -222,7 +222,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(s.t('settings.avatarHint'),
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: AppColors.muted, fontSize: 12)),
                   ],
                 ),
@@ -286,11 +286,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(_uiLanguageNames[_uiLang] ?? 'English',
-                          style: const TextStyle(
-                              color: Colors.white,
+                          style: TextStyle(
+                              color: AppColors.text,
                               fontWeight: FontWeight.w500)),
                       Text(s.t('common.change'),
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: AppColors.muted, fontSize: 14)),
                     ],
                   ),
@@ -309,8 +309,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       : _saved
                           ? s.t('settings.saved')
                           : s.t('settings.save'),
-                  style: const TextStyle(
-                      color: Colors.white,
+                  style: TextStyle(
+                      color: AppColors.text,
                       fontSize: 18,
                       fontWeight: FontWeight.bold),
                 ),
@@ -324,7 +324,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onPressed: _handleLogout,
                 child: Text(
                   s.t('common.signOut'),
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.danger,
                       fontSize: 16,
                       fontWeight: FontWeight.w600),
@@ -339,7 +339,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _sectionLabel(String text) => Text(
         text.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
             color: AppColors.muted,
             fontSize: 12,
             fontWeight: FontWeight.w500,
@@ -372,24 +372,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Row(
                   children: [
-                    Text(info.flag, style: const TextStyle(fontSize: 28)),
+                    Text(info.flag, style: TextStyle(fontSize: 28)),
                     const SizedBox(width: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(info.name,
-                            style: const TextStyle(
-                                color: Colors.white,
+                            style: TextStyle(
+                                color: AppColors.text,
                                 fontWeight: FontWeight.w500)),
                         Text(info.code.toUpperCase(),
-                            style: const TextStyle(
+                            style: TextStyle(
                                 color: AppColors.muted, fontSize: 12)),
                       ],
                     ),
                   ],
                 ),
                 Text(changeLabel,
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppColors.muted, fontSize: 14)),
               ],
             ),

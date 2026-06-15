@@ -6,5 +6,9 @@ analyzer:
 
 linter:
   rules:
+    # Colors are swapped at runtime (light/dark), so widgets that read them
+    # can't be const — disable the const-preference lints.
     prefer_const_constructors: false
+    prefer_const_constructors_in_immutables: false
+    prefer_const_literals_to_create_immutables: false
     use_build_context_synchronously: false

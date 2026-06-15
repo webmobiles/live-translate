@@ -20,7 +20,7 @@ class ParticipantList extends StatelessWidget {
     if (participants.isEmpty) return const SizedBox.shrink();
 
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       child: SingleChildScrollView(
@@ -57,12 +57,12 @@ class _Pill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(lang.flag, style: const TextStyle(fontSize: 16)),
+          Text(lang.flag, style: TextStyle(fontSize: 16)),
           const SizedBox(width: 6),
           Text(
             '${participant.nickname}${participant.isHost ? ' 👑' : ''}',
             style: TextStyle(
-              color: isMe ? AppColors.primary : Colors.white,
+              color: isMe ? AppColors.primary : AppColors.text,
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
