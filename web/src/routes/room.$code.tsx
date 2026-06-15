@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { CircleAlert, Mic, Pause, Play, Send, Square, X } from 'lucide-react'
-import { connectSocket, disconnectSocket } from '@/lib/socket'
+import { connectSocket, disconnectSocket, SOLOROOM_SOCKET } from '@/lib/socket'
 import { getLang } from '@/lib/languages'
 import { LanguageSelector, LanguageBadge } from '@/components/LanguageSelector'
 import { SoloLanguageToggle } from '@/components/SoloLanguageToggle'
@@ -395,7 +395,6 @@ function RoomScreen() {
         setRoomConfig(resolvedConfig)
 
         if (resolvedConfig.mode === 'solo_multilang') {
-          disconnectSocket()
           const [langA, langB] = resolvedConfig.soloLanguages ?? [initialLang, myLanguageRef.current]
           const targetLang = langB || myLanguageRef.current
           soloActiveLangRef.current = langA
@@ -406,9 +405,12 @@ function RoomScreen() {
           setMessages(data.history ?? [])
           setRoomLost(false)
           setIsConnected(true)
-          setRoomTransport('solo-http')
-          setTimeout(scrollToBottom, 100)
-          return
+          if (!SOLOROOM_SOCKET) {
+            disconnectSocket()
+            setRoomTransport('solo-http')
+            setTimeout(scrollToBottom, 100)
+            return
+          }
         }
 
         setParticipants(data.room.participants ?? [])
@@ -736,7 +738,7 @@ function RoomScreen() {
       isTranslating: false,
       deliveryStatus: 'sending',
     }])
-    if (isSolo) {
+    if (isSolo && !SOLOROOM_SOCKET) {
       setInputText('')
       void (async () => {
         try {
@@ -826,49 +828,51 @@ function RoomScreen() {
         const isSolo = roomConfig.mode === 'solo_multilang'
         const payload: Record<string, unknown> = { audioBase64: base64, mimeType: 'audio/webm', durationMs }
         if (isSolo && soloActiveLangRef.current) {
-          const id = crypto.randomUUID()
-          const senderLang = soloActiveLangRef.current
-          payload.senderLang = senderLang
-          setMessages(prev => [...prev, {
-            id,
-            original: '…',
-            translated: '…',
-            sender: nickname || t('room.me'),
-            senderLang,
-            targetLang: myLanguageRef.current,
-            isMine: true,
-            isAudio: true,
-            timestamp: Date.now(),
-            isTranslating: true,
-            deliveryStatus: 'sending',
-          }])
-          void (async () => {
-            try {
-              const res = await fetch(`/api/solo/rooms/${encodeURIComponent(code)}/audio`, {
-                method:      'POST',
-                credentials: 'include',
-                headers:     { 'Content-Type': 'application/json' },
-                body:        JSON.stringify({
-                  ...payload,
-                  sender: nickname || t('room.me'),
-                  targetLang: myLanguageRef.current,
-                }),
-              })
-              const data = await res.json().catch(() => ({})) as { ok?: boolean; message?: Message }
-              if (!res.ok || !data.ok || !data.message) throw new Error('Solo audio failed')
-              setMessages(prev => prev.map(m =>
-                m.id === id
-                  ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: Boolean(voiceAutoPlayEnabledRef.current && messageHasPlayableAudio(data.message!)) }
-                  : m
-              ))
-              setTimeout(scrollToBottom, 100)
-            } catch {
-              setMessages(prev => prev.map(m =>
-                m.id === id ? { ...m, isTranslating: false, deliveryStatus: 'failed' as const } : m
-              ))
-            }
-          })()
-          return
+          payload.senderLang = soloActiveLangRef.current
+          if (!SOLOROOM_SOCKET) {
+            const id = crypto.randomUUID()
+            const senderLang = soloActiveLangRef.current
+            setMessages(prev => [...prev, {
+              id,
+              original: '…',
+              translated: '…',
+              sender: nickname || t('room.me'),
+              senderLang,
+              targetLang: myLanguageRef.current,
+              isMine: true,
+              isAudio: true,
+              timestamp: Date.now(),
+              isTranslating: true,
+              deliveryStatus: 'sending',
+            }])
+            void (async () => {
+              try {
+                const res = await fetch(`/api/solo/rooms/${encodeURIComponent(code)}/audio`, {
+                  method:      'POST',
+                  credentials: 'include',
+                  headers:     { 'Content-Type': 'application/json' },
+                  body:        JSON.stringify({
+                    ...payload,
+                    sender: nickname || t('room.me'),
+                    targetLang: myLanguageRef.current,
+                  }),
+                })
+                const data = await res.json().catch(() => ({})) as { ok?: boolean; message?: Message }
+                if (!res.ok || !data.ok || !data.message) throw new Error('Solo audio failed')
+                setMessages(prev => prev.map(m =>
+                  m.id === id
+                    ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: Boolean(voiceAutoPlayEnabledRef.current && messageHasPlayableAudio(data.message!)) }
+                    : m
+                ))
+                setTimeout(scrollToBottom, 100)
+              } catch {
+                setMessages(prev => prev.map(m =>
+                  m.id === id ? { ...m, isTranslating: false, deliveryStatus: 'failed' as const } : m
+                ))
+              }
+            })()
+            return
+          }
         }
         socketRef.current?.emit('message:audio', payload)
       }
@@ -886,7 +890,7 @@ function RoomScreen() {
 
   const updateRoomConfig = (next: RoomConfig) => {
     setRoomConfig(next)
-    if (roomConfig.mode === 'solo_multilang') {
+    if (roomConfig.mode === 'solo_multilang' && !SOLOROOM_SOCKET) {
       void (async () => {
         try {
           const res = await fetch(`/api/solo/rooms/${encodeURIComponent(code)}/config`, {

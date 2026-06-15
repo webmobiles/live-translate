@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { connectSocket } from '@/lib/socket'
+import { connectSocket, SOLOROOM_SOCKET } from '@/lib/socket'
 import { LanguageSelector, LanguageBadge } from '@/components/LanguageSelector'
 import type { RoomConfig, User } from '@/types'
 
@@ -57,7 +57,7 @@ function CreateScreen() {
       guestDefaultLanguage: isSolo ? null : guestLang,
     }
 
-    if (isSolo) {
+    if (isSolo && !SOLOROOM_SOCKET) {
       void (async () => {
         try {
           const res = await fetch('/api/solo/rooms', {

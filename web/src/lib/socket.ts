@@ -5,6 +5,7 @@ const SOCKET_TRANSPORTS = (import.meta.env.VITE_SOCKET_TRANSPORTS ?? 'websocket'
   .split(',')
   .map((transport: string) => transport.trim())
   .filter(Boolean);
+export const SOLOROOM_SOCKET = import.meta.env.VITE_SOLOROOM_SOCKET === 'yes';
 
 let _socket: Socket | null = null;
 

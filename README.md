@@ -6,9 +6,9 @@ Real-time AI translation app with room-based chat — inspired by akkadu.ai.
 ## Architecture
 
 ```
-Mobile App (React Native + Expo + NativeWind)
+Phone App  (Flutter / Dart)
 Web App    (React + Vite + TanStack Router)
-     ↓ Socket.io
+     ↓ Socket.io / HTTP
 Node.js Backend (Express + Socket.io)
      ↓                          ↓
 NATS / Redpanda             Inngest (workflows)
@@ -222,18 +222,16 @@ npm run dev
 
 Web app runs on `http://localhost:5173`
 
-### 4. Mobile
+### 4. Phone (Flutter)
 
 ```bash
-cd mobile
-npm install
-cp .env.example .env    # set EXPO_PUBLIC_SERVER_URL=http://<your-ip>:4000
-npx expo start
+cd phone
+flutter pub get
+cp .env.example .env    # edit SERVER_URL=http://<your-ip>:4000
+flutter run
 ```
 
-Scan the QR code with Expo Go (iOS/Android).
-
-> **Note:** Use your local network IP (not `localhost`) for mobile device testing.
+> **Note:** Use your local network IP (not `localhost`) for mobile device testing. On Apple Silicon, run `brew install cocoapods && cd ios && pod install` before building for iOS.
 
 ---
 
@@ -287,17 +285,19 @@ src/gateway/stt/              Speech-to-text providers
 
 ## Project Structure
 
-```
+```md
 live-translate/
 ├── web/
 │   └── src/
 │       ├── routes/
 │       │   ├── index.tsx             # Home — Create / Join buttons
-│       │   ├── create.tsx            # Create room form
+│       │   ├── create.tsx            # Create room form (normal + solo)
 │       │   ├── join.tsx              # Join room form
-│       │   └── room.$code.tsx        # Live chat room
+│       │   ├── settings.tsx          # User settings (language, nickname)
+│       │   └── room.$code.tsx        # Live chat room (normal + solo modes)
 │       ├── components/
-│       │   └── LanguageSelector.tsx  # Language picker + badge
+│       │   ├── LanguageSelector.tsx  # Language picker + badge
+│       │   └── SoloLanguageToggle.tsx # Solo mode A⇄B language switch
 │       ├── lib/
 │       │   ├── socket.ts             # Socket.io singleton
 │       │   └── languages.ts          # Language list
@@ -309,47 +309,85 @@ live-translate/
 │   ├── tsconfig.json
 │   └── src/
 │       ├── server.ts                 # Express + Socket.io entry point
-│       ├── facades/
-│       │   ├── db.ts                 # Database façade
-│       │   ├── queue.ts              # Message queue façade
-│       │   ├── workflows.ts          # Inngest workflow façade
-│       │   ├── translation.ts        # Translation provider façade
-│       │   └── stt.ts                # Speech-to-text provider façade
-│       ├── db/
-│       │   ├── scylla.ts             # ScyllaDB / cassandra-driver
-│       │   ├── tikv.ts               # TiKV through TiDB SQL / mysql2
-│       │   └── surreal.ts            # SurrealDB / surrealdb SDK
-│       ├── kafka/
-│       │   └── index.ts              # Redpanda / kafkajs
-│       ├── nats/
-│       │   └── index.ts              # NATS message bus
-│       ├── inngest/
-│       │   ├── client.ts             # Inngest client
-│       │   └── functions.ts          # translate + transcribe workflows
-│       ├── rooms/
-│       │   └── manager.ts            # In-memory participant state
-│       └── gateway/
-│           ├── index.ts              # Backward-compatible AI router
-│           ├── translation/          # Text translation gateway
-│           ├── stt/                  # Speech-to-text gateway
-│           └── providers/            # Legacy/shared providers
+│       ├── facades/                  # Façade pattern isolation layer
+│       ├── db/                       # Database implementations
+│       ├── nats/ / kafka/            # Message queue implementations
+│       ├── inngest/                  # AI workflow orchestration
+│       ├── rooms/                    # Room state & participant manager
+│       └── gateway/                  # AI providers (translation, STT, TTS)
 │
-└── mobile/
-    ├── app/
-    │   ├── index.tsx                 # Home screen
-    │   ├── create.tsx                # Create room
-    │   ├── join.tsx                  # Join room
-    │   └── room/[code].tsx           # Live translation room
+├── phone/
+│   └── lib/
+│       ├── screens/
+│       │   ├── home_screen.dart      # Home + Google OAuth
+│       │   ├── create_screen.dart    # Create room (normal + solo)
+│       │   ├── join_screen.dart      # Join by code
+│       │   ├── room_screen.dart      # Live chat room (normal + solo)
+│       │   └── settings_screen.dart  # User prefs (language, avatar)
+│       ├── widgets/
+│       │   ├── message_bubble.dart   # Chat message display
+│       │   ├── language_selector.dart # Language picker bottom sheet
+│       │   ├── participant_list.dart # Room participant bar
+│       │   └── voice_button.dart     # Press & hold voice recorder
+│       ├── services/
+│       │   ├── socket_service.dart   # Socket.io client
+│       │   ├── solo_api.dart         # HTTP API client for solo rooms
+│       │   ├── auth_service.dart     # Google OAuth
+│       │   └── user_prefs.dart       # Local settings persistence
+│       ├── models/                   # Data classes (Message, Participant, etc.)
+│       ├── state/                    # Global app state management
+│       └── theme.dart               # App-wide theming
+│
+└── shared/
     └── src/
-        ├── components/
-        │   ├── MessageBubble.tsx
-        │   ├── LanguageSelector.tsx
-        │   ├── ParticipantList.tsx
-        │   └── VoiceButton.tsx
-        └── lib/
-            ├── socket.ts
-            └── languages.ts
+        ├── types/index.ts            # Shared TypeScript types
+        ├── lib/socket-events.ts      # Socket event name constants
+        └── locales/                  # i18n translation JSON (6 languages)
 ```
+
+---
+
+## Feature Compatibility: Web ↔ Phone
+
+The web (`./web`) and phone (`./phone`) apps share the same backend and implement the same room-based translation flow. The table below tracks every feature and version differences — treat it as a living checklist. When you add a feature to one platform, update the table and raise the compatibility score.
+
+| # | Feature | Web | Phone | Notes |
+|---|---------|:---:|:-----:|-------|
+| 1 | Room creation (normal mode) | ✅ | ✅ | Both use socket.io `room:create` |
+| 2 | Room creation (solo mode) | ✅ | ✅ | Web: HTTP or socket (env `VITE_SOLOROOM_SOCKET`). Phone: HTTP only |
+| 3 | Room join by code (normal) | ✅ | ✅ | Socket.io `room:join` + code peek for guest language |
+| 4 | Solo room — double-language toggle UI | ✅ | ❌ | Web: `SoloLanguageToggle` A⇄B. Phone: fallback to first language only |
+| 5 | Text message send (normal) | ✅ | ✅ | Socket.io `message:text` with ack |
+| 6 | Text message send (solo) | ✅ | ✅ | Web: HTTP or socket. Phone: HTTP `POST /api/solo/rooms/:code/text` |
+| 7 | Voice message send (normal) | ✅ | ✅ | Press & hold mic → socket `message:audio` |
+| 8 | Voice message send (solo) | ✅ | ✅ | Web: HTTP or socket. Phone: HTTP `POST /api/solo/rooms/:code/audio` |
+| 9 | Translation spinner while in-flight | ✅ | ✅ | Web: progress bar + delivery icons. Phone: ActivityIndicator only |
+| 10 | Delivery status icons (sending / queued / delivered / read / failed) | ✅ | ❌ | Web: WhatsApp-style checkmarks. Phone: not tracked |
+| 11 | Message bubble — tap to toggle original / translation | ✅ | ❌ | Web only. Phone shows both simultaneously |
+| 12 | Audio autoplay with shared player element | ✅ | ❌ | Web: unified Audio element, queued retry, gesture unlock |
+| 13 | Audio waveform visualization | ✅ | ❌ | Web: SVG waveform with seek, play/pause, duration |
+| 14 | Audio playback fallback (translated → original on error) | ✅ | ❌ | Web: falls back to `originalAudio` when TTS fails |
+| 15 | Voice autoplay toggle (host checkbox) | ✅ | ❌ | Web: checkbox in room header |
+| 16 | Room config edit in-room (voice pipeline, audio output) | ✅ | ❌ | Web: host can toggle STT/direct-voice and TTS audio from inside the room |
+| 17 | System messages (join / left / reconnect) | ✅ | ✅ | Both platforms |
+| 18 | Participant list with language badges | ✅ | ✅ | Web: tailwind chips. Phone: horizontal scroll |
+| 19 | Language picker | ✅ | ✅ | Web: modal with search. Phone: bottom sheet with flag+name |
+| 20 | Copy room code to clipboard | ✅ | ✅ | Both platforms |
+| 21 | Room lost auto-redirect with countdown | ✅ | ❌ | Web: 4-second countdown → home. Phone: not implemented |
+| 22 | Reconnection handling | ✅ | ✅ | Web: socket reconnect + room re-sync. Phone: socket.io reconnection |
+| 23 | Chat history loading on join | ✅ | ✅ | Web: HTTP `GET /api/rooms/:code`. Phone: normal mode via socket, solo via HTTP |
+| 24 | Solo message retry on failure | ❌ | ✅ | Phone: one-tap retry via `_RetryPayload` map |
+| 25 | Composer placeholder with flag + language name | ✅ | ❌ | Web: `🇫🇷 French` in input placeholder |
+| 26 | Google OAuth login | ✅ | ✅ | Both platforms |
+| 27 | Onboarding flow | ✅ | ❌ | Web only |
+| 28 | UI language (i18n, 6 locales) | ✅ | ✅ | Both use shared `shared/locales/` JSONs |
+| 29 | Settings / user preferences | ✅ | ✅ | Both: nickname, mother/target language, avatar |
+| 30 | Auth-required mode (`REQUIRE_AUTH=true`) | ❌ | ✅ | Phone: enforcement in `config.dart`. Web: no forced auth |
+| 31 | Markdown formatting in translated messages | ✅ | ❌ | Web: renders bold/italic. Phone: plain text only |
+
+**Compatibility score: ~58%** *(18 of 31 features identical, tracked as of 2026-06-15)*
+
+The score counts features that work identically on both platforms (✅✅). Features with partial overlap or platform-specific behavior are not counted. Update the score when you close gaps.
 
 ---
 
