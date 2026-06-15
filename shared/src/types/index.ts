@@ -26,6 +26,9 @@ export interface Message {
   isMine: boolean
   isAudio?: boolean
   originalAudio?: { audioBase64: string; mimeType: string } | null
+  // True when the original audio is recoverable from the server on demand
+  // (via GET …/audio/original) rather than shipped inline in originalAudio.
+  hasOriginalAudio?: boolean
   translatedAudio?: { audioBase64: string; mimeType: string } | null
   autoPlay?: boolean
   timestamp: number

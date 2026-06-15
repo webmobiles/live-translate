@@ -6,6 +6,7 @@ import * as stt from '../facades/stt';
 import * as tts from '../facades/tts';
 import * as voiceTranslation from '../facades/voiceTranslation';
 import { normalizeRoomConfig } from '../rooms/config';
+import { persistMessageAudio } from '../audio/store';
 import { logger } from '../observability/logger';
 import { severity } from '../observability/severity';
 import * as appMetrics from '../observability/metrics';
@@ -194,8 +195,10 @@ export const transcribeAndTranslate = inngest.createFunction(
 
       await queue.publishMessageProgress(roomCode, msgId, 88, 'saving');
 
+      const directAudioFiles = persistMessageAudio({ msgId, originalAudio: { audioBase64, mimeType }, audioOutputs });
+
       await step.run('save-to-db', async () => {
-        await db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true });
+        await db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true, ...directAudioFiles });
         await queue.publishMessageProgress(roomCode, msgId, 95, 'delivering');
       });
 
@@ -210,7 +213,7 @@ export const transcribeAndTranslate = inngest.createFunction(
           original: text,
           translations,
           audioOutputs,
-          originalAudio: { audioBase64, mimeType },
+          // Original audio recovered on demand via GET …/audio/original, not pushed.
           isAudio: true,
           timestamp: Date.now(),
         }),
@@ -250,8 +253,10 @@ export const transcribeAndTranslate = inngest.createFunction(
       return result;
     });
 
+    const audioFiles = persistMessageAudio({ msgId, originalAudio: { audioBase64, mimeType }, audioOutputs });
+
     await step.run('save-to-db', async () => {
-      await db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true });
+      await db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true, ...audioFiles });
       await queue.publishMessageProgress(roomCode, msgId, 95, 'delivering');
     });
 
@@ -264,7 +269,7 @@ export const transcribeAndTranslate = inngest.createFunction(
         original: text,
         translations,
         audioOutputs,
-        originalAudio: { audioBase64, mimeType },
+        // Original audio recovered on demand via GET …/audio/original, not pushed.
         isAudio: true,
         timestamp: Date.now(),
       }),

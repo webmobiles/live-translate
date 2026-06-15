@@ -14,6 +14,7 @@ import { internalRouter } from './auth/internalRoutes';
 import { rateLimitApi } from './auth/rateLimiter';
 import { logger, flushLogs } from './observability/logger';
 import { dumpIncomingAudio } from './debug/audioDump';
+import { persistMessageAudio, findOriginalAudio } from './audio/store';
 import { severity } from './observability/severity';
 import * as appMetrics from './observability/metrics';
 import { metricsHandler } from './observability/prometheus';
@@ -168,6 +169,31 @@ app.get('/api/rooms/:code', async (req, res) => {
     res.json({ ok: true, room: roomManager.getPublic(room.code), history });
   } catch (err: any) {
     logger.error({ event: 'room.fetch_failed', severity: severity.P2, roomCode: req.params.code, err }, 'Room fetch failed');
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Recover a voice message's original audio on demand (not pushed over the socket).
+app.get('/api/rooms/:code/messages/:msgId/audio/original', async (req, res) => {
+  try {
+    const { code, msgId } = req.params;
+    if (!isUuid(msgId)) {
+      res.status(400).json({ ok: false, error: 'Invalid message id.' });
+      return;
+    }
+    const room = await roomManager.getOrRestore(code);
+    if (!room) {
+      res.status(404).json({ ok: false, error: 'Room not found.' });
+      return;
+    }
+    const file = findOriginalAudio(msgId);
+    if (!file) {
+      res.status(404).json({ ok: false, error: 'Audio not found.' });
+      return;
+    }
+    res.sendFile(file.path, { headers: { 'Content-Type': file.mimeType, 'Cache-Control': 'private, max-age=3600' } });
+  } catch (err: any) {
+    logger.error({ event: 'room.audio.recover_failed', severity: severity.P3, roomCode: req.params.code, msgId: req.params.msgId, err }, 'Original audio recovery failed');
     res.status(500).json({ ok: false, error: err.message });
   }
 });
@@ -364,7 +390,12 @@ app.post('/api/solo/rooms/:code/audio', async (req, res) => {
       text,
     });
 
-    await db.saveMessage({ roomId: room.id, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true });
+    const { originalAudioFile, translatedAudioFiles } = persistMessageAudio({
+      msgId,
+      originalAudio: { audioBase64, mimeType },
+      audioOutputs,
+    });
+    await db.saveMessage({ roomId: room.id, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true, originalAudioFile, translatedAudioFiles });
 
     res.json({
       ok: true,
@@ -378,7 +409,9 @@ app.post('/api/solo/rooms/:code/audio', async (req, res) => {
         targetLang,
         isMine: true,
         isAudio: true,
-        originalAudio: { audioBase64, mimeType },
+        // Original audio is recovered on demand via GET …/audio/original, not pushed.
+        originalAudio: null,
+        hasOriginalAudio: Boolean(originalAudioFile),
         translatedAudio: audioOutputs[targetLang] ?? null,
         timestamp: Date.now(),
       },
@@ -435,6 +468,7 @@ function formatStoredMessageForLanguage(msg: any, targetLang: string, isMine = f
     isMine,
     isAudio:         msg.isAudio,
     originalAudio:   null,
+    hasOriginalAudio: Boolean(msg.originalAudioFile),
     translatedAudio: msg.audioOutputs?.[targetLang] ?? null,
     timestamp:       msg.timestamp,
   };
@@ -518,7 +552,6 @@ async function startQueueConsumer() {
           ?? message.original;
         const isSender = participant.socketId === message.senderSocketId;
         const isSoloRoom = room.config?.mode === 'solo_multilang';
-        const canUseOriginalAudio = isSender || participant.language === message.senderLang;
         const translatedAudio = isSender && !isSoloRoom ? null : (message.audioOutputs?.[participant.language] ?? null);
 
         io.to(participant.socketId).emit('message:incoming', {
@@ -530,7 +563,10 @@ async function startQueueConsumer() {
           targetLang: participant.language,
           isMine:     isSender,
           isAudio:    message.isAudio,
-          originalAudio: canUseOriginalAudio ? (message.originalAudio ?? null) : null,
+          // Original audio is no longer pushed inline — recovered on demand via
+          // GET …/audio/original. Offered to the sender and same-language listeners.
+          originalAudio: null,
+          hasOriginalAudio: Boolean(message.isAudio) && (isSender || participant.language === message.senderLang),
           translatedAudio,
           timestamp:  message.timestamp,
         });

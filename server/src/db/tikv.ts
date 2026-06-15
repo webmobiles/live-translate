@@ -106,6 +106,18 @@ async function ensureSchema() {
   } catch (err: any) {
     if (!/Duplicate column/i.test(err.message)) throw err;
   }
+
+  // Chat-history audio file references (audio bytes live on disk under AUDIOS_PATH).
+  for (const ddl of [
+    'ALTER TABLE messages ADD COLUMN original_audio_file VARCHAR(255)',
+    'ALTER TABLE messages ADD COLUMN translated_audio_files LONGTEXT',
+  ]) {
+    try {
+      await db.execute(ddl);
+    } catch (err: any) {
+      if (!/Duplicate column/i.test(err.message)) throw err;
+    }
+  }
 }
 
 // ── Rooms ──────────────────────────────────────────────────────────────────
@@ -151,11 +163,11 @@ export async function updateRoomConfig(roomId: string, config: any) {
 
 // ── Messages ───────────────────────────────────────────────────────────────
 
-export async function saveMessage({ roomId, msgId, sender, senderLang, original, translations, audioOutputs, isAudio }: any) {
+export async function saveMessage({ roomId, msgId, sender, senderLang, original, translations, audioOutputs, isAudio, originalAudioFile, translatedAudioFiles }: any) {
   await getPool().execute(
     `INSERT INTO messages
-       (room_id, timestamp, id, sender, sender_lang, original, translations, audio_outputs, is_audio)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (room_id, timestamp, id, sender, sender_lang, original, translations, audio_outputs, is_audio, original_audio_file, translated_audio_files)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       roomId,
       Date.now(),
@@ -166,6 +178,8 @@ export async function saveMessage({ roomId, msgId, sender, senderLang, original,
       JSON.stringify(translations || {}),
       JSON.stringify(audioOutputs || {}),
       Boolean(isAudio),
+      originalAudioFile ?? null,
+      JSON.stringify(translatedAudioFiles || {}),
     ],
   );
 }
@@ -173,7 +187,7 @@ export async function saveMessage({ roomId, msgId, sender, senderLang, original,
 export async function getRecentMessages(roomId: string, limit = 100) {
   const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
   const [rows]: any = await getPool().query(
-    `SELECT id, room_id, sender, sender_lang, original, translations, audio_outputs, is_audio, timestamp
+    `SELECT id, room_id, sender, sender_lang, original, translations, audio_outputs, is_audio, original_audio_file, translated_audio_files, timestamp
      FROM messages
      WHERE room_id = ?
      ORDER BY timestamp DESC, id ASC
@@ -195,6 +209,10 @@ export async function getRecentMessages(roomId: string, limit = 100) {
         ? JSON.parse(row.audio_outputs)
         : row.audio_outputs || {},
       isAudio: Boolean(row.is_audio),
+      originalAudioFile: row.original_audio_file ?? null,
+      translatedAudioFiles: typeof row.translated_audio_files === 'string'
+        ? JSON.parse(row.translated_audio_files)
+        : row.translated_audio_files || {},
       timestamp: Number(row.timestamp),
     }))
     .reverse();

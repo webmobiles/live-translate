@@ -1250,12 +1250,13 @@ function RoomScreen() {
               ) : roomConfig.mode === 'solo_multilang' && roomConfig.soloLanguages ? (
                 <SoloMessageBubble
                   key={msg.id}
+                  code={code}
                   message={msg}
                   soloLanguages={roomConfig.soloLanguages}
                   onRetry={retryMessage}
                 />
               ) : (
-                <MessageBubble key={msg.id} message={msg} onRetry={retryMessage} />
+                <MessageBubble key={msg.id} code={code} message={msg} onRetry={retryMessage} />
               )
             )}
           </div>
@@ -1496,6 +1497,81 @@ function generateWaveformBars(seed: string, count: number): number[] {
   })
 }
 
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(reader.error)
+    reader.onloadend = () => resolve(String(reader.result).split(',')[1] ?? '')
+    reader.readAsDataURL(blob)
+  })
+}
+
+function DownloadAudioIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3v12" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M5 21h14" />
+    </svg>
+  )
+}
+
+// Original audio is not pushed inline (it's heavy). When the server has it on
+// disk (hasOriginalAudio), show a download button; on click, GET it once, then
+// render the normal waveform player and autoplay it. An inline payload (e.g. an
+// optimistic local copy while sending) takes precedence and plays immediately.
+function OriginalAudioBlock({ code, message, isMine, inline }: {
+  code: string;
+  message: Message;
+  isMine: boolean;
+  inline: MessageAudioPayload | null;
+}) {
+  const { t } = useTranslation()
+  const [recovered, setRecovered] = useState<MessageAudioPayload | null>(null)
+  const [loadState, setLoadState] = useState<'idle' | 'loading' | 'error'>('idle')
+
+  if (inline) {
+    return <AudioPlayer audioBase64={inline.audioBase64} mimeType={inline.mimeType} isMine={isMine} autoPlay={false} />
+  }
+  if (recovered) {
+    return <AudioPlayer audioBase64={recovered.audioBase64} mimeType={recovered.mimeType} isMine={isMine} autoPlay />
+  }
+  if (!message.isAudio || !message.hasOriginalAudio) return null
+
+  const recover = async () => {
+    setLoadState('loading')
+    try {
+      const res = await fetch(`/api/rooms/${encodeURIComponent(code)}/messages/${encodeURIComponent(message.id)}/audio/original`)
+      if (!res.ok) throw new Error(`audio recover ${res.status}`)
+      const blob = await res.blob()
+      setRecovered({ audioBase64: await blobToBase64(blob), mimeType: blob.type || 'audio/mpeg' })
+      setLoadState('idle')
+    } catch {
+      setLoadState('error')
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); void recover() }}
+      disabled={loadState === 'loading'}
+      className={`inline-flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-60 ${
+        isMine ? 'text-white/80 bg-white/10 hover:bg-white/20' : 'text-lt-muted bg-lt-bg hover:text-white'
+      }`}
+    >
+      <DownloadAudioIcon />
+      <span>
+        {loadState === 'loading'
+          ? t('room.loadingOriginalAudio', 'Loading…')
+          : loadState === 'error'
+            ? t('room.retry')
+            : t('room.playOriginalAudio', 'Original audio')}
+      </span>
+    </button>
+  )
+}
+
 function AudioPlayer({
   audioBase64,
   mimeType,
@@ -1647,7 +1723,7 @@ function PendingAudioPreview({ isMine, seed }: { isMine: boolean; seed: string }
 // ── Solo message bubble ────────────────────────────────────────────────────
 // Always shows both original + translation, aligned by which side spoke.
 
-function SoloMessageBubble({ message, soloLanguages, onRetry }: { message: Message; soloLanguages: [string, string]; onRetry?: (msg: Message) => void }) {
+function SoloMessageBubble({ code, message, soloLanguages, onRetry }: { code: string; message: Message; soloLanguages: [string, string]; onRetry?: (msg: Message) => void }) {
   const { t } = useTranslation()
   const { senderLang, original, translated, isTranslating, isAudio, originalAudio, translatedAudio, timestamp, deliveryStatus, progress } = message
   const isA = senderLang === soloLanguages[0]
@@ -1700,13 +1776,8 @@ function SoloMessageBubble({ message, soloLanguages, onRetry }: { message: Messa
         {isAudio && (
           <p className={`text-xs mb-1 ${isA ? 'text-lt-muted' : 'text-white/60'}`}>🎤 Voice</p>
         )}
-        {originalAudioToPlay && (
-          <AudioPlayer
-            audioBase64={originalAudioToPlay.audioBase64}
-            mimeType={originalAudioToPlay.mimeType}
-            isMine={!isA}
-            autoPlay={false}
-          />
+        {isAudio && (
+          <OriginalAudioBlock code={code} message={message} isMine={!isA} inline={originalAudioToPlay} />
         )}
         <p className="text-white text-base leading-relaxed">{original}</p>
       </div>
@@ -1752,7 +1823,7 @@ function SoloMessageBubble({ message, soloLanguages, onRetry }: { message: Messa
 
 // ── Message bubble ─────────────────────────────────────────────────────────
 
-function MessageBubble({ message, onRetry }: { message: Message; onRetry?: (msg: Message) => void }) {
+function MessageBubble({ code, message, onRetry }: { code: string; message: Message; onRetry?: (msg: Message) => void }) {
   const { t } = useTranslation()
   const { isMine, sender, senderLang, translated, original, isTranslating, isAudio, originalAudio, translatedAudio, timestamp, deliveryStatus, progress } = message
   const [showOriginal, setShowOriginal] = useState(false)
@@ -1771,6 +1842,17 @@ function MessageBubble({ message, onRetry }: { message: Message; onRetry?: (msg:
     : ''
   const useOriginalAudio = Boolean(translatedAudioKey && failedTranslatedAudioKey === translatedAudioKey)
   const audioToPlay = useOriginalAudio ? playableOriginalAudio : (playableTranslatedAudio ?? playableOriginalAudio ?? null)
+  // Original ↔ translation is a single toggle (showOriginal) for BOTH text and
+  // audio. View the original when toggled on, or when there's no translated
+  // audio to show (e.g. the sender's own message). The translated view is always
+  // one tap away again.
+  const hasRecoverableOriginal = Boolean(message.hasOriginalAudio || playableOriginalAudio)
+  const viewingOriginalAudio = hasRecoverableOriginal && (showOriginal || !audioToPlay)
+  // Only offer the toggle when there are two real views to flip between: for a
+  // voice message, a translated audio AND a recoverable original; for text, a
+  // distinct translation. Recovering an original with nothing to switch back to
+  // (e.g. your own message, which has no translated audio) shows no toggle.
+  const canToggleView = isAudio ? Boolean(audioToPlay && hasRecoverableOriginal) : hasTranslation
 
   const fallbackToOriginalAudio = useCallback(() => {
     if (playableTranslatedAudio && playableOriginalAudio && !useOriginalAudio) {
@@ -1806,29 +1888,38 @@ function MessageBubble({ message, onRetry }: { message: Message; onRetry?: (msg:
         </div>
       )}
       <div
-        onClick={() => hasTranslation && setShowOriginal(v => !v)}
+        onClick={() => canToggleView && setShowOriginal(v => !v)}
         className={`max-w-[78%] px-4 py-3 rounded-2xl transition-opacity ${
           isMine ? 'bg-lt-primary rounded-br-sm' : 'bg-lt-card rounded-bl-sm border border-lt-border'
-        } ${deliveryStatus === 'failed' ? 'border border-lt-danger' : ''} ${hasTranslation ? 'cursor-pointer' : ''}`}
+        } ${deliveryStatus === 'failed' ? 'border border-lt-danger' : ''} ${canToggleView ? 'cursor-pointer' : ''}`}
       >
         {isAudio && (
           <p className={`text-xs mb-1 ${isMine ? 'text-white/60' : 'text-lt-muted'}`}>🎤 Voice</p>
         )}
         {audioToPlay && (
-          <AudioPlayer
-            audioBase64={audioToPlay.audioBase64}
-            mimeType={audioToPlay.mimeType}
-            isMine={isMine}
-            autoPlay={Boolean(message.autoPlay)}
-            onPlaybackError={fallbackToOriginalAudio}
-          />
+          <div className={viewingOriginalAudio ? 'hidden' : ''}>
+            <AudioPlayer
+              audioBase64={audioToPlay.audioBase64}
+              mimeType={audioToPlay.mimeType}
+              isMine={isMine}
+              autoPlay={Boolean(message.autoPlay)}
+              onPlaybackError={fallbackToOriginalAudio}
+            />
+          </div>
         )}
-        <p className={`text-white text-base leading-relaxed ${audioToPlay ? 'mt-2' : ''}`}>
+        {isAudio && hasRecoverableOriginal && (
+          <div className={`${viewingOriginalAudio ? '' : 'hidden'} ${audioToPlay ? 'mt-2' : ''}`}>
+            <OriginalAudioBlock code={code} message={message} isMine={isMine} inline={playableOriginalAudio} />
+          </div>
+        )}
+        <p className={`text-white text-base leading-relaxed ${audioToPlay || (isAudio && hasRecoverableOriginal) ? 'mt-2' : ''}`}>
           {showOriginal ? original : translated}
         </p>
-        {hasTranslation && (
+        {canToggleView && (
           <p className={`text-xs mt-1.5 ${isMine ? 'text-white/50' : 'text-lt-muted'}`}>
-            {showOriginal ? '↩ show translation' : `${senderInfo.flag} tap to see original`}
+            {showOriginal
+              ? '↩ tap to show translation'
+              : `${senderInfo.flag} tap to show original${isAudio && hasRecoverableOriginal ? ' audio' : ''}`}
           </p>
         )}
       </div>
