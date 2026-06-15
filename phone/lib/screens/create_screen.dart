@@ -226,8 +226,8 @@ class _CreateScreenState extends State<CreateScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(s.t('create.options.translatedAudio'),
-                            style: TextStyle(
-                                color: AppColors.text, fontSize: 14)),
+                            style:
+                                TextStyle(color: AppColors.text, fontSize: 14)),
                         Switch(
                           value: _translatedAudio,
                           activeThumbColor: AppColors.text,
@@ -343,8 +343,8 @@ class _CreateScreenState extends State<CreateScreen> {
                 },
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text('⇄',
                   style: TextStyle(color: AppColors.muted, fontSize: 24)),
             ),
@@ -386,8 +386,8 @@ class _BackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => GestureDetector(
         onTap: onTap,
-        child: const Padding(
-          padding: EdgeInsets.all(8),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
           child:
               Text('←', style: TextStyle(color: AppColors.muted, fontSize: 24)),
         ),
@@ -466,8 +466,8 @@ class _PickerRow extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(text,
-                style:
-                    TextStyle(color: textColor ?? AppColors.text, fontSize: 16)),
+                style: TextStyle(
+                    color: textColor ?? AppColors.text, fontSize: 16)),
             LanguageBadge(code: code),
           ],
         ),
@@ -547,7 +547,7 @@ class _PipelineToggle extends StatelessWidget {
           alignment: Alignment.center,
           child: Text(text,
               style: TextStyle(
-                  color: active ? AppColors.text : AppColors.muted,
+                  color: active ? Colors.white : AppColors.muted,
                   fontSize: 12,
                   fontWeight: FontWeight.w500)),
         ),

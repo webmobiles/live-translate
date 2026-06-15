@@ -8,7 +8,6 @@ import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
 
   // Startup diagnostics — confirms which server URL the build is actually using.
   debugPrint('[config] SERVER_URL=$kServerUrl  REQUIRE_AUTH=$kRequireAuth');
@@ -25,14 +24,26 @@ class HelloviaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppStateProvider(
-      state: state,
-      child: MaterialApp(
-        title: 'Hellovia Translate',
-        debugShowCheckedModeBanner: false,
-        theme: buildAppTheme(),
-        home: const HomeScreen(),
-      ),
+    return AnimatedBuilder(
+      animation: state,
+      builder: (context, _) {
+        final palette = state.palette;
+        applyPalette(palette);
+        final isLight = palette.brightness == Brightness.light;
+        SystemChrome.setSystemUIOverlayStyle(
+          isLight ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light,
+        );
+
+        return AppStateProvider(
+          state: state,
+          child: MaterialApp(
+            title: 'Hellovia Translate',
+            debugShowCheckedModeBanner: false,
+            theme: buildAppTheme(palette),
+            home: const HomeScreen(),
+          ),
+        );
+      },
     );
   }
 }

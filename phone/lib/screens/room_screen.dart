@@ -551,8 +551,7 @@ class _RoomScreenState extends State<RoomScreen> {
           .onAmplitudeChanged(const Duration(milliseconds: 200))
           .listen((amp) {
         if (amp.current > _ampPeak) _ampPeak = amp.current;
-        debugPrint(
-            'mic level: current=${amp.current.toStringAsFixed(1)} dBFS '
+        debugPrint('mic level: current=${amp.current.toStringAsFixed(1)} dBFS '
             'peak=${_ampPeak.toStringAsFixed(1)} dBFS');
       });
       setState(() => _isRecording = true);
@@ -926,8 +925,8 @@ class _RoomScreenState extends State<RoomScreen> {
         children: [
           GestureDetector(
             onTap: () => Navigator.of(context).pop(),
-            child: const Padding(
-              padding: EdgeInsets.all(4),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
               child: Text('←',
                   style: TextStyle(color: AppColors.muted, fontSize: 20)),
             ),
@@ -972,8 +971,7 @@ class _RoomScreenState extends State<RoomScreen> {
                     ),
                     const SizedBox(width: 6),
                     Text(_isConnected ? 'Live' : 'Reconnecting…',
-                        style: TextStyle(
-                            color: AppColors.muted, fontSize: 12)),
+                        style: TextStyle(color: AppColors.muted, fontSize: 12)),
                   ],
                 ),
               ],
@@ -1058,7 +1056,7 @@ class _RoomScreenState extends State<RoomScreen> {
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Tap the language that is speaking',
             style: TextStyle(color: AppColors.muted, fontSize: 12),
           ),
@@ -1154,7 +1152,7 @@ class _RoomScreenState extends State<RoomScreen> {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
-        color: active ? AppColors.text : AppColors.muted,
+        color: active ? Colors.white : AppColors.muted,
         fontSize: 14,
         fontWeight: FontWeight.bold,
       ),
@@ -1209,9 +1207,9 @@ class _RoomScreenState extends State<RoomScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
+          children: [
             Text('🌐', style: TextStyle(fontSize: 36)),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             Text(
               'Send a message or hold the mic button to speak.\n'
               'Everyone gets it in their own language.',
@@ -1281,8 +1279,8 @@ class _RoomScreenState extends State<RoomScreen> {
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
-                    child: const Text('↑',
-                        style: TextStyle(color: AppColors.text, fontSize: 20)),
+                    child: Text('↑',
+                        style: TextStyle(color: Colors.white, fontSize: 20)),
                   ),
                 )
               : VoiceButton(

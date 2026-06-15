@@ -10,7 +10,8 @@ Future<String?> showLanguagePicker(
   BuildContext context, {
   required String selected,
 }) {
-  final title = context.appState.t('common.uiLanguage', fallback: 'Select Language');
+  final title =
+      context.appState.t('common.uiLanguage', fallback: 'Select Language');
   return showModalBottomSheet<String>(
     context: context,
     backgroundColor: AppColors.card,
@@ -129,8 +130,7 @@ class _LanguageSheet extends StatelessWidget {
                         child: Row(
                           children: [
                             if (item.flag != null) ...[
-                              Text(item.flag!,
-                                  style: TextStyle(fontSize: 24)),
+                              Text(item.flag!, style: TextStyle(fontSize: 24)),
                               const SizedBox(width: 12),
                             ],
                             Expanded(
@@ -156,7 +156,7 @@ class _LanguageSheet extends StatelessWidget {
                               ),
                             ),
                             if (isSel)
-                              const Text('✓',
+                              Text('✓',
                                   style: TextStyle(
                                       color: AppColors.primary, fontSize: 18)),
                           ],
@@ -180,8 +180,7 @@ class SafeAreaWidgetBottom extends StatelessWidget {
   final Widget child;
   const SafeAreaWidgetBottom({super.key, required this.child});
   @override
-  Widget build(BuildContext context) =>
-      SafeArea(top: false, child: child);
+  Widget build(BuildContext context) => SafeArea(top: false, child: child);
 }
 
 /// Port of <LanguageBadge> — a tappable pill showing flag + language name.
@@ -216,8 +215,7 @@ class LanguageBadge extends StatelessWidget {
           ),
           if (onTap != null) ...[
             const SizedBox(width: 2),
-            const Text('▾',
-                style: TextStyle(color: AppColors.primary, fontSize: 12)),
+            Text('▾', style: TextStyle(color: AppColors.primary, fontSize: 12)),
           ],
         ],
       ),

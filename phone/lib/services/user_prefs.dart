@@ -8,6 +8,7 @@ class UserPrefs {
   final String targetLang;
   final String? avatarUri;
   final String uiLang;
+  final String themeMode;
 
   const UserPrefs({
     this.nickname = '',
@@ -15,6 +16,7 @@ class UserPrefs {
     this.targetLang = 'fr',
     this.avatarUri,
     this.uiLang = 'en',
+    this.themeMode = 'dark',
   });
 
   UserPrefs copyWith({
@@ -24,6 +26,7 @@ class UserPrefs {
     String? avatarUri,
     bool clearAvatar = false,
     String? uiLang,
+    String? themeMode,
   }) {
     return UserPrefs(
       nickname: nickname ?? this.nickname,
@@ -31,6 +34,7 @@ class UserPrefs {
       targetLang: targetLang ?? this.targetLang,
       avatarUri: clearAvatar ? null : (avatarUri ?? this.avatarUri),
       uiLang: uiLang ?? this.uiLang,
+      themeMode: themeMode ?? this.themeMode,
     );
   }
 
@@ -40,6 +44,7 @@ class UserPrefs {
         'targetLang': targetLang,
         'avatarUri': avatarUri,
         'uiLang': uiLang,
+        'themeMode': themeMode,
       };
 
   factory UserPrefs.fromJson(Map<String, dynamic> j) => UserPrefs(
@@ -48,6 +53,7 @@ class UserPrefs {
         targetLang: j['targetLang'] as String? ?? 'fr',
         avatarUri: j['avatarUri'] as String?,
         uiLang: j['uiLang'] as String? ?? 'en',
+        themeMode: j['themeMode'] as String? ?? 'dark',
       );
 }
 

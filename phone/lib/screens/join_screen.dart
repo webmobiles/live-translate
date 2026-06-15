@@ -161,8 +161,8 @@ class _JoinScreenState extends State<JoinScreen> {
                 children: [
                   GestureDetector(
                     onTap: () => Navigator.of(context).pop(),
-                    child: const Padding(
-                      padding: EdgeInsets.all(8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
                       child: Text('←',
                           style:
                               TextStyle(color: AppColors.muted, fontSize: 24)),
@@ -216,8 +216,8 @@ class _JoinScreenState extends State<JoinScreen> {
                           letterSpacing: 1)),
                   if (_langWasAutoSet)
                     Text(s.t('join.fields.suggestedByHost'),
-                        style: TextStyle(
-                            color: AppColors.primary, fontSize: 12)),
+                        style:
+                            TextStyle(color: AppColors.primary, fontSize: 12)),
                 ],
               ),
               const SizedBox(height: 6),
@@ -239,8 +239,8 @@ class _JoinScreenState extends State<JoinScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(s.t('join.fields.yourLanguageSub'),
-                          style: TextStyle(
-                              color: AppColors.text, fontSize: 16)),
+                          style:
+                              TextStyle(color: AppColors.text, fontSize: 16)),
                       LanguageBadge(code: _language),
                     ],
                   ),
@@ -255,7 +255,7 @@ class _JoinScreenState extends State<JoinScreen> {
                 variant: ready
                     ? AppButtonVariant.primary
                     : AppButtonVariant.secondary,
-                labelColor: ready ? AppColors.text : AppColors.muted,
+                labelColor: ready ? Colors.white : AppColors.muted,
                 onPressed: _handleJoin,
               ),
             ],

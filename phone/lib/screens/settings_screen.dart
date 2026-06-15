@@ -34,6 +34,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _targetLang = 'fr';
   String? _avatarUri;
   String _uiLang = 'en';
+  String _themeMode = 'dark';
   bool _saving = false;
   bool _saved = false;
   bool _initialised = false;
@@ -49,6 +50,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _targetLang = p.targetLang;
     _avatarUri = p.avatarUri;
     _uiLang = p.uiLang.isNotEmpty ? p.uiLang : context.appState.lang;
+    _themeMode = p.themeMode == 'light' ? 'light' : 'dark';
   }
 
   @override
@@ -88,6 +90,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         targetLang: _targetLang,
         avatarUri: _avatarUri,
         uiLang: _uiLang,
+        themeMode: _themeMode,
       ));
       if (!mounted) return;
       setState(() => _saved = true);
@@ -105,8 +108,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.card,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         content: Text(
           s.t('settings.signOutConfirm'),
           style: TextStyle(color: AppColors.text, fontSize: 15),
@@ -153,8 +155,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   GestureDetector(
                     onTap: () => Navigator.of(context).pop(),
-                    child: const Padding(
-                      padding: EdgeInsets.all(8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
                       child: Text('←',
                           style:
                               TextStyle(color: AppColors.muted, fontSize: 24)),
@@ -212,9 +214,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   color: AppColors.primary,
                                   shape: BoxShape.circle),
                               alignment: Alignment.center,
-                              child: const Text('✎',
+                              child: Text('✎',
                                   style: TextStyle(
-                                      color: AppColors.text, fontSize: 12)),
+                                      color: Colors.white, fontSize: 12)),
                             ),
                           ),
                         ],
@@ -222,8 +224,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(s.t('settings.avatarHint'),
-                        style: TextStyle(
-                            color: AppColors.muted, fontSize: 12)),
+                        style: TextStyle(color: AppColors.muted, fontSize: 12)),
                   ],
                 ),
               ),
@@ -265,6 +266,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: 28),
 
+              // Theme
+              _sectionLabel(s.t('settings.theme', fallback: 'Theme')),
+              const SizedBox(height: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _themeMode == 'light'
+                            ? s.t('settings.lightMode', fallback: 'Light mode')
+                            : s.t('settings.darkMode', fallback: 'Dark mode'),
+                        style: TextStyle(
+                          color: AppColors.text,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    Switch(
+                      value: _themeMode == 'light',
+                      activeThumbColor: AppColors.accent,
+                      onChanged: (value) async {
+                        final next = value ? 'light' : 'dark';
+                        setState(() => _themeMode = next);
+                        await context.appState.updatePrefs(
+                          context.appState.prefs.copyWith(themeMode: next),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 28),
+
               // App language
               _sectionLabel(s.t('settings.uiLanguage')),
               const SizedBox(height: 6),
@@ -290,8 +331,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               color: AppColors.text,
                               fontWeight: FontWeight.w500)),
                       Text(s.t('common.change'),
-                          style: TextStyle(
-                              color: AppColors.muted, fontSize: 14)),
+                          style:
+                              TextStyle(color: AppColors.muted, fontSize: 14)),
                     ],
                   ),
                 ),
@@ -310,7 +351,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ? s.t('settings.saved')
                           : s.t('settings.save'),
                   style: TextStyle(
-                      color: AppColors.text,
+                      color: Colors.white,
                       fontSize: 18,
                       fontWeight: FontWeight.bold),
                 ),
@@ -360,8 +401,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         GestureDetector(
           onTap: onTap,
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             decoration: BoxDecoration(
               color: AppColors.card,
               borderRadius: BorderRadius.circular(12),
@@ -389,8 +429,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
                 Text(changeLabel,
-                    style: TextStyle(
-                        color: AppColors.muted, fontSize: 14)),
+                    style: TextStyle(color: AppColors.muted, fontSize: 14)),
               ],
             ),
           ),

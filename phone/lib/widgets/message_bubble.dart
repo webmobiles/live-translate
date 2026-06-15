@@ -136,7 +136,9 @@ class MessageBubble extends StatelessWidget {
                     else
                       Text(placeholder,
                           style: TextStyle(
-                              color: AppColors.text, fontSize: 16, height: 1.4)),
+                              color: isMine ? Colors.white : AppColors.text,
+                              fontSize: 16,
+                              height: 1.4)),
                   ],
                 ),
               ),
@@ -151,8 +153,7 @@ class MessageBubble extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(stageLabel ?? time,
-                      style: TextStyle(
-                          color: AppColors.muted, fontSize: 12)),
+                      style: TextStyle(color: AppColors.muted, fontSize: 12)),
                   if (isMine) ...[
                     const SizedBox(width: 4),
                     _DeliveryIcon(status: message.deliveryStatus),
@@ -265,7 +266,7 @@ class MessageBubble extends StatelessWidget {
                   Text(
                     message.translated,
                     style: TextStyle(
-                      color: AppColors.text,
+                      color: isMine ? Colors.white : AppColors.text,
                       fontSize: 16,
                       height: 1.4,
                     ),
@@ -613,7 +614,7 @@ class _AudioWaveformPlayerState extends State<_AudioWaveformPlayer> {
             ),
             child: Icon(
               _isPlaying ? Icons.pause : Icons.play_arrow,
-              color: widget.isMine ? AppColors.text : AppColors.primary,
+              color: widget.isMine ? Colors.white : AppColors.primary,
               size: 18,
             ),
           ),
@@ -676,7 +677,7 @@ class _FakeWaveform extends StatelessWidget {
             shape: BoxShape.circle,
           ),
           child: Icon(Icons.mic,
-              color: isMine ? AppColors.text : AppColors.primary, size: 16),
+              color: isMine ? Colors.white : AppColors.primary, size: 16),
         ),
         const SizedBox(width: 8),
         SizedBox(
@@ -767,8 +768,8 @@ class _SoloMessageBubble extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (message.isAudio)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 4),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
                     child: Text('🎤 Voice',
                         style: TextStyle(color: AppColors.muted, fontSize: 12)),
                   ),
@@ -790,7 +791,9 @@ class _SoloMessageBubble extends StatelessWidget {
                 ],
                 Text(message.original,
                     style: TextStyle(
-                        color: AppColors.text, fontSize: 16, height: 1.4)),
+                        color: isA ? AppColors.text : Colors.white,
+                        fontSize: 16,
+                        height: 1.4)),
               ],
             ),
           ),
@@ -834,8 +837,8 @@ class _SoloMessageBubble extends StatelessWidget {
           if (message.failed)
             GestureDetector(
               onTap: onRetry,
-              child: const Padding(
-                padding: EdgeInsets.only(top: 2, left: 4, right: 4),
+              child: Padding(
+                padding: const EdgeInsets.only(top: 2, left: 4, right: 4),
                 child: Text('⚠ Couldn\'t translate — tap to retry',
                     style: TextStyle(
                         color: AppColors.danger,
@@ -952,7 +955,7 @@ class _TranslationProgressBarState extends State<TranslationProgressBar>
                 fixed != null ? (fixed.clamp(0, 100) / 100) : _fill.value,
             child: Container(
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   colors: [AppColors.primary, AppColors.accent],
                 ),
                 borderRadius: BorderRadius.circular(999),

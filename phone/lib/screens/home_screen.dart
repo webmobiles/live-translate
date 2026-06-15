@@ -144,182 +144,186 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                alignment: Alignment.center,
-                child: const Text('🌐', style: TextStyle(fontSize: 32)),
-              ),
-              const SizedBox(height: 16),
-              const Text('LiveTranslate',
-                  style: TextStyle(
-                      color: AppColors.text,
-                      fontSize: 30,
-                      fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text(s.t('home.tagline'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.muted, fontSize: 14)),
-              const SizedBox(height: 40),
-              AppCard(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  children: [
-                    Text(s.t('login.title'),
-                        style: TextStyle(
-                            color: AppColors.text,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 4),
-                    Text(s.t('login.subtitle'),
-                        style: TextStyle(
-                            color: AppColors.muted, fontSize: 14)),
-                    const SizedBox(height: 24),
-                    if (_authError != null) ...[
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: const Color(0x1AFF4757), // danger @ 10%
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.danger),
-                        ),
-                        child: Text(
-                          s.t('login.error.$_authError',
-                              fallback: s.t('login.error.oauth_failed')),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              color: AppColors.danger, fontSize: 14),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: AppColors.bg,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: _modeButton(
-                              s.t('login.emailSignIn'),
-                              !_emailModeIsSignup,
-                              () => setState(() {
-                                _emailModeIsSignup = false;
-                                _authError = null;
-                              }),
-                            ),
-                          ),
-                          Expanded(
-                            child: _modeButton(
-                              s.t('login.createAccount'),
-                              _emailModeIsSignup,
-                              () => setState(() {
-                                _emailModeIsSignup = true;
-                                _authError = null;
-                              }),
-                            ),
-                          ),
-                        ],
-                      ),
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(24),
                     ),
-                    const SizedBox(height: 16),
-                    if (_emailModeIsSignup) ...[
-                      AppInput(
-                        hint: s.t('login.namePlaceholder'),
-                        controller: _name,
-                        textCapitalization: TextCapitalization.words,
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    AppInput(
-                      hint: s.t('login.emailPlaceholder'),
-                      controller: _email,
-                      keyboardType: TextInputType.emailAddress,
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: 12),
-                    AppInput(
-                      hint: s.t('login.passwordPlaceholder'),
-                      controller: _password,
-                      obscureText: true,
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: 16),
-                    AppButton(
-                      loading: _signingIn,
-                      disabled: _email.text.trim().isEmpty ||
-                          _password.text.isEmpty,
-                      onPressed: _signInWithEmail,
-                      child: Text(
-                        _emailModeIsSignup
-                            ? s.t('login.createAccount')
-                            : s.t('login.emailSignIn'),
-                        style: TextStyle(
-                            color: AppColors.text,
-                            fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
+                    alignment: Alignment.center,
+                    child: const Text('🌐', style: TextStyle(fontSize: 32)),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('LiveTranslate',
+                      style: TextStyle(
+                          color: AppColors.text,
+                          fontSize: 30,
+                          fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text(s.t('home.tagline'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.muted, fontSize: 14)),
+                  const SizedBox(height: 40),
+                  AppCard(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
                       children: [
-                        const Expanded(child: Divider(color: AppColors.border)),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Text(s.t('login.or'),
+                        Text(s.t('login.title'),
+                            style: TextStyle(
+                                color: AppColors.text,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 4),
+                        Text(s.t('login.subtitle'),
+                            style: TextStyle(
+                                color: AppColors.muted, fontSize: 14)),
+                        const SizedBox(height: 24),
+                        if (_authError != null) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: const Color(0x1AFF4757), // danger @ 10%
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.danger),
+                            ),
+                            child: Text(
+                              s.t('login.error.$_authError',
+                                  fallback: s.t('login.error.oauth_failed')),
+                              textAlign: TextAlign.center,
                               style: TextStyle(
-                                  color: AppColors.muted, fontSize: 12)),
+                                  color: AppColors.danger, fontSize: 14),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                        ],
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: AppColors.bg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _modeButton(
+                                  s.t('login.emailSignIn'),
+                                  !_emailModeIsSignup,
+                                  () => setState(() {
+                                    _emailModeIsSignup = false;
+                                    _authError = null;
+                                  }),
+                                ),
+                              ),
+                              Expanded(
+                                child: _modeButton(
+                                  s.t('login.createAccount'),
+                                  _emailModeIsSignup,
+                                  () => setState(() {
+                                    _emailModeIsSignup = true;
+                                    _authError = null;
+                                  }),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        const Expanded(child: Divider(color: AppColors.border)),
+                        const SizedBox(height: 16),
+                        if (_emailModeIsSignup) ...[
+                          AppInput(
+                            hint: s.t('login.namePlaceholder'),
+                            controller: _name,
+                            textCapitalization: TextCapitalization.words,
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        AppInput(
+                          hint: s.t('login.emailPlaceholder'),
+                          controller: _email,
+                          keyboardType: TextInputType.emailAddress,
+                          onChanged: (_) => setState(() {}),
+                        ),
+                        const SizedBox(height: 12),
+                        AppInput(
+                          hint: s.t('login.passwordPlaceholder'),
+                          controller: _password,
+                          obscureText: true,
+                          onChanged: (_) => setState(() {}),
+                        ),
+                        const SizedBox(height: 16),
+                        AppButton(
+                          loading: _signingIn,
+                          disabled: _email.text.trim().isEmpty ||
+                              _password.text.isEmpty,
+                          onPressed: _signInWithEmail,
+                          child: Text(
+                            _emailModeIsSignup
+                                ? s.t('login.createAccount')
+                                : s.t('login.emailSignIn'),
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(child: Divider(color: AppColors.border)),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 12),
+                              child: Text(s.t('login.or'),
+                                  style: TextStyle(
+                                      color: AppColors.muted, fontSize: 12)),
+                            ),
+                            Expanded(child: Divider(color: AppColors.border)),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        AppButton(
+                          variant: AppButtonVariant.secondary,
+                          loading: _signingIn,
+                          onPressed: _signInWithGoogle,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 24,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                    color: AppColors.text,
+                                    shape: BoxShape.circle),
+                                alignment: Alignment.center,
+                                child: const Text('G',
+                                    style: TextStyle(
+                                        color: Color(0xFF374151),
+                                        fontWeight: FontWeight.bold)),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(s.t('login.continueWithGoogle'),
+                                  style: TextStyle(
+                                      color: Color(0xFF1F2937),
+                                      fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Text(s.t('login.terms'),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 12,
+                                height: 1.5)),
                       ],
                     ),
-                    const SizedBox(height: 20),
-                    AppButton(
-                      variant: AppButtonVariant.secondary,
-                      loading: _signingIn,
-                      onPressed: _signInWithGoogle,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 24,
-                            height: 24,
-                            decoration: BoxDecoration(
-                                color: AppColors.text, shape: BoxShape.circle),
-                            alignment: Alignment.center,
-                            child: const Text('G',
-                                style: TextStyle(
-                                    color: Color(0xFF374151),
-                                    fontWeight: FontWeight.bold)),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(s.t('login.continueWithGoogle'),
-                              style: TextStyle(
-                                  color: Color(0xFF1F2937),
-                                  fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(s.t('login.terms'),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            color: AppColors.muted, fontSize: 12, height: 1.5)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 40),
-              Text(s.t('login.noAccount'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                  ),
+                  const SizedBox(height: 40),
+                  Text(s.t('login.noAccount'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.muted, fontSize: 12)),
                 ],
               ),
             ),
@@ -342,7 +346,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Text(
           label,
           style: TextStyle(
-            color: active ? AppColors.text : AppColors.muted,
+            color: active ? Colors.white : AppColors.muted,
             fontSize: 13,
             fontWeight: FontWeight.w700,
           ),
@@ -355,8 +359,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildHome(AppState s) {
     final prefs = s.prefs;
     const chips = [
-      '🇺🇸 EN', '🇪🇸 ES', '🇫🇷 FR', '🇩🇪 DE',
-      '🇨🇳 ZH', '🇯🇵 JA', '🇧🇷 PT', '🇷🇺 RU',
+      '🇺🇸 EN',
+      '🇪🇸 ES',
+      '🇫🇷 FR',
+      '🇩🇪 DE',
+      '🇨🇳 ZH',
+      '🇯🇵 JA',
+      '🇧🇷 PT',
+      '🇷🇺 RU',
     ];
 
     return Scaffold(
@@ -385,7 +395,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: const Text('🌐', style: TextStyle(fontSize: 40)),
                   ),
                   const SizedBox(height: 16),
-                  const Text('LiveTranslate',
+                  Text('LiveTranslate',
                       style: TextStyle(
                           color: AppColors.text,
                           fontSize: 36,
@@ -393,8 +403,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 4),
                   Text(s.t('home.tagline'),
                       textAlign: TextAlign.center,
-                      style:
-                          TextStyle(color: AppColors.muted, fontSize: 16)),
+                      style: TextStyle(color: AppColors.muted, fontSize: 16)),
                   const SizedBox(height: 32),
 
                   // User bar
@@ -422,7 +431,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           variant: AppButtonVariant.ghost,
                           size: AppButtonSize.icon,
                           onPressed: _openSettings,
-                          child: const Text('⚙',
+                          child: Text('⚙',
                               style: TextStyle(
                                   color: AppColors.muted, fontSize: 20)),
                         ),
@@ -442,7 +451,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             style: TextStyle(
                                 color: AppColors.muted, fontSize: 14)),
                         const SizedBox(width: 8),
-                        const Text('OpenAI GPT-4o-mini + Whisper',
+                        Text('OpenAI GPT-4o-mini + Whisper',
                             style: TextStyle(
                                 color: AppColors.accent,
                                 fontWeight: FontWeight.w600,
@@ -461,13 +470,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Text(s.t('home.createRoom'),
                             style: TextStyle(
-                                color: AppColors.text,
+                                color: Colors.white,
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold)),
                         const SizedBox(height: 2),
                         Text(s.t('home.createRoomSub'),
-                            style: TextStyle(
-                                color: Colors.white70, fontSize: 14)),
+                            style:
+                                TextStyle(color: Colors.white70, fontSize: 14)),
                       ],
                     ),
                   ),
@@ -518,9 +527,11 @@ class _HomeScreenState extends State<HomeScreen> {
       return ClipRRect(
         borderRadius: BorderRadius.circular(999),
         child: Image.file(File(uri.replaceFirst('file://', '')),
-            width: 32, height: 32, fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const Text('👤',
-                style: TextStyle(fontSize: 24))),
+            width: 32,
+            height: 32,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) =>
+                const Text('👤', style: TextStyle(fontSize: 24))),
       );
     }
     return const Text('👤', style: TextStyle(fontSize: 24));
@@ -534,8 +545,8 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: AppColors.border),
       ),
-      child: Text(label,
-          style: TextStyle(color: AppColors.muted, fontSize: 12)),
+      child:
+          Text(label, style: TextStyle(color: AppColors.muted, fontSize: 12)),
     );
   }
 }

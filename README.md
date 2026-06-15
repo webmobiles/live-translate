@@ -407,7 +407,8 @@ The web (`./web`) and phone (`./phone`) apps share the same backend and implemen
 | 27 | Onboarding flow | ✅ | ❌ | Web only |
 | 28 | UI language (i18n, 6 locales) | ✅ | ✅ | Both use shared `shared/locales/` JSONs |
 | 29 | Settings / user preferences | ✅ | ✅ | Both: nickname, mother/target language, avatar |
-| 30 | Auth-required mode (`REQUIRE_AUTH=true`) | ❌ | ✅ | Phone: enforcement in `config.dart`. Web: no forced auth |
+| 30 | Light/dark theme | ❌ | ✅ | Phone: Settings toggle persists `themeMode`, swaps the runtime palette, and keeps violet primary controls readable in both themes |
+| 31 | Auth-required mode (`REQUIRE_AUTH=true`) | ❌ | ✅ | Phone: enforcement in `config.dart`. Web: no forced auth |
 | 31 | Markdown formatting in translated messages | ✅ | ❌ | Web: renders bold/italic. Phone: plain text only |
 
 **Compatibility score: ~58%** *(18 of 31 features identical, tracked as of 2026-06-15)*

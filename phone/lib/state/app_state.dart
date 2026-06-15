@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/widgets.dart';
 
 import '../services/user_prefs.dart';
+import '../theme.dart';
 
 /// Languages the UI is translated into (mirrors mobile/src/lib/i18n.ts).
 const List<String> kSupportedUiLangs = ['en', 'fr', 'es', 'pt', 'de', 'it'];
@@ -18,9 +19,12 @@ class AppState extends ChangeNotifier {
 
   String get lang => _lang;
   UserPrefs get prefs => _prefs;
+  bool get isLightTheme => _prefs.themeMode == 'light';
+  AppPalette get palette => isLightTheme ? kLightPalette : kDarkPalette;
 
   static String _deviceLang() {
-    final code = ui.PlatformDispatcher.instance.locale.languageCode.toLowerCase();
+    final code =
+        ui.PlatformDispatcher.instance.locale.languageCode.toLowerCase();
     return kSupportedUiLangs.contains(code) ? code : 'en';
   }
 
@@ -30,9 +34,11 @@ class AppState extends ChangeNotifier {
       _bundles[code] = jsonDecode(raw) as Map<String, dynamic>;
     }
     _prefs = await UserPrefsStore.load();
-    _lang = _prefs.uiLang.isNotEmpty && kSupportedUiLangs.contains(_prefs.uiLang)
-        ? _prefs.uiLang
-        : _deviceLang();
+    applyPalette(palette);
+    _lang =
+        _prefs.uiLang.isNotEmpty && kSupportedUiLangs.contains(_prefs.uiLang)
+            ? _prefs.uiLang
+            : _deviceLang();
     notifyListeners();
   }
 
@@ -44,6 +50,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> updatePrefs(UserPrefs prefs) async {
     _prefs = await UserPrefsStore.save(prefs);
+    applyPalette(palette);
     if (kSupportedUiLangs.contains(prefs.uiLang)) _lang = prefs.uiLang;
     notifyListeners();
   }
@@ -52,6 +59,7 @@ class AppState extends ChangeNotifier {
   /// useFocusEffect(loadPrefs) in the RN app).
   Future<void> reloadPrefs() async {
     _prefs = await UserPrefsStore.load();
+    applyPalette(palette);
     notifyListeners();
   }
 
@@ -84,12 +92,14 @@ class AppState extends ChangeNotifier {
 
 /// Convenience extension so screens can call `context.t('key')`.
 extension AppStateContext on BuildContext {
-  AppState get appState => dependOnInheritedWidgetOfExactType<_AppStateScope>()!.notifier!;
+  AppState get appState =>
+      dependOnInheritedWidgetOfExactType<_AppStateScope>()!.notifier!;
 }
 
 /// Lightweight inherited scope (used by [AppStateProvider]).
 class _AppStateScope extends InheritedNotifier<AppState> {
-  const _AppStateScope({required AppState super.notifier, required super.child});
+  const _AppStateScope(
+      {required AppState super.notifier, required super.child});
 }
 
 class AppStateProvider extends StatelessWidget {

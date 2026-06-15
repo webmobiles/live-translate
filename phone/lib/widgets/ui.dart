@@ -59,10 +59,11 @@ class AppButton extends StatelessWidget {
     final vPad = size == AppButtonSize.large ? 18.0 : 14.0;
 
     final content = loading
-        ? const SizedBox(
+        ? SizedBox(
             height: 22,
             width: 22,
-            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.text),
+            child: CircularProgressIndicator(
+                strokeWidth: 2, color: _defaultLabelColor()),
           )
         : child ??
             Text(
@@ -97,14 +98,15 @@ class AppButton extends StatelessWidget {
       ),
     );
 
-    final wrapped = isIcon ? button : SizedBox(width: double.infinity, child: button);
+    final wrapped =
+        isIcon ? button : SizedBox(width: double.infinity, child: button);
     return margin != null ? Padding(padding: margin!, child: wrapped) : wrapped;
   }
 
   Color _defaultLabelColor() {
     switch (variant) {
       case AppButtonVariant.primary:
-        return AppColors.text;
+        return Colors.white;
       case AppButtonVariant.outline:
         return AppColors.primary;
       default:
