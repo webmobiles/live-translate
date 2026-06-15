@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -59,6 +60,11 @@ class _RoomScreenState extends State<RoomScreen> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   final _recorder = AudioRecorder();
+
+  // Debug: live mic level during a recording, so silent captures are visible
+  // in the logs (dBFS — near 0 is loud, < -50 is effectively silence).
+  StreamSubscription<Amplitude>? _ampSub;
+  double _ampPeak = -160.0;
 
   bool _isRecording = false;
   bool _isConnected = false;
@@ -136,6 +142,7 @@ class _RoomScreenState extends State<RoomScreen> {
     }
     _input.dispose();
     _scroll.dispose();
+    _ampSub?.cancel();
     _recorder.dispose();
     super.dispose();
   }
@@ -506,11 +513,29 @@ class _RoomScreenState extends State<RoomScreen> {
       final path =
           '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
       await _recorder.start(
-        const RecordConfig(encoder: AudioEncoder.aacLc),
+        // Mono 16 kHz: what Whisper wants anyway, and avoids the silent-capture
+        // some Android devices hit when asked for stereo from a mono mic.
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          numChannels: 1,
+          sampleRate: 16000,
+        ),
         path: path,
       );
       _recordingPath = path;
       _recordingStartedAt = DateTime.now().millisecondsSinceEpoch;
+      // Watch input level so we can see in the logs whether the mic is
+      // actually picking up sound (vs. recording digital silence).
+      _ampPeak = -160.0;
+      _ampSub?.cancel();
+      _ampSub = _recorder
+          .onAmplitudeChanged(const Duration(milliseconds: 200))
+          .listen((amp) {
+        if (amp.current > _ampPeak) _ampPeak = amp.current;
+        debugPrint(
+            'mic level: current=${amp.current.toStringAsFixed(1)} dBFS '
+            'peak=${_ampPeak.toStringAsFixed(1)} dBFS');
+      });
       setState(() => _isRecording = true);
     } catch (e) {
       debugPrint('startRecording $e');
@@ -525,6 +550,11 @@ class _RoomScreenState extends State<RoomScreen> {
           ? DateTime.now().millisecondsSinceEpoch - _recordingStartedAt
           : 0;
       final path = await _recorder.stop();
+      await _ampSub?.cancel();
+      _ampSub = null;
+      debugPrint('recording stopped: peak mic level '
+          '${_ampPeak.toStringAsFixed(1)} dBFS '
+          '(${_ampPeak < -50 ? 'SILENT — mic captured no signal' : 'has signal'})');
       _recordingStartedAt = 0;
       final filePath = path ?? _recordingPath;
       _recordingPath = null;
@@ -583,6 +613,8 @@ class _RoomScreenState extends State<RoomScreen> {
       _socket?.emit('message:audio', payload);
     } catch (e) {
       debugPrint('stopAndSend $e');
+      await _ampSub?.cancel();
+      _ampSub = null;
       _recordingStartedAt = 0;
       _recordingPath = null;
     }
