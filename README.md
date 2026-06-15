@@ -797,3 +797,66 @@ EN · ES · FR · DE · IT · PT · ZH · JA · KO · AR · RU · HI · TR · NL
 | Ukrainian | `uk` | — | ✅ |
 
 Use `TTS_PROVIDER=hybrid` to enable all languages with a single setting.
+
+
+# Future plan:
+WhatsApp feels 10x faster because it mostly sends already-captured media/message directly peer/server/peer. Your app does much more:
+record audio
+encode base64
+send full blob
+server receives
+transcribe audio
+translate text
+generate translated audio
+save/update DB
+emit socket event
+phone decodes/plays audio
+The slow points are probably:
+1. Full audio upload before processing
+Right now the app records a complete blob, then sends it. The server cannot start transcription until the full audio arrives. WhatsApp can show/send progressively. For your app, streaming microphone chunks would be much faster.
+2. Base64 overhead
+Base64 makes audio ~33% bigger and adds encode/decode work. Better: binary upload, multipart, or socket binary frames.
+3. Queue/Inngest latency
+If every message goes through a background queue, you add scheduling delay. Queues are good for reliability, but bad for real-time feel unless tuned carefully. For live chat, you may want a “fast path” for active socket sessions.
+4. Transcription is expensive
+Whisper/STT is one of the biggest latency sources. If using OpenAI Whisper file API, it is usually slower than streaming realtime transcription. A streaming STT path would help more than rewriting backend in Rust.
+5. TTS generation is expensive
+Translated audio requires another model call. Text translation can be fast; audio translation is much slower because you wait for TTS too. You should send translated text immediately, then attach audio later when ready.
+6. Too many sequential steps
+If your server does:
+transcribe -> translate -> generate audio -> save -> emit
+the user waits for everything. Better:
+emit received
+emit transcribed text
+emit translated text
+emit audio later
+This makes the app feel much faster even if total processing time is the same.
+7. DB/storage before delivery
+If you save before emitting, DB latency affects chat speed. For live rooms, emit first after successful processing, then persist asynchronously or in parallel.
+8. Cold model/provider latency
+Ollama/local models, Kokoro, OpenAI, or local TTS can have cold starts. First request may be slow. Keep workers warm if possible.
+9. Phone client waits for final result
+You already improved progress labels, but the UX should not wait for translated audio. The phone should show:
+sending instantly
+original audio bubble instantly
+transcribed text when ready
+translated text when ready
+translated audio when ready
+Should you use Rust?
+Rust helps CPU-heavy backend work, streaming binary handling, and high concurrency. But it will not make Whisper/OpenAI/TTS magically faster. If 80% of latency is model/API time, Rust only improves the 20%.
+Should you use gRPC?
+Maybe internally, but not as the first fix. Browser/Flutter + Socket.IO is fine for room events. The bigger win is:
+binary audio instead of base64
+streaming audio chunks
+realtime STT
+emit partial/final events separately
+parallelize save/audio generation
+avoid queue delay for active sessions
+Best next architecture change:
+Phone/Web mic
+  -> stream chunks to server
+  -> server emits partial transcription
+  -> server emits translated text ASAP
+  -> server generates translated audio in background
+  -> server emits audio when ready
+So: do not start with Rust/gRPC. Start with streaming + binary audio + staged socket events + fast path bypassing queue delay. That is where your 10x improvement probably lives.
