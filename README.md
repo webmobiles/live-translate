@@ -381,7 +381,7 @@ The web (`./web`) and phone (`./phone`) apps share the same backend and implemen
 | 1 | Room creation (normal mode) | ✅ | ✅ | Both use socket.io `room:create` |
 | 2 | Room creation (solo mode) | ✅ | ✅ | Web: HTTP or socket (env `WEB_SOLOROOM_SOCKET=yes`). Phone: HTTP or socket (dart define `PHONE_SOLOROOM_SOCKET=yes`) |
 | 3 | Room join by code (normal) | ✅ | ✅ | Socket.io `room:join` + code peek for guest language |
-| 4 | Solo room — double-language toggle UI | ✅ | ✅ | Web and Phone: A⇄B language toggle with equal-size source bubbles and consistent green translated-result bubbles for text/audio |
+| 4 | Solo room — double-language toggle UI | ✅ | ✅ | Web and Phone: A⇄B language toggle; solo message bubbles use language-code labels (`es:`, `en:`), no flag headers, and place source text at the top of the translated text/audio bubble |
 | 5 | Text message send (normal) | ✅ | ✅ | Socket.io `message:text` with ack; same-language receivers keep original text and can still receive generated audio |
 | 6 | Text message send (solo) | ✅ | ✅ | Web and Phone: HTTP or socket; socket solo sends translated audio back to the same room socket |
 | 7 | Voice message send (normal) | ✅ | ✅ | Press & hold mic → socket `message:audio` |

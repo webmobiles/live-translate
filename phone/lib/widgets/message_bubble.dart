@@ -64,7 +64,7 @@ class MessageBubble extends StatelessWidget {
         ((message.progress ?? 0) > 0 && (message.progress ?? 0) < 100);
     final stageLabel = isInFlight ? _progressLabel(context, message) : null;
 
-    if (isSolo && !message.isTranslating) {
+    if (isSolo) {
       return _SoloMessageBubble(
         code: code,
         message: message,
@@ -736,9 +736,15 @@ class _SoloMessageBubble extends StatelessWidget {
     final emitterInfo = getLang(view.emitterLang);
     final receiverInfo = getLang(view.receiverLang);
     final hasTranslation = message.translated != message.original;
+    final isInFlight = message.isTranslating ||
+        message.deliveryStatus == 'sending' ||
+        message.deliveryStatus == 'queued' ||
+        ((message.progress ?? 0) > 0 && (message.progress ?? 0) < 100);
     final align = isA ? CrossAxisAlignment.start : CrossAxisAlignment.end;
     final sourceColor = isA ? AppColors.card : AppColors.primary;
     final sourceBorder = isA ? Border.all(color: AppColors.border) : null;
+    final translationBorder =
+        Border.all(color: AppColors.accent.withValues(alpha: 0.35));
     final originalAudio = view.canRecoverOriginal
         ? _audioPayloadFromMap(message.originalAudio)
         : null;
@@ -752,63 +758,102 @@ class _SoloMessageBubble extends StatelessWidget {
         originalAudio == null &&
         code != null;
 
+    if (message.isTranslating) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Column(
+          crossAxisAlignment: align,
+          children: [
+            _bubble(
+              color: AppColors.card,
+              border: Border.all(color: AppColors.border),
+              leftTail: isA,
+              child: message.isAudio
+                  ? _FakeWaveform(isMine: !isA, seed: message.id)
+                  : Text('…',
+                      style: TextStyle(color: AppColors.muted, fontSize: 14)),
+            ),
+            TranslationProgressBar(
+              align: isA ? Alignment.centerLeft : Alignment.centerRight,
+              progress: message.progress,
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(stageLabel ?? time,
+                      style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                  if (!isA) ...[
+                    const SizedBox(width: 4),
+                    _DeliveryIcon(status: message.deliveryStatus),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: align,
         children: [
-          _langHeader(emitterInfo, muted: true),
-          _bubble(
-            color: sourceColor,
-            border: message.failed
-                ? Border.all(color: AppColors.danger)
-                : sourceBorder,
-            leftTail: isA,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (message.isAudio)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text('🎤 Voice',
-                        style: TextStyle(color: AppColors.muted, fontSize: 12)),
-                  ),
-                if (message.isAudio || originalAudio != null) ...[
-                  if (originalAudio != null)
-                    _AudioWaveformPlayer(
-                      primary: originalAudio,
-                      fallback: null,
-                      isMine: !isA,
-                      seed: '${message.id}:source',
-                      autoplay: autoplay && translatedAudio == null,
-                    )
-                  else if (showOriginalRecover)
-                    _OriginalAudioRecover(
-                        code: code!, msgId: message.id, isMine: !isA)
-                  else
-                    _FakeWaveform(isMine: !isA, seed: '${message.id}:source'),
-                  const SizedBox(height: 8),
-                ],
-                Text(message.original,
-                    style: TextStyle(
-                        color: isA ? AppColors.text : Colors.white,
-                        fontSize: 16,
-                        height: 1.4)),
-              ],
-            ),
-          ),
-          if (hasTranslation) ...[
-            const SizedBox(height: 8),
-            _langHeader(receiverInfo, muted: false),
+          if (!hasTranslation)
             _bubble(
-              color: AppColors.accent.withValues(alpha: 0.15),
-              border:
-                  Border.all(color: AppColors.accent.withValues(alpha: 0.35)),
+              color: sourceColor,
+              border: message.failed
+                  ? Border.all(color: AppColors.danger)
+                  : sourceBorder,
               leftTail: isA,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _codedTextLine(
+                    code: emitterInfo.code,
+                    text: message.original,
+                    codeColor: isA ? AppColors.muted : Colors.white70,
+                    textColor: isA ? AppColors.text : Colors.white,
+                  ),
+                  if (message.isAudio || originalAudio != null) ...[
+                    const SizedBox(height: 8),
+                    if (originalAudio != null)
+                      _AudioWaveformPlayer(
+                        primary: originalAudio,
+                        fallback: null,
+                        isMine: !isA,
+                        seed: '${message.id}:source',
+                        autoplay: autoplay && translatedAudio == null,
+                      )
+                    else if (showOriginalRecover)
+                      _OriginalAudioRecover(
+                          code: code!, msgId: message.id, isMine: !isA)
+                    else
+                      _FakeWaveform(isMine: !isA, seed: '${message.id}:source'),
+                  ],
+                ],
+              ),
+            )
+          else
+            _bubble(
+              color: AppColors.accent.withValues(alpha: 0.15),
+              border: message.failed
+                  ? Border.all(color: AppColors.danger)
+                  : translationBorder,
+              leftTail: isA,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _codedTextLine(
+                    code: emitterInfo.code,
+                    text: message.original,
+                    codeColor: AppColors.muted,
+                    textColor: AppColors.text.withValues(alpha: 0.65),
+                  ),
                   if (message.isAudio || translatedAudio != null) ...[
+                    const SizedBox(height: 10),
                     if (translatedAudio != null)
                       _AudioWaveformPlayer(
                         primary: translatedAudio,
@@ -820,19 +865,35 @@ class _SoloMessageBubble extends StatelessWidget {
                     else
                       _FakeWaveform(
                           isMine: false, seed: '${message.id}:translated'),
-                    const SizedBox(height: 8),
                   ],
-                  Text(message.translated,
-                      style: TextStyle(
-                          color: AppColors.text, fontSize: 16, height: 1.4)),
+                  const SizedBox(height: 10),
+                  _codedTextLine(
+                    code: receiverInfo.code,
+                    text: message.translated,
+                    codeColor: AppColors.muted,
+                    textColor: AppColors.text,
+                  ),
                 ],
               ),
             ),
-          ],
+          if (isInFlight)
+            TranslationProgressBar(
+              align: isA ? Alignment.centerLeft : Alignment.centerRight,
+              progress: message.progress,
+            ),
           Padding(
             padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
-            child: Text(stageLabel ?? time,
-                style: TextStyle(color: AppColors.muted, fontSize: 12)),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(isInFlight && stageLabel != null ? stageLabel! : time,
+                    style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                if (!isA) ...[
+                  const SizedBox(width: 4),
+                  _DeliveryIcon(status: message.deliveryStatus),
+                ],
+              ],
+            ),
           ),
           if (message.failed)
             GestureDetector(
@@ -851,18 +912,23 @@ class _SoloMessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _langHeader(Language info, {required bool muted}) => Padding(
-        padding: const EdgeInsets.only(left: 4, right: 4, bottom: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+  Widget _codedTextLine({
+    required String code,
+    required String text,
+    required Color codeColor,
+    required Color textColor,
+  }) =>
+      RichText(
+        text: TextSpan(
           children: [
-            Text(info.flag, style: TextStyle(fontSize: 16)),
-            const SizedBox(width: 6),
-            Text(info.name,
-                style: TextStyle(
-                    color: muted ? AppColors.muted : AppColors.accent,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700)),
+            TextSpan(
+              text: '${code.toLowerCase()}: ',
+              style: TextStyle(color: codeColor, fontSize: 16),
+            ),
+            TextSpan(
+              text: text,
+              style: TextStyle(color: textColor, fontSize: 16, height: 1.4),
+            ),
           ],
         ),
       );
