@@ -4,14 +4,10 @@ import type { User } from '@/types'
 // so cookies are same-origin and no CORS header is needed.
 
 export async function fetchUser(): Promise<User | null> {
-  try {
-    const res = await fetch('/auth/me', { credentials: 'include' })
-    if (res.status === 401) return null
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return res.json()
-  } catch {
-    return null
-  }
+  const res = await fetch('/auth/me', { credentials: 'include' })
+  if (res.status === 401) return null
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json()
 }
 
 export async function authenticateWithEmail(data: {

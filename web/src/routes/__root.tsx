@@ -15,7 +15,7 @@ function RootLayout() {
   const navigate   = useNavigate()
   const { pathname } = useLocation()
 
-  const { data: user, isLoading } = useQuery({
+  const { data: user, isError, isLoading } = useQuery({
     queryKey: ['auth-me'],
     queryFn:  fetchUser,
     retry:    false,
@@ -26,6 +26,10 @@ function RootLayout() {
 
   useEffect(() => {
     if (isLoading) return
+
+    // If the backend is temporarily unavailable, keep the current route mounted.
+    // A failed auth refresh during a server restart should not look like logout.
+    if (isError) return
 
     if (!user && !isPublic) {
       navigate({ to: '/login', search: { error: undefined } })
@@ -41,7 +45,7 @@ function RootLayout() {
     if (user && user.nickname && user.mother_language && isPublic) {
       navigate({ to: '/' })
     }
-  }, [user, isLoading, isPublic, pathname, navigate])
+  }, [user, isError, isLoading, isPublic, pathname, navigate])
 
   if (isLoading) {
     return <LoadingScreen />
