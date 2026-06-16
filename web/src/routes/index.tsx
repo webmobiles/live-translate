@@ -7,10 +7,17 @@ export const Route = createFileRoute('/')({
   component: HomeScreen,
 })
 
-const LANG_CHIPS = ['🇺🇸 EN', '🇪🇸 ES', '🇫🇷 FR', '🇩🇪 DE', '🇨🇳 ZH', '🇯🇵 JA', '🇧🇷 PT', '🇷🇺 RU']
+const UI_LANGUAGES = [
+  { code: 'en', name: 'English' },
+  { code: 'fr', name: 'Français' },
+  { code: 'es', name: 'Español' },
+  { code: 'pt', name: 'Português' },
+  { code: 'de', name: 'Deutsch' },
+  { code: 'it', name: 'Italiano' },
+]
 
 function HomeScreen() {
-  const { t }        = useTranslation()
+  const { t, i18n }  = useTranslation()
   const navigate     = useNavigate()
   const queryClient  = useQueryClient()
   const me = queryClient.getQueryData<User | null>(['auth-me'])
@@ -25,9 +32,26 @@ function HomeScreen() {
             <span className="text-5xl">🌐</span>
           </div>
           <div className="flex flex-col items-center gap-1">
-            <h1 className="text-lt-text text-4xl font-bold tracking-tight">LiveTranslate</h1>
+            <h1 className="text-lt-text text-4xl font-bold tracking-tight">HelloVia Translate</h1>
             <p className="text-lt-muted text-base text-center">{t('home.tagline')}</p>
           </div>
+        </div>
+
+        {/* App language — persisted client-side (i18next cookie), independent of
+            the room "mother language". */}
+        <div className="flex flex-col gap-2">
+          <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
+            {t('settings.uiLanguage')}
+          </label>
+          <select
+            value={i18n.resolvedLanguage?.split('-')[0] ?? 'en'}
+            onChange={e => void i18n.changeLanguage(e.target.value)}
+            className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-lt-text text-base focus:outline-none focus:border-lt-primary transition-colors appearance-none"
+          >
+            {UI_LANGUAGES.map(l => (
+              <option key={l.code} value={l.code}>{l.name}</option>
+            ))}
+          </select>
         </div>
 
         {/* User bar */}
@@ -39,7 +63,7 @@ function HomeScreen() {
                 : <span className="text-2xl flex-shrink-0">👤</span>
               }
               <span className="text-lt-text text-sm font-medium truncate">
-                {me.nickname ?? me.name}
+                {me.nickname ?? me.first_name ?? ''}
               </span>
             </div>
             <button
@@ -55,7 +79,7 @@ function HomeScreen() {
         {/* Powered by */}
         <div className="flex items-center justify-center gap-2 bg-lt-card rounded-xl px-4 py-3 border border-lt-border">
           <span className="text-lt-muted text-sm">{t('home.poweredBy')}</span>
-          <span className="text-lt-accent font-semibold text-sm">OpenAI GPT-4o-mini + Whisper</span>
+          <span className="text-lt-accent font-semibold text-sm">hellovia.app</span>
         </div>
 
         {/* Buttons */}
@@ -75,18 +99,6 @@ function HomeScreen() {
             <span className="text-lt-primary text-lg font-bold">{t('home.joinRoom')}</span>
             <span className="text-lt-muted text-sm mt-0.5">{t('home.joinRoomSub')}</span>
           </button>
-        </div>
-
-        {/* Language chips */}
-        <div className="flex flex-wrap gap-2 justify-center">
-          {LANG_CHIPS.map(l => (
-            <div key={l} className="bg-lt-card border border-lt-border px-3 py-1.5 rounded-full">
-              <span className="text-lt-muted text-xs">{l}</span>
-            </div>
-          ))}
-          <div className="bg-lt-card border border-lt-border px-3 py-1.5 rounded-full">
-            <span className="text-lt-muted text-xs">+8 more</span>
-          </div>
         </div>
 
       </div>

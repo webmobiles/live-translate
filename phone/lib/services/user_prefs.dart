@@ -4,6 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Port of mobile/src/lib/userPrefs.ts
 class UserPrefs {
   final String nickname;
+  final String firstName;
+  final String lastName;
+  final String country;
   final String motherLang;
   final String targetLang;
   final String? avatarUri;
@@ -12,6 +15,9 @@ class UserPrefs {
 
   const UserPrefs({
     this.nickname = '',
+    this.firstName = '',
+    this.lastName = '',
+    this.country = '',
     this.motherLang = 'en',
     this.targetLang = 'fr',
     this.avatarUri,
@@ -21,6 +27,9 @@ class UserPrefs {
 
   UserPrefs copyWith({
     String? nickname,
+    String? firstName,
+    String? lastName,
+    String? country,
     String? motherLang,
     String? targetLang,
     String? avatarUri,
@@ -30,6 +39,9 @@ class UserPrefs {
   }) {
     return UserPrefs(
       nickname: nickname ?? this.nickname,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      country: country ?? this.country,
       motherLang: motherLang ?? this.motherLang,
       targetLang: targetLang ?? this.targetLang,
       avatarUri: clearAvatar ? null : (avatarUri ?? this.avatarUri),
@@ -40,6 +52,9 @@ class UserPrefs {
 
   Map<String, dynamic> toJson() => {
         'nickname': nickname,
+        'firstName': firstName,
+        'lastName': lastName,
+        'country': country,
         'motherLang': motherLang,
         'targetLang': targetLang,
         'avatarUri': avatarUri,
@@ -49,6 +64,9 @@ class UserPrefs {
 
   factory UserPrefs.fromJson(Map<String, dynamic> j) => UserPrefs(
         nickname: j['nickname'] as String? ?? '',
+        firstName: j['firstName'] as String? ?? '',
+        lastName: j['lastName'] as String? ?? '',
+        country: j['country'] as String? ?? '',
         motherLang: j['motherLang'] as String? ?? 'en',
         targetLang: j['targetLang'] as String? ?? 'fr',
         avatarUri: j['avatarUri'] as String?,

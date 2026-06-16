@@ -12,17 +12,11 @@ import '../widgets/language_selector.dart';
 import '../widgets/ui.dart';
 import 'home_screen.dart';
 
-const _uiLanguageNames = {
-  'en': 'English',
-  'fr': 'Français',
-  'es': 'Español',
-  'pt': 'Português',
-  'de': 'Deutsch',
-  'it': 'Italiano',
-};
-
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  /// In onboarding mode the screen only collects nickname + languages (a new
+  /// user shouldn't be forced to fill first/last/country just to try the app).
+  final bool isOnboarding;
+  const SettingsScreen({super.key, this.isOnboarding = false});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -30,14 +24,18 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _nickname = TextEditingController();
+  final _firstName = TextEditingController();
+  final _lastName = TextEditingController();
+  String _country = '';
   String _motherLang = 'en';
   String _targetLang = 'fr';
   String? _avatarUri;
-  String _uiLang = 'en';
   String _themeMode = 'dark';
   bool _saving = false;
   bool _saved = false;
   bool _initialised = false;
+
+  bool get _isOnboarding => widget.isOnboarding;
 
   @override
   void didChangeDependencies() {
@@ -46,16 +44,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _initialised = true;
     final p = context.appState.prefs;
     _nickname.text = p.nickname;
+    _firstName.text = p.firstName;
+    _lastName.text = p.lastName;
+    _country = p.country;
     _motherLang = p.motherLang;
     _targetLang = p.targetLang;
     _avatarUri = p.avatarUri;
-    _uiLang = p.uiLang.isNotEmpty ? p.uiLang : context.appState.lang;
     _themeMode = p.themeMode == 'light' ? 'light' : 'dark';
   }
 
   @override
   void dispose() {
     _nickname.dispose();
+    _firstName.dispose();
+    _lastName.dispose();
     super.dispose();
   }
 
@@ -74,9 +76,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // Outside onboarding, every field is required to save.
+  bool get _canSave =>
+      _nickname.text.trim().isNotEmpty &&
+      (_isOnboarding ||
+          (_firstName.text.trim().isNotEmpty &&
+              _lastName.text.trim().isNotEmpty &&
+              _country.isNotEmpty));
+
   Future<void> _handleSave() async {
     final s = context.appState;
-    if (_nickname.text.trim().isEmpty) {
+    if (!_canSave) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(s.t('create.errors.nickRequired'))),
       );
@@ -84,12 +94,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
     setState(() => _saving = true);
     try {
+      // Push to the server when signed in (token present); first/last/country
+      // are omitted during onboarding so a partial save never wipes them.
+      final token = await AuthService.getToken();
+      if (token != null) {
+        await AuthService.saveProfile(
+          nickname: _nickname.text.trim(),
+          firstName: _isOnboarding ? null : _firstName.text.trim(),
+          lastName: _isOnboarding ? null : _lastName.text.trim(),
+          country: _isOnboarding ? null : _country,
+          motherLanguage: _motherLang,
+          targetLanguage: _targetLang,
+        );
+      }
       await s.updatePrefs(UserPrefs(
         nickname: _nickname.text.trim(),
+        firstName: _firstName.text.trim(),
+        lastName: _lastName.text.trim(),
+        country: _country,
         motherLang: _motherLang,
         targetLang: _targetLang,
         avatarUri: _avatarUri,
-        uiLang: _uiLang,
+        uiLang: s.prefs.uiLang,
         themeMode: _themeMode,
       ));
       if (!mounted) return;
@@ -97,6 +123,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) setState(() => _saved = false);
       });
+    } catch (err) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(s.t('common.error.generic',
+              fallback: 'Could not save. Please try again.'))),
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -240,6 +273,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               SizedBox(height: 28),
 
+              // First name / Last name / Country — not asked during onboarding.
+              if (!_isOnboarding) ...[
+                AppInput(
+                  label: s.t('settings.firstName'),
+                  hint: s.t('settings.firstNamePlaceholder'),
+                  controller: _firstName,
+                  maxLength: 100,
+                  onChanged: (_) => setState(() {}),
+                ),
+                SizedBox(height: 28),
+                AppInput(
+                  label: s.t('settings.lastName'),
+                  hint: s.t('settings.lastNamePlaceholder'),
+                  controller: _lastName,
+                  maxLength: 100,
+                  onChanged: (_) => setState(() {}),
+                ),
+                SizedBox(height: 28),
+                _sectionLabel(s.t('settings.country')),
+                SizedBox(height: 6),
+                GestureDetector(
+                  onTap: () async {
+                    final code =
+                        await showCountryPicker(context, selected: _country);
+                    if (code != null) setState(() => _country = code);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 16),
+                    decoration: BoxDecoration(
+                      color: AppColors.card,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _country.isEmpty
+                              ? s.t('settings.countryPlaceholder')
+                              : s.t('countries.$_country'),
+                          style: TextStyle(
+                            color: _country.isEmpty
+                                ? AppColors.muted
+                                : AppColors.text,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(s.t('common.change'),
+                            style: TextStyle(
+                                color: AppColors.muted, fontSize: 14)),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(height: 28),
+              ],
+
               // Native language
               _langCard(
                 label: s.t('settings.motherLang'),
@@ -306,43 +397,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               SizedBox(height: 28),
 
-              // App language
-              _sectionLabel(s.t('settings.uiLanguage')),
-              SizedBox(height: 6),
-              GestureDetector(
-                onTap: () async {
-                  final code =
-                      await showUiLanguagePicker(context, selected: _uiLang);
-                  if (code != null) setState(() => _uiLang = code);
-                },
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.card,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(_uiLanguageNames[_uiLang] ?? 'English',
-                          style: TextStyle(
-                              color: AppColors.text,
-                              fontWeight: FontWeight.w500)),
-                      Text(s.t('common.change'),
-                          style:
-                              TextStyle(color: AppColors.muted, fontSize: 14)),
-                    ],
-                  ),
-                ),
-              ),
-              SizedBox(height: 28),
-
               // Save
               AppButton(
                 size: AppButtonSize.large,
-                disabled: _saving || _nickname.text.trim().isEmpty,
+                disabled: _saving || !_canSave,
                 onPressed: _handleSave,
                 child: Text(
                   _saving

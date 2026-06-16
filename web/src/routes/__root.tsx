@@ -119,7 +119,7 @@ function ProfileButton({ user, hidden }: { user: RootUser; hidden: boolean }) {
 
   if (!user || hidden) return null
 
-  const displayName = user.nickname ?? user.name ?? user.email ?? ''
+  const displayName = user.nickname ?? user.first_name ?? user.email ?? ''
   const initial = displayName.trim().charAt(0).toUpperCase() || '?'
 
   return (

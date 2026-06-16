@@ -6,7 +6,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { promisify } from 'util';
 import { rateLimitLogin } from './rateLimiter';
-import { createPasswordUser, findUserByEmail, setPasswordForUser, updateProfile, updateAvatarUrl } from './db';
+import { createPasswordUser, findUserByEmail, setPasswordForUser, updateProfile, updateAvatarUrl, ensureApiToken } from './db';
 import { requireAuth } from './middleware';
 
 const IMAGES_DIR = () => process.env.PROFILE_IMAGES_DIR ?? './data/images/profiles';
@@ -66,8 +66,8 @@ function normalizePassword(value: unknown) {
 }
 
 function publicUser(user: any) {
-  const { id, name, nickname, email, avatar_url, mother_language, target_language } = user;
-  return { id, name, nickname, email, avatar_url, mother_language, target_language };
+  const { id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language } = user;
+  return { id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language };
 }
 
 async function hashPassword(password: string) {
@@ -86,11 +86,16 @@ async function verifyPassword(password: string, storedHash: string | null | unde
 }
 
 function loginAndRespond(req: any, res: any, next: any, user: any) {
-  req.login(publicUser(user), (err: any) => {
+  req.login(publicUser(user), async (err: any) => {
     if (err) return next(err);
+    // Mint a bearer token so native clients can authenticate later API calls.
+    // Browser clients rely on the session cookie and simply ignore it.
+    let token: string | null = null;
+    try { token = await ensureApiToken(user.id); } catch (e) { return next(e); }
     res.json({
       user: publicUser(user),
       needsOnboarding: !user?.nickname || !user?.mother_language,
+      token,
     });
   });
 }
@@ -134,13 +139,17 @@ router.get('/google/callback', rateLimitLogin, (req, res, next) => {
     failureRedirect: mobileReturnTo
       ? withQuery(mobileReturnTo, { error: 'oauth_failed' })
       : `${FRONTEND_URL()}/login?error=oauth_failed`,
-  })(req, res, (err?: any) => {
+  })(req, res, async (err?: any) => {
     if (err) return next(err);
     const user = req.user as any;
     if (mobileReturnTo) {
+      // The app has no cookie jar, so hand it a bearer token on the deep link.
+      let token: string | null = null;
+      try { token = await ensureApiToken(user.id); } catch (e) { return next(e); }
       return res.redirect(withQuery(mobileReturnTo, {
         status: 'ok',
         onboarding: !user?.nickname || !user?.mother_language ? '1' : '0',
+        ...(token ? { token } : {}),
       }));
     }
     if (!user?.nickname || !user?.mother_language) {
@@ -196,8 +205,7 @@ router.post('/email/login', rateLimitLogin, async (req, res, next) => {
 
 // ── Session ───────────────────────────────────────────────────────────────
 
-router.get('/me', (req, res) => {
-  if (!req.isAuthenticated()) return res.status(401).json({ error: 'unauthenticated' });
+router.get('/me', requireAuth, (req, res) => {
   res.json(publicUser(req.user as any));
 });
 
@@ -215,12 +223,18 @@ router.post('/logout', requireAuth, (req, res, next) => {
 
 router.patch('/profile', requireAuth, async (req, res, next) => {
   try {
-    const { nickname, motherLanguage, targetLanguage } = req.body as {
+    const { nickname, firstName, lastName, country, motherLanguage, targetLanguage } = req.body as {
       nickname: string;
+      firstName?: string;
+      lastName?: string;
+      country?: string;
       motherLanguage: string;
       targetLanguage: string;
     };
 
+    // Required for every save (onboarding + settings). first/last/country are
+    // optional on the wire — onboarding omits them and the DB keeps the prior
+    // value; the settings screen enforces them client-side.
     if (!nickname?.trim())       return res.status(400).json({ error: 'nickname_required' });
     if (!motherLanguage?.trim()) return res.status(400).json({ error: 'mother_language_required' });
     if (!targetLanguage?.trim()) return res.status(400).json({ error: 'target_language_required' });
@@ -228,6 +242,9 @@ router.patch('/profile', requireAuth, async (req, res, next) => {
     const user = req.user as any;
     const updated = await updateProfile(user.id, {
       nickname:       nickname.trim().slice(0, 100),
+      firstName:      typeof firstName === 'string' ? firstName.trim().slice(0, 100) : undefined,
+      lastName:       typeof lastName === 'string' ? lastName.trim().slice(0, 100) : undefined,
+      country:        typeof country === 'string' ? country.trim().slice(0, 2).toUpperCase() : undefined,
       motherLanguage: motherLanguage.trim().slice(0, 10),
       targetLanguage: targetLanguage.trim().slice(0, 10),
     });

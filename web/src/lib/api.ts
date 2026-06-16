@@ -34,8 +34,14 @@ export async function authenticateWithEmail(data: {
   return res.json()
 }
 
+// firstName/lastName/country are optional here: the onboarding flow saves only
+// nickname + languages, and the server preserves any field that is omitted. The
+// settings screen requires all of them client-side before calling this.
 export async function saveProfile(data: {
   nickname: string
+  firstName?: string
+  lastName?: string
+  country?: string
   motherLanguage: string
   targetLanguage: string
 }): Promise<User> {

@@ -73,7 +73,7 @@ function LoginScreen() {
             <span className="text-4xl">🌐</span>
           </div>
           <div className="text-center">
-            <h1 className="text-lt-text text-3xl font-bold tracking-tight">LiveTranslate</h1>
+            <h1 className="text-lt-text text-3xl font-bold tracking-tight">HelloVia Translate</h1>
             <p className="text-lt-muted text-sm mt-1">{t('home.tagline')}</p>
           </div>
         </div>

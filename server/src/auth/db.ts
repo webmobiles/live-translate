@@ -22,8 +22,10 @@ async function initSchema() {
     -- ── Users ────────────────────────────────────────────────────────────────
     CREATE TABLE IF NOT EXISTS users (
       id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-      name             VARCHAR(255) NOT NULL,
       nickname         VARCHAR(100),
+      first_name       VARCHAR(100),
+      last_name        VARCHAR(100),
+      country          VARCHAR(2),
       email            VARCHAR(255) UNIQUE,
       avatar_url       TEXT,
       provider         VARCHAR(20)  NOT NULL DEFAULT 'google',
@@ -37,6 +39,28 @@ async function initSchema() {
     );
 
     ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
+
+    -- ── Profile fields (replaces the legacy single name column) ──────────────
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name  VARCHAR(100);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS country    VARCHAR(2);
+
+    -- Migrate any existing name into first_name, then drop it. Guarded so this
+    -- is a no-op on fresh databases (which never create the column).
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'name'
+      ) THEN
+        UPDATE users SET first_name = name
+          WHERE first_name IS NULL AND name IS NOT NULL AND name <> '';
+        ALTER TABLE users DROP COLUMN name;
+      END IF;
+    END $$;
+
+    -- Long-lived bearer token for native clients (the phone has no cookie jar).
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS api_token UUID;
 
     -- ── Sessions ─────────────────────────────────────────────────────────────
     CREATE TABLE IF NOT EXISTS session (
@@ -198,15 +222,17 @@ export async function findOrCreateUser(profile: {
   name: string;
   email?: string;
   avatarUrl?: string;
-}): Promise<{ id: string; name: string; nickname: string | null; mother_language: string | null; target_language: string | null }> {
+}): Promise<{ id: string; nickname: string | null; first_name: string | null; last_name: string | null; country: string | null; mother_language: string | null; target_language: string | null }> {
+  // The provider's display name seeds first_name for brand-new accounts; we
+  // never overwrite a name the user has already edited in settings.
   const byProvider = await pool.query(
     `UPDATE users
-     SET name       = $3,
+     SET first_name = COALESCE(first_name, NULLIF($3, '')),
          email      = COALESCE($4, email),
          avatar_url = COALESCE($5, avatar_url),
          updated_at = NOW()
      WHERE provider = $1 AND provider_id = $2
-     RETURNING id, name, nickname, mother_language, target_language`,
+     RETURNING id, nickname, first_name, last_name, country, mother_language, target_language`,
     [profile.provider, profile.providerId, profile.name, profile.email ?? null, profile.avatarUrl ?? null],
   );
   if (byProvider.rows[0]) return byProvider.rows[0];
@@ -214,22 +240,22 @@ export async function findOrCreateUser(profile: {
   if (profile.email) {
     const byEmail = await pool.query(
       `UPDATE users
-       SET name = COALESCE(NULLIF($1, ''), name),
+       SET first_name = COALESCE(first_name, NULLIF($1, '')),
            avatar_url = COALESCE($2, avatar_url),
            provider = $3,
            provider_id = $4,
            updated_at = NOW()
        WHERE lower(email) = lower($5)
-       RETURNING id, name, nickname, mother_language, target_language`,
+       RETURNING id, nickname, first_name, last_name, country, mother_language, target_language`,
       [profile.name, profile.avatarUrl ?? null, profile.provider, profile.providerId, profile.email],
     );
     if (byEmail.rows[0]) return byEmail.rows[0];
   }
 
   const inserted = await pool.query(
-    `INSERT INTO users (name, email, avatar_url, provider, provider_id)
+    `INSERT INTO users (first_name, email, avatar_url, provider, provider_id)
      VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, name, nickname, mother_language, target_language`,
+     RETURNING id, nickname, first_name, last_name, country, mother_language, target_language`,
     [profile.name, profile.email ?? null, profile.avatarUrl ?? null, profile.provider, profile.providerId],
   );
   return inserted.rows[0];
@@ -237,7 +263,7 @@ export async function findOrCreateUser(profile: {
 
 export async function findUserByEmail(email: string) {
   const { rows } = await pool.query(
-    `SELECT id, name, nickname, email, avatar_url, mother_language, target_language, password_hash
+    `SELECT id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language, password_hash
      FROM users WHERE lower(email) = lower($1)`,
     [email],
   );
@@ -250,9 +276,9 @@ export async function createPasswordUser(data: {
   passwordHash: string;
 }) {
   const { rows } = await pool.query(
-    `INSERT INTO users (name, email, provider, provider_id, password_hash)
+    `INSERT INTO users (first_name, email, provider, provider_id, password_hash)
      VALUES ($1, $2, 'email', $4, $3)
-     RETURNING id, name, nickname, email, avatar_url, mother_language, target_language`,
+     RETURNING id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language`,
     [data.name, data.email, data.passwordHash, data.email.toLowerCase()],
   );
   return rows[0];
@@ -263,7 +289,7 @@ export async function setPasswordForUser(id: string, passwordHash: string) {
     `UPDATE users
      SET password_hash = $2, updated_at = NOW()
      WHERE id = $1
-     RETURNING id, name, nickname, email, avatar_url, mother_language, target_language`,
+     RETURNING id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language`,
     [id, passwordHash],
   );
   return rows[0] ?? null;
@@ -271,7 +297,7 @@ export async function setPasswordForUser(id: string, passwordHash: string) {
 
 export async function findUserById(id: string) {
   const { rows } = await pool.query(
-    `SELECT id, name, nickname, email, avatar_url, mother_language, target_language
+    `SELECT id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language
      FROM users WHERE id = $1`,
     [id],
   );
@@ -280,18 +306,26 @@ export async function findUserById(id: string) {
 
 export async function updateProfile(id: string, data: {
   nickname: string;
+  firstName?: string;
+  lastName?: string;
+  country?: string;
   motherLanguage: string;
   targetLanguage: string;
 }) {
+  // COALESCE($n, column) leaves first/last/country untouched when the caller
+  // (e.g. onboarding) passes undefined → null, so a partial save never wipes them.
   const { rows } = await pool.query(
     `UPDATE users
      SET nickname        = $2,
-         mother_language = $3,
-         target_language = $4,
+         first_name      = COALESCE($3, first_name),
+         last_name       = COALESCE($4, last_name),
+         country         = COALESCE($5, country),
+         mother_language = $6,
+         target_language = $7,
          updated_at      = NOW()
      WHERE id = $1
-     RETURNING id, name, nickname, email, avatar_url, mother_language, target_language`,
-    [id, data.nickname, data.motherLanguage, data.targetLanguage],
+     RETURNING id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language`,
+    [id, data.nickname, data.firstName ?? null, data.lastName ?? null, data.country ?? null, data.motherLanguage, data.targetLanguage],
   );
   return rows[0] ?? null;
 }
@@ -301,8 +335,32 @@ export async function updateAvatarUrl(id: string, avatarUrl: string) {
     `UPDATE users
      SET avatar_url = $2, updated_at = NOW()
      WHERE id = $1
-     RETURNING id, name, nickname, email, avatar_url, mother_language, target_language`,
+     RETURNING id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language`,
     [id, avatarUrl],
+  );
+  return rows[0] ?? null;
+}
+
+// ── Native-client bearer tokens ──────────────────────────────────────────────
+
+/** Returns the user's API token, minting one on first use. */
+export async function ensureApiToken(id: string): Promise<string | null> {
+  const { rows } = await pool.query(
+    `UPDATE users
+     SET api_token = COALESCE(api_token, gen_random_uuid())
+     WHERE id = $1
+     RETURNING api_token`,
+    [id],
+  );
+  return rows[0]?.api_token ?? null;
+}
+
+/** Looks up a user by bearer token (public columns only — same shape as the session user). */
+export async function findUserByApiToken(token: string) {
+  const { rows } = await pool.query(
+    `SELECT id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language
+     FROM users WHERE api_token = $1`,
+    [token],
   );
   return rows[0] ?? null;
 }

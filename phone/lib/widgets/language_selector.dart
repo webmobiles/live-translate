@@ -58,6 +58,40 @@ Future<String?> showUiLanguagePicker(
   );
 }
 
+/// Curated country codes (mirrors COUNTRY_CODES in shared/src/lib/countries.ts).
+/// Names are resolved through the `countries` i18n namespace.
+const List<String> kCountryCodes = [
+  'AR', 'AU', 'AT', 'BE', 'BR', 'CA', 'CL', 'CN', 'CO', 'CZ',
+  'DK', 'EG', 'FI', 'FR', 'DE', 'GR', 'IN', 'ID', 'IE', 'IT',
+  'JP', 'MX', 'MA', 'NL', 'NO', 'PE', 'PL', 'PT', 'RO', 'RU',
+  'SA', 'KR', 'ES', 'SE', 'CH', 'TR', 'UA', 'AE', 'GB', 'US',
+];
+
+/// Bottom-sheet country picker. Returns the chosen ISO-2 code, or null.
+Future<String?> showCountryPicker(
+  BuildContext context, {
+  required String selected,
+}) {
+  final s = context.appState;
+  final items = kCountryCodes
+      .map((c) => _SheetItem(c, s.t('countries.$c'), null, null))
+      .toList()
+    ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  return showModalBottomSheet<String>(
+    context: context,
+    backgroundColor: AppColors.card,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (ctx) => _LanguageSheet(
+      title: s.t('settings.country'),
+      selected: selected,
+      items: items,
+    ),
+  );
+}
+
 class _SheetItem {
   final String code;
   final String name;

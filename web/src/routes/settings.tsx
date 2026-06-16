@@ -5,28 +5,23 @@ import { useTranslation } from 'react-i18next'
 import { LanguageSelector } from '@/components/LanguageSelector'
 import { getLang } from '@/lib/languages'
 import { saveProfile, uploadAvatar, logout } from '@/lib/api'
+import { COUNTRY_CODES } from '@live-translate/shared'
 import type { User } from '@/types'
 
 export const Route = createFileRoute('/settings')({
   component: SettingsScreen,
 })
 
-const UI_LANGUAGES = [
-  { code: 'en', name: 'English' },
-  { code: 'fr', name: 'Français' },
-  { code: 'es', name: 'Español' },
-  { code: 'pt', name: 'Português' },
-  { code: 'de', name: 'Deutsch' },
-  { code: 'it', name: 'Italiano' },
-]
-
 function SettingsScreen() {
-  const { t, i18n }  = useTranslation()
+  const { t }        = useTranslation()
   const navigate      = useNavigate()
   const queryClient   = useQueryClient()
   const me = queryClient.getQueryData<User | null>(['auth-me'])
 
   const [nickname,     setNickname]     = useState(me?.nickname ?? '')
+  const [firstName,    setFirstName]    = useState(me?.first_name ?? '')
+  const [lastName,     setLastName]     = useState(me?.last_name ?? '')
+  const [country,      setCountry]      = useState(me?.country ?? '')
   const [motherLang,   setMotherLang]   = useState(me?.mother_language ?? 'en')
   const [targetLang,   setTargetLang]   = useState(me?.target_language ?? 'en')
   const [avatarSrc,    setAvatarSrc]    = useState(me?.avatar_url ?? null)
@@ -63,13 +58,22 @@ function SettingsScreen() {
     }
   }, [queryClient, t])
 
+  // All profile fields are required to save from settings (paid-tier readiness).
+  const canSave = Boolean(
+    nickname.trim() && firstName.trim() && lastName.trim() && country.trim() &&
+    motherLang && targetLang,
+  )
+
   const handleSave = async () => {
-    if (!nickname.trim()) { setError(t('common.error.generic')); return }
+    if (!canSave) { setError(t('common.error.generic')); return }
     setSaving(true)
     setError('')
     try {
       const updated = await saveProfile({
         nickname:       nickname.trim(),
+        firstName:      firstName.trim(),
+        lastName:       lastName.trim(),
+        country:        country,
         motherLanguage: motherLang,
         targetLanguage: targetLang,
       })
@@ -153,6 +157,53 @@ function SettingsScreen() {
           />
         </div>
 
+        {/* First name */}
+        <div className="flex flex-col gap-2">
+          <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
+            {t('settings.firstName')}
+          </label>
+          <input
+            className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-lt-text text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors"
+            placeholder={t('settings.firstNamePlaceholder')}
+            value={firstName}
+            onChange={e => setFirstName(e.target.value)}
+            maxLength={100}
+          />
+        </div>
+
+        {/* Last name */}
+        <div className="flex flex-col gap-2">
+          <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
+            {t('settings.lastName')}
+          </label>
+          <input
+            className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-lt-text text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors"
+            placeholder={t('settings.lastNamePlaceholder')}
+            value={lastName}
+            onChange={e => setLastName(e.target.value)}
+            maxLength={100}
+          />
+        </div>
+
+        {/* Country */}
+        <div className="flex flex-col gap-2">
+          <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
+            {t('settings.country')}
+          </label>
+          <select
+            value={country}
+            onChange={e => setCountry(e.target.value)}
+            className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-lt-text text-base focus:outline-none focus:border-lt-primary transition-colors appearance-none"
+          >
+            <option value="" disabled>{t('settings.countryPlaceholder')}</option>
+            {[...COUNTRY_CODES]
+              .sort((a, b) => t(`countries.${a}`).localeCompare(t(`countries.${b}`)))
+              .map(code => (
+                <option key={code} value={code}>{t(`countries.${code}`)}</option>
+              ))}
+          </select>
+        </div>
+
         {/* Native language */}
         <div className="flex flex-col gap-2">
           <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
@@ -193,28 +244,12 @@ function SettingsScreen() {
           </button>
         </div>
 
-        {/* App language */}
-        <div className="flex flex-col gap-2">
-          <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
-            {t('settings.uiLanguage')}
-          </label>
-          <select
-            value={i18n.resolvedLanguage?.split('-')[0] ?? 'en'}
-            onChange={e => void i18n.changeLanguage(e.target.value)}
-            className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-lt-text text-base focus:outline-none focus:border-lt-primary transition-colors appearance-none"
-          >
-            {UI_LANGUAGES.map(l => (
-              <option key={l.code} value={l.code}>{l.name}</option>
-            ))}
-          </select>
-        </div>
-
         {error && <p className="text-lt-danger text-sm text-center">{error}</p>}
 
         {/* Save */}
         <button
           onClick={handleSave}
-          disabled={saving || !nickname.trim()}
+          disabled={saving || !canSave}
           className="bg-lt-primary rounded-2xl py-4 text-lt-text text-lg font-bold hover:bg-lt-primary-dark transition-colors disabled:opacity-50"
         >
           {saving ? t('common.saving') : saved ? t('settings.saved') : t('settings.save')}

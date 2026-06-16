@@ -1,7 +1,9 @@
 export interface User {
   id: string
-  name: string
   nickname: string | null
+  first_name: string | null
+  last_name: string | null
+  country: string | null
   email: string | null
   avatar_url: string | null
   mother_language: string | null

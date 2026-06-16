@@ -22,11 +22,21 @@ class _JoinScreenState extends State<JoinScreen> {
   bool _langWasAutoSet = false;
   bool _loading = false;
   bool _peeked = false;
+  bool _initialised = false;
 
   @override
   void initState() {
     super.initState();
     _code.addListener(_onCodeChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialised) return;
+    _initialised = true;
+    // Pre-fill the saved nickname (editable for this room only, not persisted).
+    _nickname.text = context.appState.prefs.nickname;
   }
 
   @override

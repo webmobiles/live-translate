@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/widgets.dart';
 
+import '../services/auth_service.dart';
 import '../services/user_prefs.dart';
 import '../theme.dart';
 
@@ -61,6 +62,25 @@ class AppState extends ChangeNotifier {
     _prefs = await UserPrefsStore.load();
     applyPalette(palette);
     notifyListeners();
+  }
+
+  /// Pull the server profile into local prefs. For a signed-in user the DB is
+  /// the source of truth for nickname / names / country / languages; device-only
+  /// prefs (uiLang, theme, local avatar) are left untouched.
+  Future<void> syncProfileFromServer() async {
+    final me = await AuthService.fetchMe();
+    if (me == null) return;
+    String keep(String? remote, String fallback) =>
+        (remote != null && remote.isNotEmpty) ? remote : fallback;
+    final merged = _prefs.copyWith(
+      nickname: keep(me['nickname'] as String?, _prefs.nickname),
+      firstName: keep(me['first_name'] as String?, _prefs.firstName),
+      lastName: keep(me['last_name'] as String?, _prefs.lastName),
+      country: keep(me['country'] as String?, _prefs.country),
+      motherLang: keep(me['mother_language'] as String?, _prefs.motherLang),
+      targetLang: keep(me['target_language'] as String?, _prefs.targetLang),
+    );
+    await updatePrefs(merged);
   }
 
   /// Translate a dot-path key, e.g. `t('create.errors.nickRequired')`.

@@ -6,10 +6,20 @@ import '../config.dart';
 import '../services/auth_service.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import '../widgets/language_selector.dart';
 import '../widgets/ui.dart';
 import 'create_screen.dart';
 import 'join_screen.dart';
 import 'settings_screen.dart';
+
+const _uiLanguageNames = {
+  'en': 'English',
+  'fr': 'Français',
+  'es': 'Español',
+  'pt': 'Português',
+  'de': 'Deutsch',
+  'it': 'Italiano',
+};
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -35,6 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } else {
       AuthService.isSignedIn().then((v) {
         if (mounted) setState(() => _signedIn = v);
+        if (v) context.appState.syncProfileFromServer();
       });
     }
   }
@@ -64,8 +75,10 @@ class _HomeScreenState extends State<HomeScreen> {
         _authError = 'oauth_failed';
       }
     });
-    if (result.success && result.needsOnboarding) {
-      _openSettings();
+    if (result.success) {
+      await context.appState.syncProfileFromServer();
+      if (!mounted) return;
+      if (result.needsOnboarding) _openSettings(onboarding: true);
     }
   }
 
@@ -95,14 +108,18 @@ class _HomeScreenState extends State<HomeScreen> {
         _authError = result.error ?? 'oauth_failed';
       }
     });
-    if (result.success && result.needsOnboarding) {
-      _openSettings();
+    if (result.success) {
+      await context.appState.syncProfileFromServer();
+      if (!mounted) return;
+      if (result.needsOnboarding) _openSettings(onboarding: true);
     }
   }
 
-  Future<void> _openSettings() async {
+  Future<void> _openSettings({bool onboarding = false}) async {
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+      MaterialPageRoute(
+        builder: (_) => SettingsScreen(isOnboarding: onboarding),
+      ),
     );
     if (mounted) context.appState.reloadPrefs();
   }
@@ -155,7 +172,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Text('🌐', style: TextStyle(fontSize: 32)),
                   ),
                   SizedBox(height: 16),
-                  Text('LiveTranslate',
+                  Text('HelloVia Translate',
                       style: TextStyle(
                           color: AppColors.text,
                           fontSize: 30,
@@ -358,16 +375,6 @@ class _HomeScreenState extends State<HomeScreen> {
   // ── Signed-in home ─────────────────────────────────────────────────────────
   Widget _buildHome(AppState s) {
     final prefs = s.prefs;
-    const chips = [
-      '🇺🇸 EN',
-      '🇪🇸 ES',
-      '🇫🇷 FR',
-      '🇩🇪 DE',
-      '🇨🇳 ZH',
-      '🇯🇵 JA',
-      '🇧🇷 PT',
-      '🇷🇺 RU',
-    ];
 
     return Scaffold(
       body: SafeArea(
@@ -395,7 +402,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Text('🌐', style: TextStyle(fontSize: 40)),
                   ),
                   SizedBox(height: 16),
-                  Text('LiveTranslate',
+                  Text('HelloVia Translate',
                       style: TextStyle(
                           color: AppColors.text,
                           fontSize: 36,
@@ -404,6 +411,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text(s.t('home.tagline'),
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppColors.muted, fontSize: 16)),
+                  SizedBox(height: 32),
+
+                  // App language — persisted locally (SharedPreferences via
+                  // updatePrefs), independent of the room "mother language".
+                  _appLanguageSelector(s),
                   SizedBox(height: 32),
 
                   // User bar
@@ -451,7 +463,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             style: TextStyle(
                                 color: AppColors.muted, fontSize: 14)),
                         SizedBox(width: 8),
-                        Text('OpenAI GPT-4o-mini + Whisper',
+                        Text('hellovia.app',
                             style: TextStyle(
                                 color: AppColors.accent,
                                 fontWeight: FontWeight.w600,
@@ -500,18 +512,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                   ),
-                  SizedBox(height: 32),
-
-                  // Language chips
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final c in chips) _chip(c),
-                      _chip('+13 more'),
-                    ],
-                  ),
                   SizedBox(height: 24),
                 ],
               ),
@@ -537,16 +537,50 @@ class _HomeScreenState extends State<HomeScreen> {
     return Text('👤', style: TextStyle(fontSize: 24));
   }
 
-  Widget _chip(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.border),
-      ),
-      child:
-          Text(label, style: TextStyle(color: AppColors.muted, fontSize: 12)),
+  // App-language selector shown at the top of the home screen. Picking a
+  // language persists it to local prefs (SharedPreferences) and applies it
+  // immediately via updatePrefs — no account or server round-trip needed.
+  Widget _appLanguageSelector(AppState s) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          s.t('settings.uiLanguage').toUpperCase(),
+          style: TextStyle(
+            color: AppColors.muted,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.8,
+          ),
+        ),
+        SizedBox(height: 6),
+        GestureDetector(
+          onTap: () async {
+            final code = await showUiLanguagePicker(context, selected: s.lang);
+            if (code != null && code != s.lang) {
+              await context.appState.updatePrefs(s.prefs.copyWith(uiLang: code));
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(_uiLanguageNames[s.lang] ?? 'English',
+                    style: TextStyle(
+                        color: AppColors.text, fontWeight: FontWeight.w500)),
+                Text(s.t('common.change'),
+                    style: TextStyle(color: AppColors.muted, fontSize: 14)),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

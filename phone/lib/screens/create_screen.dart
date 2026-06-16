@@ -29,8 +29,19 @@ class _CreateScreenState extends State<CreateScreen> {
   String _voicePipeline = 'stt-text-translate';
   bool _translatedAudio = true;
   bool _loading = false;
+  bool _initialised = false;
 
   bool get _isSolo => _roomMode == 'solo_multilang';
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialised) return;
+    _initialised = true;
+    // Propose the saved nickname for this room; the user may edit it for this
+    // chat only (never persisted back).
+    _nickname.text = context.appState.prefs.nickname;
+  }
 
   @override
   void dispose() {

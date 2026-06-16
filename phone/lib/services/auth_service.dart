@@ -12,6 +12,7 @@ import 'client_log_service.dart';
 /// app to be re-opened via the `hellovia-translate://auth-callback` deep link.
 class AuthService {
   static const _signedInKey = 'auth.googleSignedIn';
+  static const _tokenKey = 'auth.apiToken';
 
   static Future<bool> isSignedIn() async {
     final sp = await SharedPreferences.getInstance();
@@ -21,6 +22,23 @@ class AuthService {
   static Future<void> _setSignedIn(bool value) async {
     final sp = await SharedPreferences.getInstance();
     await sp.setString(_signedInKey, value ? 'true' : 'false');
+  }
+
+  /// Bearer token used to authenticate API calls from the app (the phone has no
+  /// cookie jar, so the server hands us this token on sign-in).
+  static Future<String?> getToken() async {
+    final sp = await SharedPreferences.getInstance();
+    final t = sp.getString(_tokenKey);
+    return (t != null && t.isNotEmpty) ? t : null;
+  }
+
+  static Future<void> _setToken(String? value) async {
+    final sp = await SharedPreferences.getInstance();
+    if (value == null || value.isEmpty) {
+      await sp.remove(_tokenKey);
+    } else {
+      await sp.setString(_tokenKey, value);
+    }
   }
 
   /// Returns an [AuthResult] describing the outcome.
@@ -51,6 +69,7 @@ class AuthService {
       }
 
       await _setSignedIn(true);
+      await _setToken(uri.queryParameters['token']);
       final needsOnboarding = uri.queryParameters['onboarding'] == '1';
       ClientLogService.info('client.auth.google.ok', {
         'needsOnboarding': needsOnboarding,
@@ -132,6 +151,7 @@ class AuthService {
       }
 
       await _setSignedIn(true);
+      await _setToken(decoded is Map ? decoded['token']?.toString() : null);
       final needsOnboarding =
           decoded is Map && decoded['needsOnboarding'] == true;
       return AuthResult(success: true, needsOnboarding: needsOnboarding);
@@ -149,7 +169,70 @@ class AuthService {
 
   static Future<void> signOut() async {
     await _setSignedIn(false);
+    await _setToken(null);
     await ClientLogService.flush();
+  }
+
+  /// Fetches the signed-in user's profile from the server. Returns the decoded
+  /// JSON (`/auth/me` shape) or null when unauthenticated / on error.
+  static Future<Map<String, dynamic>?> fetchMe() async {
+    final token = await getToken();
+    if (token == null) return null;
+    final uri = Uri.parse('$kServerUrl/auth/me');
+    try {
+      final client = HttpClient();
+      final req = await client.getUrl(uri);
+      req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+      final res = await req.close();
+      final body = await utf8.decoder.bind(res).join();
+      client.close(force: true);
+      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      final decoded = body.isNotEmpty ? jsonDecode(body) : null;
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } catch (err) {
+      ClientLogService.warn('client.profile.fetchMe.exception', {
+        'error': err.toString(),
+      });
+      return null;
+    }
+  }
+
+  /// Persists the profile to the server (`PATCH /auth/profile`). Returns the
+  /// updated user JSON on success; throws with the server error code otherwise.
+  static Future<Map<String, dynamic>> saveProfile({
+    required String nickname,
+    String? firstName,
+    String? lastName,
+    String? country,
+    required String motherLanguage,
+    required String targetLanguage,
+  }) async {
+    final token = await getToken();
+    if (token == null) throw Exception('unauthenticated');
+    final uri = Uri.parse('$kServerUrl/auth/profile');
+    final client = HttpClient();
+    final req = await client.patchUrl(uri);
+    req.headers.contentType = ContentType.json;
+    req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+    // first/last/country omitted when null → the server keeps the prior value
+    // (onboarding saves only nickname + languages).
+    req.write(jsonEncode({
+      'nickname': nickname,
+      if (firstName != null) 'firstName': firstName,
+      if (lastName != null) 'lastName': lastName,
+      if (country != null) 'country': country,
+      'motherLanguage': motherLanguage,
+      'targetLanguage': targetLanguage,
+    }));
+    final res = await req.close();
+    final body = await utf8.decoder.bind(res).join();
+    client.close(force: true);
+    final decoded = body.isNotEmpty ? jsonDecode(body) : null;
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      final error = decoded is Map ? decoded['error']?.toString() : null;
+      throw Exception(error ?? 'save_failed');
+    }
+    return decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
   }
 }
 
