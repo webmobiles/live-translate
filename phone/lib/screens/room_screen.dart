@@ -22,7 +22,7 @@ import '../widgets/message_bubble.dart';
 import '../widgets/participant_list.dart';
 import '../widgets/voice_button.dart';
 
-const int _minVoiceMs = 1000;
+const int _minVoiceMs = 400;
 
 class RoomScreen extends StatefulWidget {
   final String code;
@@ -79,6 +79,10 @@ class _RoomScreenState extends State<RoomScreen> {
   String _mySocketId = '';
   String? _recordingPath;
   int _recordingStartedAt = 0;
+  // Pre-warmed so a hold-to-record press starts the mic immediately instead of
+  // awaiting permission + temp-dir lookups each time (which lost short presses).
+  String? _tempDirPath;
+  bool _micGranted = false;
 
   // Failed solo sends kept for one-tap retry (message id → payload).
   final Map<String, _RetryPayload> _retry = {};
@@ -91,7 +95,7 @@ class _RoomScreenState extends State<RoomScreen> {
     _myLanguage = widget.language;
     _translatedAudio = widget.initialTranslatedAudio;
     _roomConfig = _defaultRoomConfig();
-    _recorder.hasPermission(); // prompt for mic up front
+    _prewarmRecorder(); // prompt for mic + cache temp dir so recording starts fast
 
     if (widget.isSolo) {
       final langs = _soloLanguages;
@@ -533,15 +537,28 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   // ── Voice recording ─────────────────────────────────────────────────────────
+  Future<void> _prewarmRecorder() async {
+    try {
+      _micGranted = await _recorder.hasPermission();
+    } catch (_) {}
+    try {
+      final dir = await getTemporaryDirectory();
+      if (mounted) _tempDirPath = dir.path;
+    } catch (_) {}
+  }
+
   Future<void> _startRecording() async {
     try {
-      if (!await _recorder.hasPermission()) {
-        _snack('Microphone permission required');
-        return;
+      if (!_micGranted) {
+        _micGranted = await _recorder.hasPermission();
+        if (!_micGranted) {
+          _snack('Microphone permission required');
+          return;
+        }
       }
-      final dir = await getTemporaryDirectory();
+      final dirPath = _tempDirPath ??= (await getTemporaryDirectory()).path;
       final path =
-          '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+          '$dirPath/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
       await _recorder.start(
         // Mono 16 kHz: what Whisper wants anyway, and avoids the silent-capture
         // some Android devices hit when asked for stereo from a mono mic.
@@ -591,7 +608,7 @@ class _RoomScreenState extends State<RoomScreen> {
 
       final file = File(filePath);
       if (durationMs < _minVoiceMs) {
-        _snack('Send voice at least 1 second duration.');
+        _snack('Hold a little longer to record.');
         if (await file.exists()) await file.delete();
         return;
       }
@@ -651,7 +668,48 @@ class _RoomScreenState extends State<RoomScreen> {
 
   void _snack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    // Top toast (instead of a bottom SnackBar) so it doesn't sit over the input.
+    final overlay = Overlay.of(context);
+    final entry = OverlayEntry(
+      builder: (ctx) => Positioned(
+        top: MediaQuery.of(ctx).padding.top + 12,
+        left: 16,
+        right: 16,
+        child: IgnorePointer(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.card,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Text(
+                msg,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.text,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    overlay.insert(entry);
+    Future.delayed(const Duration(milliseconds: 2500), () {
+      if (entry.mounted) entry.remove();
+    });
   }
 
   List<String> get _soloLanguages {
@@ -934,57 +992,74 @@ class _RoomScreenState extends State<RoomScreen> {
     final hasText = _input.text.trim().isNotEmpty;
 
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            _header(),
-            _audioControls(),
-            if (!widget.isSolo)
-              ParticipantList(
-                  participants: _participants, mySocketId: _mySocketId),
-            Expanded(
-              child: _messages.isEmpty
-                  ? _emptyState()
-                  : ListView.builder(
-                      controller: _scroll,
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _messages.length,
-                      itemBuilder: (ctx, i) {
-                        final m = _messages[i];
-                        if (m.isSystem) {
-                          return Center(
-                            child: Container(
-                              margin: const EdgeInsets.symmetric(vertical: 8),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppColors.card,
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(m.original,
-                                  style: TextStyle(
-                                      color: AppColors.muted, fontSize: 12)),
-                            ),
-                          );
-                        }
-                        return MessageBubble(
-                          code: widget.code,
-                          message: m,
-                          isSolo: widget.isSolo,
-                          soloLanguages: widget.isSolo ? _soloLanguages : null,
-                          autoplay: _autoplayMessageId == m.id,
-                          playTranslatedAudio: _translatedAudio,
-                          onRetry: m.failed ? () => _retrySolo(m.id) : null,
-                        );
-                      },
-                    ),
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                _header(),
+                _audioControls(),
+                if (!widget.isSolo)
+                  ParticipantList(
+                      participants: _participants, mySocketId: _mySocketId),
+                Expanded(
+                  child: _messages.isEmpty
+                      ? _emptyState()
+                      : ListView.builder(
+                          controller: _scroll,
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _messages.length,
+                          itemBuilder: (ctx, i) {
+                            final m = _messages[i];
+                            if (m.isSystem) {
+                              return Center(
+                                child: Container(
+                                  margin:
+                                      const EdgeInsets.symmetric(vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.card,
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(m.original,
+                                      style: TextStyle(
+                                          color: AppColors.muted,
+                                          fontSize: 12)),
+                                ),
+                              );
+                            }
+                            return MessageBubble(
+                              code: widget.code,
+                              message: m,
+                              isSolo: widget.isSolo,
+                              soloLanguages:
+                                  widget.isSolo ? _soloLanguages : null,
+                              autoplay: _autoplayMessageId == m.id,
+                              playTranslatedAudio: _translatedAudio,
+                              onRetry: m.failed ? () => _retrySolo(m.id) : null,
+                            );
+                          },
+                        ),
+                ),
+                _inputBar(hasText),
+                // Solo language toggle sits below the input bar so the keyboard
+                // doesn't push it off-screen / hide the chat.
+                if (widget.isSolo) _soloLanguageToggle(),
+              ],
             ),
-            _inputBar(hasText),
-            // Solo language toggle sits below the input bar so the keyboard
-            // doesn't push it off-screen / hide the chat.
-            if (widget.isSolo) _soloLanguageToggle(),
-          ],
-        ),
+          ),
+          // Centered recording-duration counter — shown only while holding to
+          // record, removed on release.
+          if (_isRecording)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Center(
+                  child: _RecordingCounter(startedAtMs: _recordingStartedAt),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -1406,4 +1481,84 @@ class _RetryPayload {
     required this.senderLang,
     required this.targetLang,
   });
+}
+
+/// Live mm:ss counter shown centered while a recording is in progress. Runs its
+/// own timer so only this widget rebuilds, not the whole room.
+class _RecordingCounter extends StatefulWidget {
+  final int startedAtMs;
+  const _RecordingCounter({required this.startedAtMs});
+
+  @override
+  State<_RecordingCounter> createState() => _RecordingCounterState();
+}
+
+class _RecordingCounterState extends State<_RecordingCounter> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  String get _elapsed {
+    final ms = DateTime.now().millisecondsSinceEpoch - widget.startedAtMs;
+    final totalSec = ms < 0 ? 0 : ms ~/ 1000;
+    final m = totalSec ~/ 60;
+    final s = totalSec % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const green = Color(0xFF16A34A);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: green, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.mic, color: green, size: 40),
+          const SizedBox(height: 10),
+          Text(
+            _elapsed,
+            style: TextStyle(
+              color: AppColors.text,
+              fontSize: 34,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Recording…',
+            style: TextStyle(
+              color: AppColors.muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
