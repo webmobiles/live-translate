@@ -139,6 +139,196 @@ function logAudioOutputsReady(context: Record<string, unknown>, audioOutputs: Re
   }, 'Translated audio outputs ready');
 }
 
+type StepRunner = (label: string, fn: () => unknown | Promise<unknown>) => Promise<any>;
+
+const inlineStep: StepRunner = async (_label, fn) => fn();
+
+export async function runTranslateWorkflow(data: any, runStep: StepRunner = inlineStep) {
+  const { msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, participants, knownLanguages } = data;
+  const roomConfig = normalizeRoomConfig(data.roomConfig);
+  const targetLangs = getTextTargetLangs(roomConfig, knownLanguages, participants);
+  const audioTargetLangs = getSoloTargetLangs(roomConfig, senderLang)
+    ?? participants
+      .filter((p: any) => p.socketId !== senderSocketId)
+      .map((p: any) => p.language) as string[];
+
+  await queue.publishMessageProgress(roomCode, msgId, 35, 'translating');
+
+  const translations = await runStep('translate-text', async () => {
+    const result = await buildTranslations(text, senderLang, targetLangs, roomConfig.translationProvider);
+    await queue.publishMessageProgress(roomCode, msgId, 65, 'translated');
+    return result;
+  });
+
+  await runStep('broadcast-translated-text', () =>
+    queue.publishMessageTranslated(roomCode, {
+      id: msgId,
+      sender,
+      senderLang,
+      senderSocketId,
+      original: text,
+      translations,
+      audioOutputs: {},
+      isAudio: false,
+      progress: 75,
+      stage: 'generatingAudio',
+      timestamp: Date.now(),
+    }),
+  );
+
+  const audioOutputs = await runStep('generate-audio-output', async () => {
+    await queue.publishMessageProgress(roomCode, msgId, 75, 'generatingAudio');
+    const result = await buildAudioOutputs(translations, audioTargetLangs, roomConfig);
+    logAudioOutputsReady({ roomCode, roomId, msgId, isAudio: false, audioTargetLangs }, result);
+    await queue.publishMessageProgress(roomCode, msgId, 88, 'saving');
+    return result;
+  });
+
+  await runStep('broadcast', () =>
+    queue.publishMessageReady(roomCode, {
+      id: msgId, sender, senderLang, senderSocketId, original: text, translations, audioOutputs, isAudio: false, timestamp: Date.now(),
+    }),
+  );
+
+  await runStep('save-to-db', async () => {
+    await queue.publishMessageProgress(roomCode, msgId, 95, 'delivering');
+    await db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: false });
+  });
+
+  return { ok: true, msgId };
+}
+
+export async function runTranscribeWorkflow(data: any, runStep: StepRunner = inlineStep) {
+  const { msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, participants, knownLanguages } = data;
+  const roomConfig = normalizeRoomConfig(data.roomConfig);
+  const targetLangs = getTextTargetLangs(roomConfig, knownLanguages, participants);
+  const audioTargetLangs = getSoloTargetLangs(roomConfig, senderLang)
+    ?? participants
+      // Receivers with the same language still need generated audio; only
+      // exclude the sender socket in normal rooms.
+      .filter((p: any) => p.socketId !== senderSocketId)
+      .map((p: any) => p.language) as string[];
+
+  if (roomConfig.voicePipeline === 'direct-voice-translation') {
+    await queue.publishMessageProgress(roomCode, msgId, 35, 'directVoiceTranslation');
+
+    const direct = await runStep('translate-voice-direct', async () => {
+      const result = await voiceTranslation.translateVoice(audioBase64, mimeType, senderLang, targetLangs, roomConfig);
+      await queue.publishMessageProgress(roomCode, msgId, 75, 'generatingAudio');
+      return result;
+    });
+
+    const text = direct.text?.trim() || '[voice message]';
+    const translations = direct.translations || Object.fromEntries([[senderLang, text]]);
+    const audioOutputs = direct.audioOutputs || {};
+    appMetrics.recordWords({
+      type: 'audio',
+      stage: 'transcribed',
+      roomCode,
+      roomId,
+      language: senderLang,
+      text,
+    });
+
+    const directAudioFiles = persistMessageAudio({ msgId, originalAudio: { audioBase64, mimeType }, audioOutputs });
+
+    await runStep('broadcast', () =>
+      queue.publishMessageReady(roomCode, {
+        id: msgId,
+        sender,
+        senderLang,
+        senderSocketId,
+        original: text,
+        translations,
+        audioOutputs,
+        // Original audio recovered on demand via GET …/audio/original, not pushed.
+        isAudio: true,
+        timestamp: Date.now(),
+      }),
+    );
+
+    await runStep('save-to-db', async () => {
+      await queue.publishMessageProgress(roomCode, msgId, 95, 'delivering');
+      await db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true, ...directAudioFiles });
+    });
+
+    return { ok: true, msgId, text };
+  }
+
+  await queue.publishMessageProgress(roomCode, msgId, 35, 'transcribing');
+
+  const text = await runStep('transcribe-audio', async () => {
+    const result = await stt.transcribe(audioBase64, mimeType, senderLang);
+    if (!result?.trim()) throw new Error('Empty transcription');
+    return result.trim();
+  });
+  appMetrics.recordWords({
+    type: 'audio',
+    stage: 'transcribed',
+    roomCode,
+    roomId,
+    language: senderLang,
+    text,
+  });
+  await queue.publishMessageProgress(roomCode, msgId, 50, 'transcribed');
+
+  const translations = await runStep('translate-text', async () => {
+    await queue.publishMessageProgress(roomCode, msgId, 60, 'translating');
+    const result = await buildTranslations(text, senderLang, targetLangs, roomConfig.translationProvider);
+    await queue.publishMessageProgress(roomCode, msgId, 72, 'translated');
+    return result;
+  });
+
+  await runStep('broadcast-translated-text', () =>
+    queue.publishMessageTranslated(roomCode, {
+      id: msgId,
+      sender,
+      senderLang,
+      senderSocketId,
+      original: text,
+      translations,
+      audioOutputs: {},
+      // Original and translated audio are still being processed.
+      isAudio: true,
+      progress: 78,
+      stage: 'generatingAudio',
+      timestamp: Date.now(),
+    }),
+  );
+
+  const audioOutputs = await runStep('generate-audio-output', async () => {
+    await queue.publishMessageProgress(roomCode, msgId, 78, 'generatingAudio');
+    const result = await buildAudioOutputs(translations, audioTargetLangs, roomConfig);
+    logAudioOutputsReady({ roomCode, roomId, msgId, isAudio: true, audioTargetLangs }, result);
+    await queue.publishMessageProgress(roomCode, msgId, 88, 'saving');
+    return result;
+  });
+
+  await runStep('broadcast', () =>
+    queue.publishMessageReady(roomCode, {
+      id: msgId,
+      sender,
+      senderLang,
+      senderSocketId,
+      original: text,
+      translations,
+      audioOutputs,
+      // Original audio recovered on demand via GET …/audio/original, not pushed.
+      isAudio: true,
+      timestamp: Date.now(),
+    }),
+  );
+
+  const audioFiles = persistMessageAudio({ msgId, originalAudio: { audioBase64, mimeType }, audioOutputs });
+
+  await runStep('save-to-db', async () => {
+    await queue.publishMessageProgress(roomCode, msgId, 95, 'delivering');
+    await db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true, ...audioFiles });
+  });
+
+  return { ok: true, msgId, text };
+}
+
 export const translateMessage = inngest.createFunction(
   {
     id: 'translate-message',
@@ -146,58 +336,7 @@ export const translateMessage = inngest.createFunction(
     triggers: [{ event: 'message/translate' }],
   },
   async ({ event, step }) => {
-    const { msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, participants, knownLanguages } = event.data;
-    const roomConfig = normalizeRoomConfig(event.data.roomConfig);
-    const targetLangs = getTextTargetLangs(roomConfig, knownLanguages, participants);
-    const audioTargetLangs = getSoloTargetLangs(roomConfig, senderLang)
-      ?? participants
-        .filter((p: any) => p.socketId !== senderSocketId)
-        .map((p: any) => p.language) as string[];
-
-    await queue.publishMessageProgress(roomCode, msgId, 35, 'translating');
-
-    const translations = await step.run('translate-text', async () => {
-      const result = await buildTranslations(text, senderLang, targetLangs, roomConfig.translationProvider);
-      await queue.publishMessageProgress(roomCode, msgId, 65, 'translated');
-      return result;
-    });
-
-    await step.run('broadcast-translated-text', () =>
-      queue.publishMessageTranslated(roomCode, {
-        id: msgId,
-        sender,
-        senderLang,
-        senderSocketId,
-        original: text,
-        translations,
-        audioOutputs: {},
-        isAudio: false,
-        progress: 75,
-        stage: 'generatingAudio',
-        timestamp: Date.now(),
-      }),
-    );
-
-    const audioOutputs = await step.run('generate-audio-output', async () => {
-      await queue.publishMessageProgress(roomCode, msgId, 75, 'generatingAudio');
-      const result = await buildAudioOutputs(translations, audioTargetLangs, roomConfig);
-      logAudioOutputsReady({ roomCode, roomId, msgId, isAudio: false, audioTargetLangs }, result);
-      await queue.publishMessageProgress(roomCode, msgId, 88, 'saving');
-      return result;
-    });
-
-    await step.run('broadcast', () =>
-      queue.publishMessageReady(roomCode, {
-        id: msgId, sender, senderLang, senderSocketId, original: text, translations, audioOutputs, isAudio: false, timestamp: Date.now(),
-      }),
-    );
-
-    await step.run('save-to-db', async () => {
-      await queue.publishMessageProgress(roomCode, msgId, 95, 'delivering');
-      await db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: false });
-    });
-
-    return { ok: true, msgId };
+    return runTranslateWorkflow(event.data, (label, fn) => step.run(label, fn));
   },
 );
 
@@ -213,133 +352,6 @@ export const transcribeAndTranslate = inngest.createFunction(
     },
   },
   async ({ event, step }) => {
-    const { msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, participants, knownLanguages } = event.data;
-    const roomConfig = normalizeRoomConfig(event.data.roomConfig);
-    const targetLangs = getTextTargetLangs(roomConfig, knownLanguages, participants);
-    const audioTargetLangs = getSoloTargetLangs(roomConfig, senderLang)
-      ?? participants
-        // Receivers with the same language still need generated audio; only
-        // exclude the sender socket in normal rooms.
-        .filter((p: any) => p.socketId !== senderSocketId)
-        .map((p: any) => p.language) as string[];
-
-    if (roomConfig.voicePipeline === 'direct-voice-translation') {
-      await queue.publishMessageProgress(roomCode, msgId, 35, 'directVoiceTranslation');
-
-      const direct = await step.run('translate-voice-direct', async () => {
-        const result = await voiceTranslation.translateVoice(audioBase64, mimeType, senderLang, targetLangs, roomConfig);
-        await queue.publishMessageProgress(roomCode, msgId, 75, 'generatingAudio');
-        return result;
-      });
-
-      const text = direct.text?.trim() || '[voice message]';
-      const translations = direct.translations || Object.fromEntries([[senderLang, text]]);
-      const audioOutputs = direct.audioOutputs || {};
-      appMetrics.recordWords({
-        type: 'audio',
-        stage: 'transcribed',
-        roomCode,
-        roomId,
-        language: senderLang,
-        text,
-      });
-
-      const directAudioFiles = persistMessageAudio({ msgId, originalAudio: { audioBase64, mimeType }, audioOutputs });
-
-      await step.run('broadcast', () =>
-        queue.publishMessageReady(roomCode, {
-          id: msgId,
-          sender,
-          senderLang,
-          senderSocketId,
-          original: text,
-          translations,
-          audioOutputs,
-          // Original audio recovered on demand via GET …/audio/original, not pushed.
-          isAudio: true,
-          timestamp: Date.now(),
-        }),
-      );
-
-      await step.run('save-to-db', async () => {
-        await queue.publishMessageProgress(roomCode, msgId, 95, 'delivering');
-        await db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true, ...directAudioFiles });
-      });
-
-      return { ok: true, msgId, text };
-    }
-
-    await queue.publishMessageProgress(roomCode, msgId, 35, 'transcribing');
-
-    const text = await step.run('transcribe-audio', async () => {
-      const result = await stt.transcribe(audioBase64, mimeType, senderLang);
-      if (!result?.trim()) throw new Error('Empty transcription');
-      return result.trim();
-    });
-    appMetrics.recordWords({
-      type: 'audio',
-      stage: 'transcribed',
-      roomCode,
-      roomId,
-      language: senderLang,
-      text,
-    });
-    await queue.publishMessageProgress(roomCode, msgId, 50, 'transcribed');
-
-    const translations = await step.run('translate-text', async () => {
-      await queue.publishMessageProgress(roomCode, msgId, 60, 'translating');
-      const result = await buildTranslations(text, senderLang, targetLangs, roomConfig.translationProvider);
-      await queue.publishMessageProgress(roomCode, msgId, 72, 'translated');
-      return result;
-    });
-
-    await step.run('broadcast-translated-text', () =>
-      queue.publishMessageTranslated(roomCode, {
-        id: msgId,
-        sender,
-        senderLang,
-        senderSocketId,
-        original: text,
-        translations,
-        audioOutputs: {},
-        // Original and translated audio are still being processed.
-        isAudio: true,
-        progress: 78,
-        stage: 'generatingAudio',
-        timestamp: Date.now(),
-      }),
-    );
-
-    const audioOutputs = await step.run('generate-audio-output', async () => {
-      await queue.publishMessageProgress(roomCode, msgId, 78, 'generatingAudio');
-      const result = await buildAudioOutputs(translations, audioTargetLangs, roomConfig);
-      logAudioOutputsReady({ roomCode, roomId, msgId, isAudio: true, audioTargetLangs }, result);
-      await queue.publishMessageProgress(roomCode, msgId, 88, 'saving');
-      return result;
-    });
-
-    await step.run('broadcast', () =>
-      queue.publishMessageReady(roomCode, {
-        id: msgId,
-        sender,
-        senderLang,
-        senderSocketId,
-        original: text,
-        translations,
-        audioOutputs,
-        // Original audio recovered on demand via GET …/audio/original, not pushed.
-        isAudio: true,
-        timestamp: Date.now(),
-      }),
-    );
-
-    const audioFiles = persistMessageAudio({ msgId, originalAudio: { audioBase64, mimeType }, audioOutputs });
-
-    await step.run('save-to-db', async () => {
-      await queue.publishMessageProgress(roomCode, msgId, 95, 'delivering');
-      await db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true, ...audioFiles });
-    });
-
-    return { ok: true, msgId, text };
+    return runTranscribeWorkflow(event.data, (label, fn) => step.run(label, fn));
   },
 );

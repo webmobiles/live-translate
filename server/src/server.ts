@@ -135,7 +135,9 @@ const io = new Server(httpServer, {
 
 // ── Inngest HTTP handler ───────────────────────────────────────────────────
 // Inngest calls this endpoint to trigger and progress workflow steps.
-app.use('/api/inngest', workflows.httpHandler());
+if (workflows.isInngestEnabled()) {
+  app.use('/api/inngest', workflows.httpHandler());
+}
 app.use('/health', healthRouter);
 app.get('/metrics', metricsHandler);
 
@@ -1116,7 +1118,8 @@ async function start() {
       event: 'server.ready',
       port: Number(PORT),
       url: `http://localhost:${PORT}`,
-      inngestUrl: `http://localhost:${PORT}/api/inngest`,
+      inngest: workflows.isInngestEnabled() ? 'on' : 'off',
+      ...(workflows.isInngestEnabled() ? { inngestUrl: `http://localhost:${PORT}/api/inngest` } : {}),
     }, 'Server ready');
   });
 }

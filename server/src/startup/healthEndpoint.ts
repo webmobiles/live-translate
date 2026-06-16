@@ -17,6 +17,7 @@
 import { Router } from 'express';
 import * as db from '../facades/db';
 import * as queue from '../facades/queue';
+import * as workflows from '../facades/workflows';
 
 const router = Router();
 
@@ -49,7 +50,9 @@ async function checkQueue(): Promise<{ ok: boolean; latencyMs?: number; error?: 
   }
 }
 
-async function checkInngest(): Promise<{ ok: boolean; latencyMs?: number; error?: string }> {
+async function checkInngest(): Promise<{ ok: boolean; latencyMs?: number; error?: string; skipped?: boolean }> {
+  if (!workflows.isInngestEnabled()) return { ok: true, skipped: true };
+
   const start = Date.now();
   try {
     const url = `${process.env.INNGEST_BASE_URL || 'http://localhost:8288'}/`;

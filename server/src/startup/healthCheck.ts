@@ -14,6 +14,7 @@ import { Surreal } from 'surrealdb';
 import { Kafka } from 'kafkajs';
 import { connect as connectNats } from 'nats';
 import * as realtimeFacade from '../facades/realtime';
+import * as workflows from '../facades/workflows';
 import { logger, flushLogs } from '../observability/logger';
 import { severity } from '../observability/severity';
 
@@ -123,6 +124,8 @@ async function checkNats() {
 }
 
 async function checkInngest() {
+  if (!workflows.isInngestEnabled()) return { ok: true, skipped: true };
+
   const url = `${process.env.INNGEST_BASE_URL || 'http://localhost:8288'}/`;
 
   const res = await withTimeout(
