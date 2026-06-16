@@ -31,7 +31,7 @@ const int _streamAudioMaxPendingAcks = 6;
 // Solo-mode hold-to-speak: a single trash target floats above the language
 // toggle bar while recording; drag the held finger onto it to discard.
 const double _soloTrashSize = 120;
-const double _soloTrashGap = 100;      // px above the toggle bar's top edge
+const double _soloTrashGap = 100; // px above the toggle bar's top edge
 const double _soloTrashArmRadius = 66; // finger within this of trash → armed
 
 class RoomScreen extends StatefulWidget {
@@ -1109,8 +1109,7 @@ class _RoomScreenState extends State<RoomScreen> {
   // A single 40×40 trash floats above the centre of the language toggle bar
   // while a side is held; sliding the finger onto it arms cancel.
   void _showSoloTrash() {
-    final box =
-        _soloToggleKey.currentContext?.findRenderObject() as RenderBox?;
+    final box = _soloToggleKey.currentContext?.findRenderObject() as RenderBox?;
     final overlay = Overlay.maybeOf(context);
     if (box == null || overlay == null) return;
     final topCenter = box.localToGlobal(Offset(box.size.width / 2, 0));
@@ -1750,6 +1749,7 @@ class _RoomScreenState extends State<RoomScreen> {
     );
 
     return Listener(
+      behavior: HitTestBehavior.opaque,
       onPointerDown: (_) {
         if (_isConnected) onPressIn();
       },
@@ -1772,23 +1772,25 @@ class _RoomScreenState extends State<RoomScreen> {
           onPressOut();
         }
       },
-      child: Opacity(
-        opacity: _isConnected ? 1 : 0.45,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: leftSide
-                ? [
-                    Text(info.flag, style: TextStyle(fontSize: 24)),
-                    SizedBox(width: 8),
-                    label,
-                  ]
-                : [
-                    label,
-                    SizedBox(width: 8),
-                    Text(info.flag, style: TextStyle(fontSize: 24)),
-                  ],
+      child: SizedBox.expand(
+        child: Opacity(
+          opacity: _isConnected ? 1 : 0.45,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: leftSide
+                  ? [
+                      Text(info.flag, style: TextStyle(fontSize: 24)),
+                      SizedBox(width: 8),
+                      label,
+                    ]
+                  : [
+                      label,
+                      SizedBox(width: 8),
+                      Text(info.flag, style: TextStyle(fontSize: 24)),
+                    ],
+            ),
           ),
         ),
       ),
