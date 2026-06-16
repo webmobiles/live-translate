@@ -938,7 +938,6 @@ class _RoomScreenState extends State<RoomScreen> {
         child: Column(
           children: [
             _header(),
-            if (widget.isSolo) _soloLanguageToggle(),
             _audioControls(),
             if (!widget.isSolo)
               ParticipantList(
@@ -981,6 +980,9 @@ class _RoomScreenState extends State<RoomScreen> {
                     ),
             ),
             _inputBar(hasText),
+            // Solo language toggle sits below the input bar so the keyboard
+            // doesn't push it off-screen / hide the chat.
+            if (widget.isSolo) _soloLanguageToggle(),
           ],
         ),
       ),
@@ -1091,7 +1093,8 @@ class _RoomScreenState extends State<RoomScreen> {
                         color: !_isConnected
                             ? AppColors.primaryMuted
                             : _soloPressedLanguage == active
-                                ? AppColors.primary.withValues(alpha: 0.7)
+                                // Recording in progress — turn the active side green.
+                                ? const Color(0xFF16A34A)
                                 : AppColors.primary,
                         borderRadius: BorderRadius.circular(16),
                       ),
