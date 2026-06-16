@@ -173,6 +173,8 @@
     "alert": {
       "tooShortTitle": "Voice message too short",
       "tooShortBody": "Record at least 1 second before sending.",
+      "emptyTitle": "Audio empty",
+      "emptyBody": "No sound was detected. Try again.",
       "dismiss": "Dismiss voice message alert"
     },
     "solo": {

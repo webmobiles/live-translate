@@ -23,6 +23,7 @@ import '../widgets/participant_list.dart';
 import '../widgets/voice_button.dart';
 
 const int _minVoiceMs = 400;
+const double _silentVoicePeakDb = -45.0;
 
 class RoomScreen extends StatefulWidget {
   final String code;
@@ -609,6 +610,11 @@ class _RoomScreenState extends State<RoomScreen> {
       final file = File(filePath);
       if (durationMs < _minVoiceMs) {
         _snack('Hold a little longer to record.');
+        if (await file.exists()) await file.delete();
+        return;
+      }
+      if (_ampPeak < _silentVoicePeakDb) {
+        _snack('Audio empty, try again.');
         if (await file.exists()) await file.delete();
         return;
       }

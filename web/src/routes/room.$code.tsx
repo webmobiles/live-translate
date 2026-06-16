@@ -15,6 +15,8 @@ const DEFAULT_ROOM_CONFIG: RoomConfig = {
   output: { translatedText: true, translatedAudio: true },
 }
 const MIN_VOICE_MESSAGE_DURATION_MS = 1000
+const SILENT_VOICE_PEAK_DB = -45
+const MIN_AUDIO_LEVEL_SAMPLES = 3
 const MIN_SENDING_STAGE_MS = 450
 const SILENT_AUDIO_SRC = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=='
 
@@ -32,6 +34,7 @@ type SharedAudioSnapshot = {
 }
 type MessageAudioPayload = NonNullable<Message['translatedAudio']>
 type RoomTransport = 'loading' | 'solo-http' | 'socket'
+type VoiceAlertReason = 'tooShort' | 'empty'
 type MessageProgressStage =
   | 'sending'
   | 'preparingAudio'
@@ -334,7 +337,7 @@ function RoomScreen() {
   const [countdown, setCountdown] = useState(4)
   const [isRecording, setIsRecording] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [voiceAlertVisible, setVoiceAlertVisible] = useState(false)
+  const [voiceAlertReason, setVoiceAlertReason] = useState<VoiceAlertReason | null>(null)
   const [voiceAutoPlayEnabled, setVoiceAutoPlayEnabled] = useState(true)
 
   // solo_multilang: which language side is currently "speaking"
@@ -409,6 +412,11 @@ function RoomScreen() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const recordingStartedAtRef = useRef(0)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
+  const audioAnalyserFrameRef = useRef<number | null>(null)
+  const audioLevelSampleCountRef = useRef(0)
+  const audioPeakDbRef = useRef(-160)
   const mySocketId = useRef('')
   const hasSyncedRoom = useRef(false)
   const syncInFlight = useRef(false)
@@ -418,6 +426,56 @@ function RoomScreen() {
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
+
+  const stopAudioLevelMeter = useCallback(() => {
+    if (audioAnalyserFrameRef.current !== null) {
+      cancelAnimationFrame(audioAnalyserFrameRef.current)
+      audioAnalyserFrameRef.current = null
+    }
+    audioSourceRef.current?.disconnect()
+    audioSourceRef.current = null
+    void audioContextRef.current?.close().catch(() => {})
+    audioContextRef.current = null
+  }, [])
+
+  const startAudioLevelMeter = useCallback((stream: MediaStream) => {
+    stopAudioLevelMeter()
+    audioLevelSampleCountRef.current = 0
+    audioPeakDbRef.current = -160
+
+    const AudioContextCtor = window.AudioContext
+      || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!AudioContextCtor) return
+
+    try {
+      const audioContext = new AudioContextCtor()
+      const source = audioContext.createMediaStreamSource(stream)
+      const analyser = audioContext.createAnalyser()
+      analyser.fftSize = 1024
+      source.connect(analyser)
+      audioContextRef.current = audioContext
+      audioSourceRef.current = source
+
+      const samples = new Uint8Array(analyser.fftSize)
+      const tick = () => {
+        analyser.getByteTimeDomainData(samples)
+        let sumSquares = 0
+        for (let i = 0; i < samples.length; i += 1) {
+          const centered = (samples[i] - 128) / 128
+          sumSquares += centered * centered
+        }
+        const rms = Math.sqrt(sumSquares / samples.length)
+        const db = rms > 0 ? 20 * Math.log10(rms) : -160
+        audioPeakDbRef.current = Math.max(audioPeakDbRef.current, db)
+        audioLevelSampleCountRef.current += 1
+        audioAnalyserFrameRef.current = requestAnimationFrame(tick)
+      }
+      tick()
+    } catch (error) {
+      console.warn('[live-translate] audio level meter unavailable', error)
+      stopAudioLevelMeter()
+    }
+  }, [stopAudioLevelMeter])
 
   const updateVoiceAutoPlayEnabled = useCallback((enabled: boolean) => {
     voiceAutoPlayEnabledRef.current = enabled
@@ -897,14 +955,14 @@ function RoomScreen() {
   }, [])
 
   useEffect(() => {
-    if (!voiceAlertVisible) return
+    if (!voiceAlertReason) return
 
     const timeout = window.setTimeout(() => {
-      setVoiceAlertVisible(false)
+      setVoiceAlertReason(null)
     }, 5000)
 
     return () => window.clearTimeout(timeout)
-  }, [voiceAlertVisible])
+  }, [voiceAlertReason])
 
   useEffect(() => {
     if (!isConnected || !roomConfig.input.text) return
@@ -1075,27 +1133,35 @@ function RoomScreen() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const mr = new MediaRecorder(stream)
       audioChunksRef.current = []
+      startAudioLevelMeter(stream)
       mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
       mr.start()
       mediaRecorderRef.current = mr
       recordingStartedAtRef.current = Date.now()
-      setVoiceAlertVisible(false)
+      setVoiceAlertReason(null)
       setIsRecording(true)
     } catch {
       alert(t('room.micRequired'))
     }
-  }, [roomConfig.input.voice])
+  }, [roomConfig.input.voice, startAudioLevelMeter])
 
   const stopAndSend = useCallback(() => {
     const mr = mediaRecorderRef.current
     if (!mr) return
     const durationMs = recordingStartedAtRef.current ? Date.now() - recordingStartedAtRef.current : 0
     mr.onstop = () => {
+      const peakDb = audioPeakDbRef.current
+      const levelSamples = audioLevelSampleCountRef.current
+      stopAudioLevelMeter()
       mr.stream.getTracks().forEach(t => t.stop())
       mediaRecorderRef.current = null
       recordingStartedAtRef.current = 0
       if (durationMs < MIN_VOICE_MESSAGE_DURATION_MS) {
-        setVoiceAlertVisible(true)
+        setVoiceAlertReason('tooShort')
+        return
+      }
+      if (levelSamples >= MIN_AUDIO_LEVEL_SAMPLES && peakDb < SILENT_VOICE_PEAK_DB) {
+        setVoiceAlertReason('empty')
         return
       }
       const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
@@ -1189,7 +1255,7 @@ function RoomScreen() {
     }
     mr.stop()
     setIsRecording(false)
-  }, [code, nickname, roomConfig.mode, scrollToBottom, t])
+  }, [code, nickname, roomConfig.mode, scrollToBottom, stopAudioLevelMeter, t])
 
   const copyCode = () => {
     navigator.clipboard.writeText(code)
@@ -1393,16 +1459,16 @@ function RoomScreen() {
         <div ref={messagesEndRef} />
       </div>
 
-      {voiceAlertVisible && (
+      {voiceAlertReason && (
         <div className="px-4 pb-3">
           <Alert variant="destructive" className="pr-10">
             <CircleAlert aria-hidden="true" />
-            <AlertTitle>{t('room.alert.tooShortTitle')}</AlertTitle>
-            <AlertDescription>{t('room.alert.tooShortBody')}</AlertDescription>
+            <AlertTitle>{t(`room.alert.${voiceAlertReason}Title`)}</AlertTitle>
+            <AlertDescription>{t(`room.alert.${voiceAlertReason}Body`)}</AlertDescription>
             <button
               type="button"
               className="absolute right-3 top-3 rounded-md p-1 text-lt-muted transition-colors hover:bg-lt-card hover:text-lt-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lt-primary"
-              onClick={() => setVoiceAlertVisible(false)}
+              onClick={() => setVoiceAlertReason(null)}
               aria-label={t('room.alert.dismiss')}
             >
               <X size={16} aria-hidden="true" />

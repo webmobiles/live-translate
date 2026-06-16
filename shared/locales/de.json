@@ -160,6 +160,8 @@
     "alert": {
       "tooShortTitle": "Sprachnachricht zu kurz",
       "tooShortBody": "Nehmen Sie vor dem Senden mindestens 1 Sekunde auf.",
+      "emptyTitle": "Audio leer",
+      "emptyBody": "Es wurde kein Ton erkannt. Bitte versuchen Sie es erneut.",
       "dismiss": "Hinweis zur Sprachnachricht schließen"
     },
     "solo": {

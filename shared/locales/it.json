@@ -160,6 +160,8 @@
     "alert": {
       "tooShortTitle": "Messaggio vocale troppo breve",
       "tooShortBody": "Registra almeno 1 secondo prima di inviare.",
+      "emptyTitle": "Audio vuoto",
+      "emptyBody": "Non e stato rilevato alcun suono. Riprova.",
       "dismiss": "Chiudi avviso messaggio vocale"
     },
     "solo": {
