@@ -1161,8 +1161,8 @@ class _RoomScreenState extends State<RoomScreen> {
             ),
             alignment: Alignment.center,
             child: Icon(
-              armed ? Icons.delete : Icons.delete_outline,
-              size: 66,
+              Icons.delete_forever_outlined,
+              size: 38,
               color: armed ? Colors.white : AppColors.danger,
             ),
           ),
