@@ -24,6 +24,9 @@ import '../widgets/voice_button.dart';
 
 const int _minVoiceMs = 400;
 const double _silentVoicePeakDb = -45.0;
+const int _streamAudioSampleRate = 16000;
+const int _streamAudioChannels = 1;
+const int _streamAudioMaxPendingAcks = 6;
 
 class RoomScreen extends StatefulWidget {
   final String code;
@@ -80,6 +83,15 @@ class _RoomScreenState extends State<RoomScreen> {
   String _mySocketId = '';
   String? _recordingPath;
   int _recordingStartedAt = 0;
+  StreamSubscription<Uint8List>? _streamAudioSub;
+  Completer<void>? _streamAudioDone;
+  String? _streamAudioSessionId;
+  String? _streamAudioClientMsgId;
+  String? _streamAudioSenderLang;
+  String? _streamAudioTargetLang;
+  int _streamAudioSeq = 0;
+  int _streamAudioPendingAcks = 0;
+  int _streamAudioBytes = 0;
   // Pre-warmed so a hold-to-record press starts the mic immediately instead of
   // awaiting permission + temp-dir lookups each time (which lost short presses).
   String? _tempDirPath;
@@ -274,6 +286,10 @@ class _RoomScreenState extends State<RoomScreen> {
     setState(() {
       final i = _messages.indexWhere((m) => m.id == id);
       if (i >= 0) {
+        if (!_messages[i].isMine) {
+          _messages.removeAt(i);
+          return;
+        }
         _messages[i] = _messages[i].copyWith(
           isTranslating: false,
           failed: true,
@@ -548,6 +564,16 @@ class _RoomScreenState extends State<RoomScreen> {
     } catch (_) {}
   }
 
+  bool get _usesChunkedAudioUpload =>
+      !(widget.isSolo && !kPhoneSoloRoomSocket) && _socket != null;
+
+  String get _currentSenderLang => widget.isSolo
+      ? (_soloActiveLanguage ?? _soloLanguages.first)
+      : _myLanguage;
+
+  String _targetLangForSender(String senderLang) =>
+      widget.isSolo ? _otherSoloLanguage(senderLang) : _myLanguage;
+
   Future<void> _startRecording() async {
     try {
       if (!_micGranted) {
@@ -556,6 +582,10 @@ class _RoomScreenState extends State<RoomScreen> {
           _snack('Microphone permission required');
           return;
         }
+      }
+      if (_usesChunkedAudioUpload) {
+        await _startStreamingRecording();
+        return;
       }
       final dirPath = _tempDirPath ??= (await getTemporaryDirectory()).path;
       final path =
@@ -589,7 +619,111 @@ class _RoomScreenState extends State<RoomScreen> {
     }
   }
 
+  Future<void> _startStreamingRecording() async {
+    final socket = _socket;
+    if (socket == null) return;
+
+    final id = SoloApi.newId();
+    final sessionId = SoloApi.newId();
+    final senderLang = _currentSenderLang;
+    final targetLang = _targetLangForSender(senderLang);
+    final startAck = Completer<Map<String, dynamic>>();
+
+    socket.emitWithAck('message:audio:start', {
+      'sessionId': sessionId,
+      'clientMsgId': id,
+      'senderLang': senderLang,
+      'sampleRate': _streamAudioSampleRate,
+      'channels': _streamAudioChannels,
+      'encoding': 'pcm16',
+      'startedAt': DateTime.now().millisecondsSinceEpoch,
+    }, ack: (ack) {
+      if (!startAck.isCompleted) {
+        startAck.complete(SocketService.unwrapAck(ack));
+      }
+    });
+
+    final res = await startAck.future.timeout(
+      const Duration(seconds: 4),
+      onTimeout: () => <String, dynamic>{'ok': false, 'error': 'timeout'},
+    );
+    if (res['ok'] != true) {
+      _snack('Could not start audio upload. Try again.');
+      return;
+    }
+
+    final stream = await _recorder.startStream(
+      const RecordConfig(
+        encoder: AudioEncoder.pcm16bits,
+        numChannels: _streamAudioChannels,
+        sampleRate: _streamAudioSampleRate,
+        streamBufferSize: 3200,
+      ),
+    );
+
+    _recordingStartedAt = DateTime.now().millisecondsSinceEpoch;
+    _streamAudioSessionId = sessionId;
+    _streamAudioClientMsgId = id;
+    _streamAudioSenderLang = senderLang;
+    _streamAudioTargetLang = targetLang;
+    _streamAudioSeq = 0;
+    _streamAudioPendingAcks = 0;
+    _streamAudioBytes = 0;
+    _streamAudioDone = Completer<void>();
+
+    _streamAudioSub = stream.listen(
+      (chunk) {
+        if (chunk.isEmpty || _streamAudioSessionId != sessionId) return;
+        final seq = _streamAudioSeq++;
+        _streamAudioBytes += chunk.length;
+        _streamAudioPendingAcks += 1;
+        if (_streamAudioPendingAcks >= _streamAudioMaxPendingAcks) {
+          _streamAudioSub?.pause();
+        }
+        socket.emitWithAck('message:audio:chunk', {
+          'sessionId': sessionId,
+          'seq': seq,
+          'bytes': chunk,
+          'sentAt': DateTime.now().millisecondsSinceEpoch,
+        }, ack: (_) {
+          _streamAudioPendingAcks =
+              (_streamAudioPendingAcks - 1).clamp(0, 1 << 20).toInt();
+          if (_streamAudioSub?.isPaused == true &&
+              _streamAudioPendingAcks < _streamAudioMaxPendingAcks) {
+            _streamAudioSub?.resume();
+          }
+        });
+      },
+      onDone: () {
+        if (!(_streamAudioDone?.isCompleted ?? true)) {
+          _streamAudioDone?.complete();
+        }
+      },
+      onError: (Object error) {
+        if (!(_streamAudioDone?.isCompleted ?? true)) {
+          _streamAudioDone?.completeError(error);
+        }
+      },
+      cancelOnError: true,
+    );
+
+    _ampPeak = -160.0;
+    _ampSub?.cancel();
+    _ampSub = _recorder
+        .onAmplitudeChanged(const Duration(milliseconds: 200))
+        .listen((amp) {
+      if (amp.current > _ampPeak) _ampPeak = amp.current;
+      debugPrint('mic level: current=${amp.current.toStringAsFixed(1)} dBFS '
+          'peak=${_ampPeak.toStringAsFixed(1)} dBFS');
+    });
+    setState(() => _isRecording = true);
+  }
+
   Future<void> _stopAndSend() async {
+    if (_streamAudioSessionId != null) {
+      await _stopAndSendStream();
+      return;
+    }
     if (_recordingPath == null) return;
     setState(() => _isRecording = false);
     try {
@@ -620,11 +754,8 @@ class _RoomScreenState extends State<RoomScreen> {
       }
 
       final id = SoloApi.newId();
-      final senderLang = widget.isSolo
-          ? (_soloActiveLanguage ?? _soloLanguages.first)
-          : _myLanguage;
-      final targetLang =
-          widget.isSolo ? _otherSoloLanguage(senderLang) : _myLanguage;
+      final senderLang = _currentSenderLang;
+      final targetLang = _targetLangForSender(senderLang);
       final now = DateTime.now().millisecondsSinceEpoch;
       setState(() {
         _messages.add(Message(
@@ -672,16 +803,155 @@ class _RoomScreenState extends State<RoomScreen> {
     }
   }
 
+  Future<void> _stopAndSendStream() async {
+    final socket = _socket;
+    final sessionId = _streamAudioSessionId;
+    final id = _streamAudioClientMsgId;
+    final senderLang = _streamAudioSenderLang;
+    final targetLang = _streamAudioTargetLang;
+    if (socket == null ||
+        sessionId == null ||
+        id == null ||
+        senderLang == null ||
+        targetLang == null) {
+      return;
+    }
+
+    setState(() => _isRecording = false);
+    final durationMs = _recordingStartedAt > 0
+        ? DateTime.now().millisecondsSinceEpoch - _recordingStartedAt
+        : 0;
+
+    try {
+      await _recorder.stop();
+      await _streamAudioDone?.future.timeout(
+        const Duration(seconds: 2),
+        onTimeout: () {},
+      );
+      await _waitForStreamChunkAcks();
+      await _ampSub?.cancel();
+      _ampSub = null;
+      debugPrint('stream recording stopped: peak mic level '
+          '${_ampPeak.toStringAsFixed(1)} dBFS, bytes=$_streamAudioBytes');
+
+      if (durationMs < _minVoiceMs) {
+        _abortStreamUpload(sessionId, 'too_short');
+        _snack('Hold a little longer to record.');
+        _resetStreamAudioState();
+        return;
+      }
+      if (_ampPeak < _silentVoicePeakDb || _streamAudioBytes == 0) {
+        _abortStreamUpload(sessionId, 'empty_audio');
+        _snack('Audio empty, try again.');
+        _resetStreamAudioState();
+        return;
+      }
+
+      final now = DateTime.now().millisecondsSinceEpoch;
+      setState(() {
+        final optimistic = Message(
+          id: id,
+          original: '…',
+          translated: '…',
+          sender: widget.nickname,
+          senderLang: senderLang,
+          targetLang: targetLang,
+          isMine: true,
+          isAudio: true,
+          timestamp: now,
+          isTranslating: true,
+          deliveryStatus: 'sending',
+          progress: 18,
+          progressStage: 'sendingAudio',
+        );
+        final i = _messages.indexWhere((m) => m.id == id);
+        if (i >= 0) {
+          _messages[i] = optimistic;
+        } else {
+          _messages.add(optimistic);
+        }
+      });
+      _scrollToEnd();
+
+      socket.emitWithAck('message:audio:end', {
+        'sessionId': sessionId,
+        'clientMsgId': id,
+        'finalSeq': _streamAudioSeq - 1,
+        'durationMs': durationMs,
+      }, ack: (ack) {
+        if (!mounted) return;
+        final res = SocketService.unwrapAck(ack);
+        setState(() {
+          final i = _messages.indexWhere((m) => m.id == id);
+          if (i < 0) return;
+          _messages[i] = _messages[i].copyWith(
+            deliveryStatus: res['ok'] == true ? 'queued' : 'failed',
+            failed: res['ok'] != true,
+            progressStage:
+                res['ok'] == true ? 'received' : _messages[i].progressStage,
+            clearProgress: res['ok'] != true,
+          );
+        });
+      });
+    } catch (e) {
+      debugPrint('stopAndSendStream $e');
+      _abortStreamUpload(sessionId, 'client_error');
+      await _ampSub?.cancel();
+      _ampSub = null;
+    } finally {
+      _recordingStartedAt = 0;
+      _resetStreamAudioState();
+    }
+  }
+
+  Future<void> _waitForStreamChunkAcks() async {
+    final deadline = DateTime.now().add(const Duration(seconds: 2));
+    while (_streamAudioPendingAcks > 0 && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+  }
+
+  void _abortStreamUpload(String sessionId, String reason) {
+    _socket?.emit('message:audio:abort', {
+      'sessionId': sessionId,
+      'reason': reason,
+    });
+  }
+
+  void _resetStreamAudioState() {
+    _streamAudioSub?.cancel();
+    _streamAudioSub = null;
+    _streamAudioDone = null;
+    _streamAudioSessionId = null;
+    _streamAudioClientMsgId = null;
+    _streamAudioSenderLang = null;
+    _streamAudioTargetLang = null;
+    _streamAudioSeq = 0;
+    _streamAudioPendingAcks = 0;
+    _streamAudioBytes = 0;
+  }
+
   /// Stop the in-progress recording and discard it — no message is sent.
   /// Triggered by dragging the held mic button onto the trash target.
   Future<void> _cancelRecording() async {
-    if (!_isRecording && _recordingPath == null) return;
+    if (!_isRecording &&
+        _recordingPath == null &&
+        _streamAudioSessionId == null) {
+      return;
+    }
     setState(() => _isRecording = false);
     try {
+      final streamSessionId = _streamAudioSessionId;
       final path = await _recorder.stop();
       await _ampSub?.cancel();
       _ampSub = null;
       _recordingStartedAt = 0;
+      if (streamSessionId != null) {
+        _abortStreamUpload(streamSessionId, 'cancelled');
+        _resetStreamAudioState();
+        _snack('Recording cancelled');
+        return;
+      }
       final filePath = path ?? _recordingPath;
       _recordingPath = null;
       if (filePath != null) {
@@ -695,6 +965,11 @@ class _RoomScreenState extends State<RoomScreen> {
       _ampSub = null;
       _recordingStartedAt = 0;
       _recordingPath = null;
+      final streamSessionId = _streamAudioSessionId;
+      if (streamSessionId != null) {
+        _abortStreamUpload(streamSessionId, 'client_error');
+        _resetStreamAudioState();
+      }
     }
   }
 

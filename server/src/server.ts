@@ -1,5 +1,8 @@
 import './env'; // must be first — loads .env before any other module reads process.env
 import { randomUUID } from 'crypto';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -32,6 +35,87 @@ import { healthRouter } from './startup/healthEndpoint';
 import { runHealthChecks } from './startup/healthCheck';
 
 const PgSession = connectPgSimple(session);
+const STREAM_AUDIO_SAMPLE_RATE = 16000;
+const STREAM_AUDIO_CHANNELS = 1;
+const STREAM_AUDIO_BITS_PER_SAMPLE = 16;
+const STREAM_AUDIO_MAX_CHUNK_BYTES = 256 * 1024;
+const STREAM_AUDIO_MAX_AGE_MS = 10 * 60 * 1000;
+
+type AudioUploadSession = {
+  sessionId: string;
+  msgId: string;
+  roomCode: string;
+  roomId: string;
+  socketId: string;
+  sender: string;
+  senderLang: string;
+  tempPcmPath: string;
+  nextSeq: number;
+  bytesReceived: number;
+  startedAt: number;
+  lastChunkAt: number;
+  writeQueue: Promise<void>;
+};
+
+const audioUploadSessions = new Map<string, AudioUploadSession>();
+
+function audioUploadDir() {
+  const dir = path.join(os.tmpdir(), 'live-translate-audio-streams');
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function cleanupAudioUploadSession(sessionId: string) {
+  const session = audioUploadSessions.get(sessionId);
+  if (!session) return;
+  audioUploadSessions.delete(sessionId);
+  session.writeQueue.finally(() => {
+    fs.promises.unlink(session.tempPcmPath).catch(() => {});
+  }).catch(() => {});
+}
+
+function audioChunkBuffer(input: any): Buffer | null {
+  if (Buffer.isBuffer(input)) return input;
+  if (input instanceof ArrayBuffer) return Buffer.from(input);
+  if (ArrayBuffer.isView(input)) {
+    return Buffer.from(input.buffer, input.byteOffset, input.byteLength);
+  }
+  return null;
+}
+
+function wavHeader(dataBytes: number, sampleRate: number, channels: number, bitsPerSample: number) {
+  const header = Buffer.alloc(44);
+  const blockAlign = channels * bitsPerSample / 8;
+  const byteRate = sampleRate * blockAlign;
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + dataBytes, 4);
+  header.write('WAVE', 8);
+  header.write('fmt ', 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(channels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(bitsPerSample, 34);
+  header.write('data', 36);
+  header.writeUInt32LE(dataBytes, 40);
+  return header;
+}
+
+function pcmToWavBuffer(pcm: Buffer) {
+  return Buffer.concat([
+    wavHeader(pcm.length, STREAM_AUDIO_SAMPLE_RATE, STREAM_AUDIO_CHANNELS, STREAM_AUDIO_BITS_PER_SAMPLE),
+    pcm,
+  ]);
+}
+
+setInterval(() => {
+  const cutoff = Date.now() - STREAM_AUDIO_MAX_AGE_MS;
+  for (const [sessionId, session] of audioUploadSessions) {
+    if (session.lastChunkAt < cutoff) cleanupAudioUploadSession(sessionId);
+  }
+}, 60_000).unref();
 
 const app = express();
 app.set('trust proxy', 1);
@@ -980,6 +1064,209 @@ io.on('connection', (socket) => {
     }
   });
 
+  // ── Chunked audio upload → assemble PCM → existing workflow ──────────────
+  socket.on('message:audio:start', async ({
+    sessionId,
+    clientMsgId,
+    senderLang: clientSenderLang,
+    sampleRate,
+    channels,
+    encoding,
+  }: any = {}, cb) => {
+    const { roomCode, roomId, participant } = socket.data;
+    if (!roomCode || !roomId || !participant) {
+      cb?.({ ok: false, error: 'Not connected to a room.' });
+      return;
+    }
+
+    const roomConfig = roomManager.get(roomCode)?.config;
+    if (roomConfig && !roomConfig.input.voice) {
+      cb?.({ ok: false, error: 'Voice input is disabled for this room.' });
+      return;
+    }
+    if (encoding !== 'pcm16' || sampleRate !== STREAM_AUDIO_SAMPLE_RATE || channels !== STREAM_AUDIO_CHANNELS) {
+      cb?.({ ok: false, error: 'Unsupported audio stream format.' });
+      return;
+    }
+
+    const effectiveSenderLang = (typeof clientSenderLang === 'string' && clientSenderLang)
+      ? clientSenderLang
+      : participant.language;
+    const msgId = isUuid(clientMsgId) ? clientMsgId : makeMsgId();
+    const safeSessionId = isUuid(sessionId) ? sessionId : randomUUID();
+    const tempPcmPath = path.join(audioUploadDir(), `${safeSessionId}.pcm`);
+
+    cleanupAudioUploadSession(safeSessionId);
+    audioUploadSessions.set(safeSessionId, {
+      sessionId: safeSessionId,
+      msgId,
+      roomCode,
+      roomId,
+      socketId: socket.id,
+      sender: participant.nickname,
+      senderLang: effectiveSenderLang,
+      tempPcmPath,
+      nextSeq: 0,
+      bytesReceived: 0,
+      startedAt: Date.now(),
+      lastChunkAt: Date.now(),
+      writeQueue: fs.promises.writeFile(tempPcmPath, Buffer.alloc(0)),
+    });
+
+    logger.info({
+      event: 'message.audio_stream.started',
+      roomCode,
+      roomId,
+      msgId,
+      socketId: socket.id,
+      sessionId: safeSessionId,
+      senderLang: effectiveSenderLang,
+      sampleRate,
+      channels,
+      encoding,
+    }, 'Audio stream upload started');
+
+    await queue.publishTranslating(roomCode, msgId);
+    await queue.publishMessageProgress(roomCode, msgId, 10, 'sendingAudio');
+    cb?.({ ok: true, id: msgId, sessionId: safeSessionId });
+  });
+
+  socket.on('message:audio:chunk', async ({ sessionId, seq, bytes }: any = {}, cb) => {
+    const session = typeof sessionId === 'string' ? audioUploadSessions.get(sessionId) : null;
+    const chunk = audioChunkBuffer(bytes);
+    if (!session || session.socketId !== socket.id || !chunk) {
+      cb?.({ ok: false, error: 'Unknown audio upload session.' });
+      return;
+    }
+    if (chunk.length > STREAM_AUDIO_MAX_CHUNK_BYTES) {
+      cb?.({ ok: false, error: 'Audio chunk too large.' });
+      return;
+    }
+    if (seq !== session.nextSeq) {
+      cb?.({ ok: false, error: `Unexpected audio chunk sequence. Expected ${session.nextSeq}.` });
+      return;
+    }
+
+    session.nextSeq += 1;
+    session.bytesReceived += chunk.length;
+    session.lastChunkAt = Date.now();
+    session.writeQueue = session.writeQueue.then(() => fs.promises.appendFile(session.tempPcmPath, chunk));
+
+    try {
+      await session.writeQueue;
+      cb?.({ ok: true, seq });
+    } catch (err: any) {
+      logger.error({ event: 'message.audio_stream.chunk_failed', severity: severity.P2, sessionId, seq, err }, 'Audio stream chunk write failed');
+      cleanupAudioUploadSession(sessionId);
+      cb?.({ ok: false, error: err.message });
+    }
+  });
+
+  socket.on('message:audio:abort', ({ sessionId, reason }: any = {}) => {
+    if (typeof sessionId !== 'string') return;
+    const session = audioUploadSessions.get(sessionId);
+    if (!session || session.socketId !== socket.id) return;
+    logger.info({
+      event: 'message.audio_stream.aborted',
+      roomCode: session.roomCode,
+      roomId: session.roomId,
+      msgId: session.msgId,
+      socketId: socket.id,
+      sessionId,
+      reason,
+      audioBytes: session.bytesReceived,
+    }, 'Audio stream upload aborted');
+    void publishMessageError(session.roomCode, session.msgId);
+    cleanupAudioUploadSession(sessionId);
+  });
+
+  socket.on('message:audio:end', async ({ sessionId, finalSeq, durationMs, durationSeconds, audioDurationMs, audioDurationSeconds }: any = {}, cb) => {
+    const session = typeof sessionId === 'string' ? audioUploadSessions.get(sessionId) : null;
+    if (!session || session.socketId !== socket.id) {
+      cb?.({ ok: false, error: 'Unknown audio upload session.' });
+      return;
+    }
+
+    const { roomCode, roomId, msgId } = session;
+    const participants = roomManager.getParticipants(roomCode);
+    const roomConfig = roomManager.get(roomCode)?.config;
+
+    try {
+      if (typeof finalSeq === 'number' && finalSeq !== session.nextSeq - 1) {
+        throw new Error(`Incomplete audio stream. Expected finalSeq ${session.nextSeq - 1}, received ${finalSeq}.`);
+      }
+      await session.writeQueue;
+      if (session.bytesReceived <= 0) throw new Error('Empty audio stream.');
+
+      const pcm = await fs.promises.readFile(session.tempPcmPath);
+      const wav = pcmToWavBuffer(pcm);
+      const audioBase64 = wav.toString('base64');
+      const mimeType = 'audio/wav';
+      const audioDuration = appMetrics.getAudioDurationSeconds({
+        audioBase64,
+        durationMs,
+        durationSeconds,
+        audioDurationMs,
+        audioDurationSeconds,
+      });
+
+      appMetrics.recordMessage({
+        type: 'audio',
+        roomCode,
+        roomId,
+        language: session.senderLang,
+      });
+      appMetrics.recordAudioInput({
+        roomCode,
+        roomId,
+        language: session.senderLang,
+        seconds: audioDuration.seconds,
+        source: audioDuration.source,
+      });
+
+      logger.info({
+        event: 'message.audio_stream.received',
+        roomCode,
+        roomId,
+        msgId,
+        socketId: socket.id,
+        sessionId,
+        senderLang: session.senderLang,
+        participantCount: participants.length,
+        mimeType,
+        audioDurationSeconds: audioDuration.seconds,
+        audioDurationSource: audioDuration.source,
+        audioBytes: session.bytesReceived,
+        audioChunks: session.nextSeq,
+      }, 'Chunked audio message received');
+
+      dumpIncomingAudio(audioBase64, mimeType, { source: 'room-socket-stream', msgId, senderLang: session.senderLang });
+
+      await queue.publishMessageProgress(roomCode, msgId, 25, 'received');
+      await workflows.triggerTranscribe({
+        msgId,
+        roomCode,
+        roomId,
+        audioBase64,
+        mimeType,
+        senderLang:     session.senderLang,
+        sender:         session.sender,
+        senderSocketId: socket.id,
+        participants,
+        knownLanguages: roomManager.getKnownLanguages(roomCode),
+        roomConfig,
+      });
+
+      cb?.({ ok: true, id: msgId });
+    } catch (err: any) {
+      logger.error({ event: 'message.audio_stream_failed', severity: severity.P2, roomCode, roomId, msgId, socketId: socket.id, sessionId, err }, 'Chunked audio message failed');
+      await publishMessageError(roomCode, msgId);
+      cb?.({ ok: false, id: msgId, error: err.message });
+    } finally {
+      cleanupAudioUploadSession(sessionId);
+    }
+  });
+
   // ── Audio message → queue + Inngest ──────────────────────────────────────
   socket.on('message:audio', async ({ audioBase64, mimeType, durationMs, durationSeconds, audioDurationMs, audioDurationSeconds, senderLang: clientSenderLang, clientMsgId }: any = {}) => {
     const { roomCode, roomId, participant } = socket.data;
@@ -1073,6 +1360,9 @@ io.on('connection', (socket) => {
 
   // ── Disconnect ───────────────────────────────────────────────────────────
   socket.on('disconnect', () => {
+    for (const [sessionId, session] of audioUploadSessions) {
+      if (session.socketId === socket.id) cleanupAudioUploadSession(sessionId);
+    }
     const { roomCode, participant } = socket.data;
     if (roomCode && participant) {
       roomManager.removeParticipant(roomCode, socket.id);
