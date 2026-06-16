@@ -167,7 +167,7 @@ class _CreateScreenState extends State<CreateScreen> {
               Row(
                 children: [
                   _BackButton(onTap: () => Navigator.of(context).pop()),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Text(s.t('create.title'),
                       style: TextStyle(
                           color: AppColors.text,
@@ -175,11 +175,11 @@ class _CreateScreenState extends State<CreateScreen> {
                           fontWeight: FontWeight.bold)),
                 ],
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
 
               // Mode selector
               _label(s.t('create.roomType')),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Row(
                 children: [
                   Expanded(
@@ -191,7 +191,7 @@ class _CreateScreenState extends State<CreateScreen> {
                       onTap: () => setState(() => _roomMode = 'normal'),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: _ModeCard(
                       emoji: '🔄',
@@ -203,16 +203,16 @@ class _CreateScreenState extends State<CreateScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
 
               if (!_isSolo) ..._normalFields(s),
               if (_isSolo) ..._soloFields(s),
 
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
 
               // Options
               _label(s.t('create.options.title')),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               AppCard(
                 child: Column(
                   children: [
@@ -221,7 +221,7 @@ class _CreateScreenState extends State<CreateScreen> {
                       directLabel: s.t('create.options.pipeline.direct'),
                       onChanged: (v) => setState(() => _voicePipeline = v),
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -241,7 +241,7 @@ class _CreateScreenState extends State<CreateScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
 
               // Info box
               AppCard(
@@ -258,7 +258,7 @@ class _CreateScreenState extends State<CreateScreen> {
                           color: AppColors.primary,
                           fontWeight: FontWeight.w600),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     Text(
                       _isSolo
                           ? s.t('create.info.soloBody')
@@ -269,7 +269,7 @@ class _CreateScreenState extends State<CreateScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
 
               AppButton(
                 label: s.t('create.cta'),
@@ -291,16 +291,16 @@ class _CreateScreenState extends State<CreateScreen> {
           controller: _roomName,
           maxLength: 40,
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
         AppInput(
           label: s.t('create.fields.yourName'),
           hint: s.t('create.fields.yourNamePlaceholder'),
           controller: _nickname,
           maxLength: 30,
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
         _label(s.t('create.fields.yourLanguage')),
-        const SizedBox(height: 6),
+        SizedBox(height: 6),
         _PickerRow(
           text: s.t('create.fields.yourLanguageSub'),
           code: _language,
@@ -309,9 +309,9 @@ class _CreateScreenState extends State<CreateScreen> {
             if (code != null) setState(() => _language = code);
           },
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
         _label(s.t('create.fields.guestLanguage')),
-        const SizedBox(height: 6),
+        SizedBox(height: 6),
         _PickerRow(
           text: s.t('create.fields.guestLanguageSub'),
           textColor: Colors.white70,
@@ -322,14 +322,14 @@ class _CreateScreenState extends State<CreateScreen> {
             if (code != null) setState(() => _guestLang = code);
           },
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: 6),
         Text(s.t('create.fields.guestLanguageHint'),
             style: TextStyle(color: AppColors.muted, fontSize: 12)),
       ];
 
   List<Widget> _soloFields(AppState s) => [
         _label(s.t('create.fields.soloLanguages')),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         Row(
           children: [
             Expanded(
@@ -362,7 +362,7 @@ class _CreateScreenState extends State<CreateScreen> {
           ],
         ),
         if (_soloLangA == _soloLangB) ...[
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Center(
             child: Text(s.t('create.errors.sameLang'),
                 style: TextStyle(color: AppColors.danger, fontSize: 14)),
@@ -421,13 +421,13 @@ class _ModeCard extends StatelessWidget {
         child: Column(
           children: [
             Text(emoji, style: TextStyle(fontSize: 24)),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(title,
                 style: TextStyle(
                     color: selected ? AppColors.primary : AppColors.text,
                     fontSize: 12,
                     fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(sub,
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -498,7 +498,7 @@ class _SoloLangCard extends StatelessWidget {
             Text(label.toUpperCase(),
                 style: TextStyle(
                     color: AppColors.muted, fontSize: 12, letterSpacing: 1)),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             LanguageBadge(code: code),
           ],
         ),

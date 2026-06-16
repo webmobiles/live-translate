@@ -162,7 +162,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               TextStyle(color: AppColors.muted, fontSize: 24)),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Text(s.t('settings.title'),
                       style: TextStyle(
                           color: AppColors.text,
@@ -170,7 +170,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           fontWeight: FontWeight.bold)),
                 ],
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
 
               // Avatar
               Center(
@@ -196,11 +196,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     File(_avatarUri!
                                         .replaceFirst('file://', '')),
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => const Center(
+                                    errorBuilder: (_, __, ___) => Center(
                                         child: Text('👤',
                                             style: TextStyle(fontSize: 40))),
                                   )
-                                : const Center(
+                                : Center(
                                     child: Text('👤',
                                         style: TextStyle(fontSize: 40))),
                           ),
@@ -222,13 +222,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     Text(s.t('settings.avatarHint'),
                         style: TextStyle(color: AppColors.muted, fontSize: 12)),
                   ],
                 ),
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
 
               // Nickname
               AppInput(
@@ -238,7 +238,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 maxLength: 100,
                 onChanged: (_) => setState(() {}),
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
 
               // Native language
               _langCard(
@@ -251,7 +251,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   if (code != null) setState(() => _motherLang = code);
                 },
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
 
               // Target language
               _langCard(
@@ -264,11 +264,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   if (code != null) setState(() => _targetLang = code);
                 },
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
 
               // Theme
               _sectionLabel(s.t('settings.theme', fallback: 'Theme')),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -304,11 +304,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
 
               // App language
               _sectionLabel(s.t('settings.uiLanguage')),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               GestureDetector(
                 onTap: () async {
                   final code =
@@ -337,7 +337,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
 
               // Save
               AppButton(
@@ -357,7 +357,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
 
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
 
               // Log out
               AppButton(
@@ -397,7 +397,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionLabel(label),
-        const SizedBox(height: 6),
+        SizedBox(height: 6),
         GestureDetector(
           onTap: onTap,
           child: Container(
@@ -413,7 +413,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Row(
                   children: [
                     Text(info.flag, style: TextStyle(fontSize: 28)),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [

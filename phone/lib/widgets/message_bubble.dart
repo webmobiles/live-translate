@@ -94,7 +94,7 @@ class MessageBubble extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(senderInfo.flag, style: TextStyle(fontSize: 16)),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     Text(message.sender,
                         style: TextStyle(
                             color: AppColors.muted,
@@ -155,7 +155,7 @@ class MessageBubble extends StatelessWidget {
                   Text(stageLabel ?? time,
                       style: TextStyle(color: AppColors.muted, fontSize: 12)),
                   if (isMine) ...[
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     _DeliveryIcon(status: message.deliveryStatus),
                   ],
                 ],
@@ -199,7 +199,7 @@ class MessageBubble extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(senderInfo.flag, style: TextStyle(fontSize: 16)),
-                  const SizedBox(width: 6),
+                  SizedBox(width: 6),
                   Text(
                     message.sender,
                     style: TextStyle(
@@ -261,7 +261,7 @@ class MessageBubble extends StatelessWidget {
                         child: _OriginalAudioRecover(
                             code: code!, msgId: message.id, isMine: isMine),
                       ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                   ],
                   Text(
                     message.translated,
@@ -302,7 +302,7 @@ class MessageBubble extends StatelessWidget {
                   style: TextStyle(color: AppColors.muted, fontSize: 12),
                 ),
                 if (isMine) ...[
-                  const SizedBox(width: 4),
+                  SizedBox(width: 4),
                   _DeliveryIcon(status: message.deliveryStatus),
                 ],
               ],
@@ -488,7 +488,7 @@ class _OriginalAudioRecoverState extends State<_OriginalAudioRecover> {
               size: 16,
               color: color,
             ),
-            const SizedBox(width: 6),
+            SizedBox(width: 6),
             Text(
               _loading ? 'Loading…' : (_error ? 'Retry' : 'Original audio'),
               style: TextStyle(
@@ -619,7 +619,7 @@ class _AudioWaveformPlayerState extends State<_AudioWaveformPlayer> {
             ),
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         SizedBox(
           width: 150,
           height: 30,
@@ -679,7 +679,7 @@ class _FakeWaveform extends StatelessWidget {
           child: Icon(Icons.mic,
               color: isMine ? Colors.white : AppColors.primary, size: 16),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         SizedBox(
           width: 150,
           height: 30,
@@ -785,7 +785,7 @@ class _SoloMessageBubble extends StatelessWidget {
                   Text(stageLabel ?? time,
                       style: TextStyle(color: AppColors.muted, fontSize: 12)),
                   if (!isA) ...[
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     _DeliveryIcon(status: message.deliveryStatus),
                   ],
                 ],
@@ -818,7 +818,7 @@ class _SoloMessageBubble extends StatelessWidget {
                     textColor: isA ? AppColors.text : Colors.white,
                   ),
                   if (message.isAudio || originalAudio != null) ...[
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     if (originalAudio != null)
                       _AudioWaveformPlayer(
                         primary: originalAudio,
@@ -852,7 +852,7 @@ class _SoloMessageBubble extends StatelessWidget {
                     codeColor: AppColors.muted,
                     textColor: AppColors.text.withValues(alpha: 0.65),
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
                   _codedTextLine(
                     code: receiverInfo.code,
                     text: message.translated,
@@ -860,7 +860,7 @@ class _SoloMessageBubble extends StatelessWidget {
                     textColor: AppColors.text,
                   ),
                   if (message.isAudio || translatedAudio != null) ...[
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
                     if (translatedAudio != null)
                       _AudioWaveformPlayer(
                         primary: translatedAudio,
@@ -889,7 +889,7 @@ class _SoloMessageBubble extends StatelessWidget {
                 Text(isInFlight && stageLabel != null ? stageLabel! : time,
                     style: TextStyle(color: AppColors.muted, fontSize: 12)),
                 if (!isA) ...[
-                  const SizedBox(width: 4),
+                  SizedBox(width: 4),
                   _DeliveryIcon(status: message.deliveryStatus),
                 ],
               ],

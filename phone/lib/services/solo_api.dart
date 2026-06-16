@@ -231,6 +231,24 @@ class SoloApi {
     return Message.fromJson(Map<String, dynamic>.from(res['message'] as Map));
   }
 
+  /// Phase 2: `POST /api/solo/rooms/:code/messages/:msgId/audio` — generate the
+  /// translated TTS on demand, after the text was already shown. Returns the
+  /// audio payload map (`{audioBase64, mimeType}`) or null if TTS is unavailable.
+  static Future<Map<String, dynamic>?> fetchTranslatedAudio({
+    required String code,
+    required String msgId,
+    required String lang,
+    required String text,
+  }) async {
+    final res = await _post(
+        '/api/solo/rooms/${Uri.encodeComponent(code)}/messages/${Uri.encodeComponent(msgId)}/audio',
+        {'lang': lang, 'text': text},
+        label: 'audioPhase2',
+        timeout: const Duration(seconds: 60));
+    final audio = res['translatedAudio'];
+    return audio is Map ? Map<String, dynamic>.from(audio) : null;
+  }
+
   /// UUID v4 — used as `clientMsgId` so the server reuses the same id for the
   /// returned message (lets us replace the optimistic bubble in place).
   static String newId() {

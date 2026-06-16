@@ -967,7 +967,7 @@ class _RoomScreenState extends State<RoomScreen> {
                   style: TextStyle(color: AppColors.muted, fontSize: 20)),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -981,7 +981,7 @@ class _RoomScreenState extends State<RoomScreen> {
                       fontWeight: FontWeight.bold,
                       fontSize: 16),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Row(
                   children: [
                     if (!widget.isSolo) ...[
@@ -994,7 +994,7 @@ class _RoomScreenState extends State<RoomScreen> {
                                 fontFamily: 'monospace',
                                 fontWeight: FontWeight.bold)),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                     ],
                     Container(
                       width: 6,
@@ -1005,7 +1005,7 @@ class _RoomScreenState extends State<RoomScreen> {
                         shape: BoxShape.circle,
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     Text(_isConnected ? 'Live' : 'Reconnecting…',
                         style: TextStyle(color: AppColors.muted, fontSize: 12)),
                   ],
@@ -1075,7 +1075,7 @@ class _RoomScreenState extends State<RoomScreen> {
                             _stopSoloLanguageRecording(langA.code),
                       ),
                     ),
-                    const SizedBox(
+                    SizedBox(
                       height: 32,
                       child: VerticalDivider(
                         width: 1,
@@ -1099,7 +1099,7 @@ class _RoomScreenState extends State<RoomScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             'Hold the language that is speaking',
             style: TextStyle(color: AppColors.muted, fontSize: 12),
@@ -1126,7 +1126,7 @@ class _RoomScreenState extends State<RoomScreen> {
               onChanged: (value) => setState(() => _autoplayVoice = value),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: _audioSwitch(
               label: s.t('room.config.audioOut', fallback: 'Translated audio'),
@@ -1241,12 +1241,12 @@ class _RoomScreenState extends State<RoomScreen> {
             children: leftSide
                 ? [
                     Text(info.flag, style: TextStyle(fontSize: 24)),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     label,
                   ]
                 : [
                     label,
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Text(info.flag, style: TextStyle(fontSize: 24)),
                   ],
           ),
@@ -1263,7 +1263,7 @@ class _RoomScreenState extends State<RoomScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text('🌐', style: TextStyle(fontSize: 36)),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Text(
               'Send a message or hold the mic button to speak.\n'
               'Everyone gets it in their own language.',
@@ -1321,7 +1321,7 @@ class _RoomScreenState extends State<RoomScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           hasText
               ? GestureDetector(
                   onTap: _isConnected ? _sendText : null,

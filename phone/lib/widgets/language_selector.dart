@@ -83,7 +83,7 @@ class _LanguageSheet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Container(
             width: 40,
             height: 4,
@@ -92,7 +92,7 @@ class _LanguageSheet extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Text(
             title,
             style: TextStyle(
@@ -101,7 +101,7 @@ class _LanguageSheet extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Flexible(
             child: ListView.builder(
               shrinkWrap: true,
@@ -131,7 +131,7 @@ class _LanguageSheet extends StatelessWidget {
                           children: [
                             if (item.flag != null) ...[
                               Text(item.flag!, style: TextStyle(fontSize: 24)),
-                              const SizedBox(width: 12),
+                              SizedBox(width: 12),
                             ],
                             Expanded(
                               child: Column(
@@ -168,7 +168,7 @@ class _LanguageSheet extends StatelessWidget {
               },
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
         ],
       ),
     );
@@ -204,7 +204,7 @@ class LanguageBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(lang.flag, style: TextStyle(fontSize: 16)),
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
           Text(
             lang.name,
             style: TextStyle(
@@ -214,7 +214,7 @@ class LanguageBadge extends StatelessWidget {
             ),
           ),
           if (onTap != null) ...[
-            const SizedBox(width: 2),
+            SizedBox(width: 2),
             Text('▾', style: TextStyle(color: AppColors.primary, fontSize: 12)),
           ],
         ],

@@ -197,7 +197,7 @@ class _AppInputState extends State<AppInput> {
               letterSpacing: 1,
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
         ],
         TextField(
           controller: widget.controller,

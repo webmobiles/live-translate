@@ -168,7 +168,7 @@ class _JoinScreenState extends State<JoinScreen> {
                               TextStyle(color: AppColors.muted, fontSize: 24)),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Text(s.t('join.title'),
                       style: TextStyle(
                           color: AppColors.text,
@@ -176,7 +176,7 @@ class _JoinScreenState extends State<JoinScreen> {
                           fontWeight: FontWeight.bold)),
                 ],
               ),
-              const SizedBox(height: 32),
+              SizedBox(height: 32),
 
               AppInput(
                 label: s.t('join.fields.code'),
@@ -194,7 +194,7 @@ class _JoinScreenState extends State<JoinScreen> {
                   letterSpacing: 8,
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
 
               AppInput(
                 label: s.t('join.fields.yourName'),
@@ -203,7 +203,7 @@ class _JoinScreenState extends State<JoinScreen> {
                 maxLength: 30,
                 onChanged: (_) => setState(() {}),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
 
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -220,7 +220,7 @@ class _JoinScreenState extends State<JoinScreen> {
                             TextStyle(color: AppColors.primary, fontSize: 12)),
                 ],
               ),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               GestureDetector(
                 onTap: () async {
                   final code =
@@ -246,7 +246,7 @@ class _JoinScreenState extends State<JoinScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 32),
+              SizedBox(height: 32),
 
               AppButton(
                 label: s.t('join.cta'),

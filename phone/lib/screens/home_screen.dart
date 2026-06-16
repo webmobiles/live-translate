@@ -118,8 +118,8 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text('🌐', style: TextStyle(fontSize: 48)),
-                const SizedBox(height: 16),
+                Text('🌐', style: TextStyle(fontSize: 48)),
+                SizedBox(height: 16),
                 Text(s.t('common.loading'),
                     style: TextStyle(color: AppColors.muted, fontSize: 14)),
               ],
@@ -152,19 +152,19 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(24),
                     ),
                     alignment: Alignment.center,
-                    child: const Text('🌐', style: TextStyle(fontSize: 32)),
+                    child: Text('🌐', style: TextStyle(fontSize: 32)),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                   Text('LiveTranslate',
                       style: TextStyle(
                           color: AppColors.text,
                           fontSize: 30,
                           fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(s.t('home.tagline'),
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppColors.muted, fontSize: 14)),
-                  const SizedBox(height: 40),
+                  SizedBox(height: 40),
                   AppCard(
                     padding: const EdgeInsets.all(32),
                     child: Column(
@@ -174,11 +174,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                 color: AppColors.text,
                                 fontSize: 20,
                                 fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 4),
+                        SizedBox(height: 4),
                         Text(s.t('login.subtitle'),
                             style: TextStyle(
                                 color: AppColors.muted, fontSize: 14)),
-                        const SizedBox(height: 24),
+                        SizedBox(height: 24),
                         if (_authError != null) ...[
                           Container(
                             width: double.infinity,
@@ -197,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   color: AppColors.danger, fontSize: 14),
                             ),
                           ),
-                          const SizedBox(height: 24),
+                          SizedBox(height: 24),
                         ],
                         Container(
                           padding: const EdgeInsets.all(4),
@@ -231,14 +231,14 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        SizedBox(height: 16),
                         if (_emailModeIsSignup) ...[
                           AppInput(
                             hint: s.t('login.namePlaceholder'),
                             controller: _name,
                             textCapitalization: TextCapitalization.words,
                           ),
-                          const SizedBox(height: 12),
+                          SizedBox(height: 12),
                         ],
                         AppInput(
                           hint: s.t('login.emailPlaceholder'),
@@ -246,14 +246,14 @@ class _HomeScreenState extends State<HomeScreen> {
                           keyboardType: TextInputType.emailAddress,
                           onChanged: (_) => setState(() {}),
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
                         AppInput(
                           hint: s.t('login.passwordPlaceholder'),
                           controller: _password,
                           obscureText: true,
                           onChanged: (_) => setState(() {}),
                         ),
-                        const SizedBox(height: 16),
+                        SizedBox(height: 16),
                         AppButton(
                           loading: _signingIn,
                           disabled: _email.text.trim().isEmpty ||
@@ -268,7 +268,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 fontWeight: FontWeight.w700),
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: 20),
                         Row(
                           children: [
                             Expanded(child: Divider(color: AppColors.border)),
@@ -282,7 +282,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             Expanded(child: Divider(color: AppColors.border)),
                           ],
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: 20),
                         AppButton(
                           variant: AppButtonVariant.secondary,
                           loading: _signingIn,
@@ -297,12 +297,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                     color: AppColors.text,
                                     shape: BoxShape.circle),
                                 alignment: Alignment.center,
-                                child: const Text('G',
+                                child: Text('G',
                                     style: TextStyle(
                                         color: Color(0xFF374151),
                                         fontWeight: FontWeight.bold)),
                               ),
-                              const SizedBox(width: 12),
+                              SizedBox(width: 12),
                               Text(s.t('login.continueWithGoogle'),
                                   style: TextStyle(
                                       color: Color(0xFF1F2937),
@@ -310,7 +310,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        SizedBox(height: 24),
                         Text(s.t('login.terms'),
                             textAlign: TextAlign.center,
                             style: TextStyle(
@@ -320,7 +320,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 40),
+                  SizedBox(height: 40),
                   Text(s.t('login.noAccount'),
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppColors.muted, fontSize: 12)),
@@ -392,19 +392,19 @@ class _HomeScreenState extends State<HomeScreen> {
                       border: Border.all(color: AppColors.primary),
                     ),
                     alignment: Alignment.center,
-                    child: const Text('🌐', style: TextStyle(fontSize: 40)),
+                    child: Text('🌐', style: TextStyle(fontSize: 40)),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                   Text('LiveTranslate',
                       style: TextStyle(
                           color: AppColors.text,
                           fontSize: 36,
                           fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(s.t('home.tagline'),
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppColors.muted, fontSize: 16)),
-                  const SizedBox(height: 32),
+                  SizedBox(height: 32),
 
                   // User bar
                   AppCard(
@@ -413,7 +413,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Row(
                       children: [
                         _avatar(prefs.avatarUri),
-                        const SizedBox(width: 12),
+                        SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             prefs.nickname.isNotEmpty
@@ -438,7 +438,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  SizedBox(height: 32),
 
                   // Powered by
                   AppCard(
@@ -450,7 +450,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Text(s.t('home.poweredBy'),
                             style: TextStyle(
                                 color: AppColors.muted, fontSize: 14)),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         Text('OpenAI GPT-4o-mini + Whisper',
                             style: TextStyle(
                                 color: AppColors.accent,
@@ -459,7 +459,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  SizedBox(height: 32),
 
                   // Create / Join
                   AppButton(
@@ -473,14 +473,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                 color: Colors.white,
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 2),
                         Text(s.t('home.createRoomSub'),
                             style:
                                 TextStyle(color: Colors.white70, fontSize: 14)),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                   AppButton(
                     variant: AppButtonVariant.outline,
                     onPressed: () => Navigator.of(context).push(
@@ -493,14 +493,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                 color: AppColors.primary,
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 2),
                         Text(s.t('home.joinRoomSub'),
                             style: TextStyle(
                                 color: AppColors.muted, fontSize: 14)),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  SizedBox(height: 32),
 
                   // Language chips
                   Wrap(
@@ -512,7 +512,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       _chip('+13 more'),
                     ],
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24),
                 ],
               ),
             ),
@@ -531,10 +531,10 @@ class _HomeScreenState extends State<HomeScreen> {
             height: 32,
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) =>
-                const Text('👤', style: TextStyle(fontSize: 24))),
+                Text('👤', style: TextStyle(fontSize: 24))),
       );
     }
-    return const Text('👤', style: TextStyle(fontSize: 24));
+    return Text('👤', style: TextStyle(fontSize: 24));
   }
 
   Widget _chip(String label) {
