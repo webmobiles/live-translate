@@ -28,6 +28,12 @@ const int _streamAudioSampleRate = 16000;
 const int _streamAudioChannels = 1;
 const int _streamAudioMaxPendingAcks = 6;
 
+// Solo-mode hold-to-speak: a single trash target floats above the language
+// toggle bar while recording; drag the held finger onto it to discard.
+const double _soloTrashSize = 120;
+const double _soloTrashGap = 100;      // px above the toggle bar's top edge
+const double _soloTrashArmRadius = 66; // finger within this of trash → armed
+
 class RoomScreen extends StatefulWidget {
   final String code;
   final String nickname;
@@ -78,6 +84,12 @@ class _RoomScreenState extends State<RoomScreen> {
   late String _myLanguage;
   String? _soloActiveLanguage;
   String? _soloPressedLanguage;
+  // Drag-to-cancel for the solo toggle (mirrors VoiceButton's trash gesture).
+  bool _soloCancelArmed = false;
+  bool _soloCancelRequested = false;
+  Offset? _soloTrashCenter;
+  OverlayEntry? _soloTrashOverlay;
+  final GlobalKey _soloToggleKey = GlobalKey();
   String? _autoplayMessageId;
   late Map<String, dynamic> _roomConfig;
   String _mySocketId = '';
@@ -163,6 +175,7 @@ class _RoomScreenState extends State<RoomScreen> {
     _scroll.dispose();
     _ampSub?.cancel();
     _recorder.dispose();
+    _soloTrashOverlay?.remove();
     super.dispose();
   }
 
@@ -1048,11 +1061,18 @@ class _RoomScreenState extends State<RoomScreen> {
   Future<void> _startSoloLanguageRecording(String code) async {
     if (!_isConnected || _isRecording) return;
     _soloStopRequested = false;
+    _soloCancelRequested = false;
     setState(() => _soloPressedLanguage = code);
     _setSoloActiveLanguage(code);
+    _showSoloTrash();
     HapticFeedback.mediumImpact();
     await _startRecording();
-    if (_soloStopRequested && _isRecording) {
+    // Resolve a press that ended (stop or cancel) before the mic finished
+    // warming up. Cancel wins over stop.
+    if (_soloCancelRequested && _isRecording) {
+      _soloCancelRequested = false;
+      await _cancelRecording();
+    } else if (_soloStopRequested && _isRecording) {
       _soloStopRequested = false;
       await _stopAndSend();
     }
@@ -1063,11 +1083,93 @@ class _RoomScreenState extends State<RoomScreen> {
     if (_soloPressedLanguage == code) {
       setState(() => _soloPressedLanguage = null);
     }
+    _removeSoloTrash();
     if (_isRecording) {
       _stopAndSend();
     } else {
       _soloStopRequested = true;
     }
+  }
+
+  // Released over the trash: discard the recording instead of sending it.
+  void _cancelSoloLanguageRecording(String code) {
+    HapticFeedback.heavyImpact();
+    if (_soloPressedLanguage == code) {
+      setState(() => _soloPressedLanguage = null);
+    }
+    _removeSoloTrash();
+    if (_isRecording) {
+      _cancelRecording();
+    } else {
+      _soloCancelRequested = true;
+    }
+  }
+
+  // ── Solo drag-to-cancel trash target ────────────────────────────────────────
+  // A single 40×40 trash floats above the centre of the language toggle bar
+  // while a side is held; sliding the finger onto it arms cancel.
+  void _showSoloTrash() {
+    final box =
+        _soloToggleKey.currentContext?.findRenderObject() as RenderBox?;
+    final overlay = Overlay.maybeOf(context);
+    if (box == null || overlay == null) return;
+    final topCenter = box.localToGlobal(Offset(box.size.width / 2, 0));
+    _soloTrashCenter = topCenter.translate(0, -_soloTrashGap);
+    _soloTrashOverlay?.remove();
+    _soloTrashOverlay = OverlayEntry(builder: (_) => _buildSoloTrash());
+    overlay.insert(_soloTrashOverlay!);
+  }
+
+  void _removeSoloTrash() {
+    if (_soloCancelArmed) setState(() => _soloCancelArmed = false);
+    _soloTrashOverlay?.remove();
+    _soloTrashOverlay = null;
+    _soloTrashCenter = null;
+  }
+
+  void _soloMove(Offset globalPos) {
+    final c = _soloTrashCenter;
+    if (c == null) return;
+    final armed = (globalPos - c).distance <= _soloTrashArmRadius;
+    if (armed != _soloCancelArmed) {
+      if (armed) HapticFeedback.selectionClick();
+      setState(() => _soloCancelArmed = armed);
+      _soloTrashOverlay?.markNeedsBuild();
+    }
+  }
+
+  Widget _buildSoloTrash() {
+    final c = _soloTrashCenter;
+    if (c == null) return const SizedBox.shrink();
+    final armed = _soloCancelArmed;
+    return Positioned(
+      left: c.dx - _soloTrashSize / 2,
+      top: c.dy - _soloTrashSize / 2,
+      child: IgnorePointer(
+        child: AnimatedScale(
+          scale: armed ? 1.25 : 1.0,
+          duration: const Duration(milliseconds: 120),
+          child: Container(
+            width: _soloTrashSize,
+            height: _soloTrashSize,
+            decoration: BoxDecoration(
+              color: armed ? AppColors.danger : AppColors.card,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: armed ? AppColors.danger : AppColors.border,
+                width: 2,
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              armed ? Icons.delete : Icons.delete_outline,
+              size: 66,
+              color: armed ? Colors.white : AppColors.danger,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   // Phase 2 (solo HTTP): fetch the translated TTS audio after the text is shown,
@@ -1454,6 +1556,7 @@ class _RoomScreenState extends State<RoomScreen> {
       child: Column(
         children: [
           Container(
+            key: _soloToggleKey,
             height: 86,
             decoration: BoxDecoration(
               color: AppColors.card,
@@ -1475,8 +1578,11 @@ class _RoomScreenState extends State<RoomScreen> {
                         color: !_isConnected
                             ? AppColors.primaryMuted
                             : _soloPressedLanguage == active
-                                // Recording in progress — turn the active side green.
-                                ? const Color(0xFF16A34A)
+                                // Recording: green normally, red when the finger
+                                // is over the trash (release here = cancel).
+                                ? (_soloCancelArmed
+                                    ? AppColors.danger
+                                    : const Color(0xFF16A34A))
                                 : AppColors.primary,
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -1647,11 +1753,24 @@ class _RoomScreenState extends State<RoomScreen> {
       onPointerDown: (_) {
         if (_isConnected) onPressIn();
       },
+      onPointerMove: (e) {
+        if (_isConnected) _soloMove(e.position);
+      },
       onPointerUp: (_) {
-        if (_isConnected) onPressOut();
+        if (!_isConnected) return;
+        if (_soloCancelArmed) {
+          _cancelSoloLanguageRecording(info.code);
+        } else {
+          onPressOut();
+        }
       },
       onPointerCancel: (_) {
-        if (_isConnected) onPressOut();
+        if (!_isConnected) return;
+        if (_soloCancelArmed) {
+          _cancelSoloLanguageRecording(info.code);
+        } else {
+          onPressOut();
+        }
       },
       child: Opacity(
         opacity: _isConnected ? 1 : 0.45,

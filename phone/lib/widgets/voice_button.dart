@@ -37,11 +37,11 @@ class _VoiceButtonState extends State<VoiceButton>
   late final AnimationController _ctrl;
 
   // ── Drag-to-cancel ──────────────────────────────────────────────────────────
-  static const double _trashSize = 40;
+  static const double _trashSize = 120;
   // Distance from the button's top edge up to the trash centre.
-  static const double _trashGap = 76;
+  static const double _trashGap = 100;
   // How close (px) the finger must get to the trash centre to arm cancel.
-  static const double _armRadius = 46;
+  static const double _armRadius = 66;
 
   Offset? _trashCenter; // global coords, captured on press
   bool _cancelArmed = false;
@@ -155,7 +155,7 @@ class _VoiceButtonState extends State<VoiceButton>
             alignment: Alignment.center,
             child: Icon(
               armed ? Icons.delete : Icons.delete_outline,
-              size: 22,
+              size: 66,
               color: armed ? Colors.white : AppColors.danger,
             ),
           ),
