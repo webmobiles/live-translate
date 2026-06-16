@@ -376,6 +376,34 @@ function RoomScreen() {
     updateLanguage(otherLang) // participant.language = translation target
   }, [roomConfig.soloLanguages, updateLanguage])
 
+  // Phase 2 (solo HTTP): fetch the translated TTS audio after the text is shown,
+  // then attach it to the message and clear the pending state. Keeps text fast.
+  const requestSoloTranslatedAudio = useCallback(async (msgId: string, text: string, lang: string) => {
+    try {
+      const res = await fetch(`/api/solo/rooms/${encodeURIComponent(code)}/messages/${encodeURIComponent(msgId)}/audio`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lang, text }),
+      })
+      const data = await res.json().catch(() => ({})) as { ok?: boolean; translatedAudio?: Message['translatedAudio'] }
+      const translatedAudio = res.ok && data.ok ? (data.translatedAudio ?? null) : null
+      setMessages(prev => prev.map(m => {
+        if (m.id !== msgId) return m
+        const next = { ...m, translatedAudio, audioPending: false, deliveryStatus: 'delivered' as const }
+        return {
+          ...next,
+          autoPlay: translatedAudio
+            ? messageView(next, { isSolo: soloActiveLangRef.current !== null, autoPlayEnabled: voiceAutoPlayEnabledRef.current }).shouldAutoPlay
+            : false,
+        }
+      }))
+    } catch {
+      // Text already delivered; just stop showing the audio spinner.
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, audioPending: false, deliveryStatus: 'delivered' as const } : m))
+    }
+  }, [code])
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textInputRef = useRef<HTMLTextAreaElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -640,20 +668,60 @@ function RoomScreen() {
       sendingStageStartedAt.current.delete(msg.id)
       setMessages(prev => {
         const existing = prev.find(m => m.id === msg.id)
-        const filtered = prev.filter(m => m.id !== msg.id)
         const isMine = Boolean(msg.isMine || existing?.isMine)
-        return [...filtered, {
+        const next = {
+          ...existing,
           ...msg,
+          originalAudio: msg.originalAudio ?? existing?.originalAudio ?? null,
+          hasOriginalAudio: Boolean(msg.hasOriginalAudio || existing?.hasOriginalAudio),
+          translatedAudio: msg.translatedAudio ?? existing?.translatedAudio ?? null,
+          audioPending: msg.audioPending ?? false,
           isMine,
           isTranslating: false,
-          deliveryStatus: isMine ? 'delivered' : undefined,
+          deliveryStatus: isMine ? 'delivered' as const : undefined,
+          progress: msg.progress,
+          progressStage: msg.progressStage,
           autoPlay: messageView({ ...msg, isMine }, { isSolo: soloActiveLangRef.current !== null, autoPlayEnabled: voiceAutoPlayEnabledRef.current }).shouldAutoPlay,
-        }]
+        }
+        if (msg.ttsStatus === 'empty') {
+          console.warn('[live-translate] translated audio missing', {
+            id: msg.id,
+            targetLang: msg.targetLang,
+            senderLang: msg.senderLang,
+            ttsError: msg.ttsError,
+          })
+        }
+        return existing
+          ? prev.map(m => m.id === msg.id ? next : m)
+          : [...prev, next]
       })
       // Tell the server we've seen these incoming (not-mine) messages
       if (!msg.isMine) {
         socket.emit('message:read', { msgIds: [msg.id] })
       }
+      setTimeout(scrollToBottom, 100)
+    }
+    const onMessageTranslated = (msg: Message) => {
+      setMessages(prev => {
+        const existing = prev.find(m => m.id === msg.id)
+        const isMine = Boolean(msg.isMine || existing?.isMine)
+        const next: Message = {
+          ...existing,
+          ...msg,
+          originalAudio: existing?.originalAudio ?? msg.originalAudio ?? null,
+          translatedAudio: existing?.translatedAudio ?? null,
+          audioPending: true,
+          isMine,
+          isTranslating: false,
+          deliveryStatus: isMine ? 'queued' as const : undefined,
+          progress: msg.progress ?? existing?.progress ?? 75,
+          progressStage: msg.progressStage ?? existing?.progressStage ?? 'generatingAudio',
+          autoPlay: false,
+        }
+        return existing
+          ? prev.map(m => m.id === msg.id ? next : m)
+          : [...prev, next]
+      })
       setTimeout(scrollToBottom, 100)
     }
     const onMessageError = ({ id }: { id: string }) => {
@@ -674,9 +742,16 @@ function RoomScreen() {
         return
       }
 
-      setMessages(prev => prev.map(m =>
-        m.id === id ? { ...m, progress, progressStage: stage ?? m.progressStage } : m
-      ))
+      setMessages(prev => prev.map(m => {
+        if (m.id !== id) return m
+        const isStillInFlight = m.isTranslating
+          || m.audioPending
+          || m.deliveryStatus === 'sending'
+          || m.deliveryStatus === 'queued'
+        return isStillInFlight
+          ? { ...m, progress, progressStage: stage ?? m.progressStage }
+          : m
+      }))
     }
     const onMessageDelivered = ({ id }: { id: string }) => {
       sendingStageStartedAt.current.delete(id)
@@ -713,6 +788,7 @@ function RoomScreen() {
             ...h,
             originalAudio: h.originalAudio ?? existing?.originalAudio ?? null,
             translatedAudio: h.translatedAudio ?? existing?.translatedAudio ?? null,
+            audioPending: h.audioPending ?? false,
             autoPlay: existing?.autoPlay ?? false,
           }
         })
@@ -730,6 +806,7 @@ function RoomScreen() {
     socket.on('room:participant-joined', onParticipantJoined)
     socket.on('room:participant-left', onParticipantLeft)
     socket.on('message:translating', onMessageTranslating)
+    socket.on('message:translated', onMessageTranslated)
     socket.on('message:incoming', onMessageIncoming)
     socket.on('message:error', onMessageError)
     socket.on('message:delivered', onMessageDelivered)
@@ -779,6 +856,7 @@ function RoomScreen() {
       socket.off('room:participant-joined', onParticipantJoined)
       socket.off('room:participant-left', onParticipantLeft)
       socket.off('message:translating', onMessageTranslating)
+      socket.off('message:translated', onMessageTranslated)
       socket.off('message:incoming', onMessageIncoming)
       socket.off('message:error', onMessageError)
       socket.off('message:delivered', onMessageDelivered)
@@ -888,12 +966,19 @@ function RoomScreen() {
           })
           const data = await res.json().catch(() => ({})) as { ok?: boolean; message?: Message }
           if (!res.ok || !data.ok || !data.message) throw new Error('Solo text failed')
+          const msg1 = data.message!
           setMessages(prev => prev.map(m =>
             m.id === id
-              ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: messageView(data.message!, { isSolo: soloActiveLangRef.current !== null, autoPlayEnabled: voiceAutoPlayEnabledRef.current }).shouldAutoPlay }
+              ? {
+                ...msg1,
+                isTranslating: false,
+                deliveryStatus: msg1.audioPending ? 'queued' as const : 'delivered' as const,
+                autoPlay: msg1.audioPending ? false : messageView(msg1, { isSolo: soloActiveLangRef.current !== null, autoPlayEnabled: voiceAutoPlayEnabledRef.current }).shouldAutoPlay,
+              }
               : m
           ))
           setTimeout(scrollToBottom, 100)
+          if (msg1.audioPending) void requestSoloTranslatedAudio(id, msg1.translated, msg1.targetLang)
         } catch {
           setMessages(prev => prev.map(m => m.id === id ? { ...m, deliveryStatus: 'failed' as const } : m))
         }
@@ -942,12 +1027,19 @@ function RoomScreen() {
           })
           const data = await res.json().catch(() => ({})) as { ok?: boolean; message?: Message }
           if (!res.ok || !data.ok || !data.message) throw new Error('Retry failed')
+          const msg1 = data.message!
           setMessages(prev => prev.map(m =>
             m.id === msg.id
-              ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: messageView(data.message!, { isSolo: soloActiveLangRef.current !== null, autoPlayEnabled: voiceAutoPlayEnabledRef.current }).shouldAutoPlay }
+              ? {
+                ...msg1,
+                isTranslating: false,
+                deliveryStatus: msg1.audioPending ? 'queued' as const : 'delivered' as const,
+                autoPlay: msg1.audioPending ? false : messageView(msg1, { isSolo: soloActiveLangRef.current !== null, autoPlayEnabled: voiceAutoPlayEnabledRef.current }).shouldAutoPlay,
+              }
               : m
           ))
           setTimeout(scrollToBottom, 100)
+          if (msg1.audioPending) void requestSoloTranslatedAudio(msg.id, msg1.translated, msg1.targetLang)
         } catch {
           setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, deliveryStatus: 'failed' as const, progress: undefined } : m))
         }
@@ -1060,12 +1152,22 @@ function RoomScreen() {
                 })
                 const data = await res.json().catch(() => ({})) as { ok?: boolean; message?: Message }
                 if (!res.ok || !data.ok || !data.message) throw new Error('Solo audio failed')
+                const msg1 = data.message!
                 setMessages(prev => prev.map(m =>
                   m.id === id
-                    ? { ...data.message!, deliveryStatus: 'delivered' as const, autoPlay: messageView(data.message!, { isSolo: soloActiveLangRef.current !== null, autoPlayEnabled: voiceAutoPlayEnabledRef.current }).shouldAutoPlay }
+                    ? {
+                      ...msg1,
+                      isTranslating: false,
+                      deliveryStatus: msg1.audioPending ? 'queued' as const : 'delivered' as const,
+                      autoPlay: msg1.audioPending ? false : messageView(msg1, { isSolo: soloActiveLangRef.current !== null, autoPlayEnabled: voiceAutoPlayEnabledRef.current }).shouldAutoPlay,
+                    }
                     : m
                 ))
                 setTimeout(scrollToBottom, 100)
+                // Phase 2: text is shown; now fetch the audio in a second request.
+                if (msg1.audioPending) {
+                  void requestSoloTranslatedAudio(id, msg1.translated, msg1.targetLang)
+                }
               } catch {
                 setMessages(prev => prev.map(m =>
                   m.id === id ? { ...m, isTranslating: false, deliveryStatus: 'failed' as const } : m
@@ -1746,7 +1848,7 @@ function PendingAudioPreview({ isMine, seed }: { isMine: boolean; seed: string }
 
 function SoloMessageBubble({ code, message, soloLanguages, onRetry }: { code: string; message: Message; soloLanguages: [string, string]; onRetry?: (msg: Message) => void }) {
   const { t } = useTranslation()
-  const { original, translated, isTranslating, isAudio, originalAudio, translatedAudio, timestamp, deliveryStatus, progress } = message
+  const { original, translated, isTranslating, isAudio, originalAudio, translatedAudio, timestamp, deliveryStatus, progress, audioPending } = message
   // Solo: emitter = the toggle side that spoke, receiver = the other side.
   const view = messageView(message, { isSolo: true, soloLanguages })
   const isA = view.emitterLang === soloLanguages[0]
@@ -1820,6 +1922,11 @@ function SoloMessageBubble({ code, message, soloLanguages, onRetry }: { code: st
                 autoPlay={Boolean(message.autoPlay)}
               />
             )}
+            {audioPending && !translatedAudioToPlay && (
+              <div className="mt-2">
+                <PendingAudioPreview isMine={false} seed={`${message.id}:translated-audio`} />
+              </div>
+            )}
 
           </div>
         </>
@@ -1848,7 +1955,7 @@ function SoloMessageBubble({ code, message, soloLanguages, onRetry }: { code: st
 
 function MessageBubble({ code, message, onRetry }: { code: string; message: Message; onRetry?: (msg: Message) => void }) {
   const { t } = useTranslation()
-  const { isMine, sender, translated, original, isTranslating, isAudio, originalAudio, translatedAudio, timestamp, deliveryStatus, progress } = message
+  const { isMine, sender, translated, original, isTranslating, isAudio, originalAudio, translatedAudio, timestamp, deliveryStatus, progress, audioPending } = message
   const [showOriginal, setShowOriginal] = useState(false)
   const [failedTranslatedAudioKey, setFailedTranslatedAudioKey] = useState('')
   // Normal room: emitter = the sender; receiver = me (in my changeable language).
@@ -1929,6 +2036,11 @@ function MessageBubble({ code, message, onRetry }: { code: string; message: Mess
               autoPlay={Boolean(message.autoPlay)}
               onPlaybackError={fallbackToOriginalAudio}
             />
+          </div>
+        )}
+        {audioPending && !audioToPlay && (
+          <div className="mb-2">
+            <PendingAudioPreview isMine={isMine} seed={`${message.id}:translated-audio`} />
           </div>
         )}
         {isAudio && hasRecoverableOriginal && (

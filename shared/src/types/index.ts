@@ -30,6 +30,9 @@ export interface Message {
   // (via GET …/audio/original) rather than shipped inline in originalAudio.
   hasOriginalAudio?: boolean
   translatedAudio?: { audioBase64: string; mimeType: string } | null
+  audioPending?: boolean
+  ttsStatus?: 'ready' | 'empty' | 'disabled'
+  ttsError?: string
   autoPlay?: boolean
   timestamp: number
   isTranslating?: boolean

@@ -14,7 +14,7 @@ import { internalRouter } from './auth/internalRoutes';
 import { rateLimitApi } from './auth/rateLimiter';
 import { logger, flushLogs } from './observability/logger';
 import { dumpIncomingAudio } from './debug/audioDump';
-import { persistMessageAudio, findOriginalAudio } from './audio/store';
+import { persistMessageAudio, findOriginalAudio, saveAudioFile } from './audio/store';
 import { severity } from './observability/severity';
 import * as appMetrics from './observability/metrics';
 import { metricsHandler } from './observability/prometheus';
@@ -278,11 +278,11 @@ app.post('/api/solo/rooms/:code/text', async (req, res) => {
 
     const translated = await translateForRoom(text, senderLang, targetLang, room.config?.translationProvider);
     const translations = { [senderLang]: text, [targetLang]: translated };
-    const audioOutputs = room.config?.output?.translatedAudio
-      ? Object.fromEntries([[targetLang, await synthesizeForRoom(translated, targetLang)]].filter(([, audio]) => audio))
-      : {};
+    const shouldGenerateAudio = Boolean(room.config?.output?.translatedAudio);
 
-    await db.saveMessage({ roomId: room.id, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: false });
+    // Phase 1: save + return the text now. TTS audio is fetched separately
+    // (phase 2: POST …/messages/:msgId/audio) so the text isn't held up by it.
+    await db.saveMessage({ roomId: room.id, msgId, sender, senderLang, original: text, translations, audioOutputs: {}, isAudio: false });
 
     res.json({
       ok: true,
@@ -297,7 +297,8 @@ app.post('/api/solo/rooms/:code/text', async (req, res) => {
         isMine: true,
         isAudio: false,
         originalAudio: null,
-        translatedAudio: (audioOutputs as any)[targetLang] ?? null,
+        translatedAudio: null,
+        audioPending: shouldGenerateAudio,
         timestamp: Date.now(),
       },
     });
@@ -308,7 +309,7 @@ app.post('/api/solo/rooms/:code/text', async (req, res) => {
 });
 
 app.post('/api/solo/rooms/:code/audio', async (req, res) => {
-  const msgId = makeMsgId();
+  const msgId = isUuid(req.body?.clientMsgId) ? req.body.clientMsgId : makeMsgId();
 
   try {
     const room = await getSoloRoomOr404(req.params.code, res);
@@ -371,14 +372,49 @@ app.post('/api/solo/rooms/:code/audio', async (req, res) => {
         translations[targetLang] = await translateForRoom(text, senderLang, targetLang, room.config?.translationProvider);
       }
       audioOutputs = direct.audioOutputs || {};
+
+      appMetrics.recordWords({
+        type: 'audio',
+        stage: 'transcribed',
+        roomCode: room.code,
+        roomId: room.id,
+        language: senderLang,
+        text,
+      });
+
+      const { originalAudioFile, translatedAudioFiles } = persistMessageAudio({
+        msgId,
+        originalAudio: { audioBase64, mimeType },
+        audioOutputs,
+      });
+      await db.saveMessage({ roomId: room.id, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true, originalAudioFile, translatedAudioFiles });
+
+      res.json({
+        ok: true,
+        id: msgId,
+        message: {
+          id: msgId,
+          original: text,
+          translated: translations[targetLang] ?? translations[senderLang] ?? text,
+          sender,
+          senderLang,
+          targetLang,
+          isMine: true,
+          isAudio: true,
+          originalAudio: null,
+          hasOriginalAudio: Boolean(originalAudioFile),
+          translatedAudio: audioOutputs[targetLang] ?? null,
+          audioPending: false,
+          timestamp: Date.now(),
+        },
+      });
+      return;
     } else {
       text = (await stt.transcribe(audioBase64, mimeType, senderLang)).trim();
       if (!text) throw new Error('Empty transcription');
       const translated = await translateForRoom(text, senderLang, targetLang, room.config?.translationProvider);
       translations = { [senderLang]: text, [targetLang]: translated };
-      audioOutputs = room.config?.output?.translatedAudio
-        ? Object.fromEntries([[targetLang, await synthesizeForRoom(translated, targetLang)]].filter(([, audio]) => audio))
-        : {};
+      audioOutputs = {};
     }
 
     appMetrics.recordWords({
@@ -390,6 +426,11 @@ app.post('/api/solo/rooms/:code/audio', async (req, res) => {
       text,
     });
 
+    const shouldGenerateAudio = Boolean(room.config?.output?.translatedAudio);
+    // Phase 1: persist the original recording + save the TEXT message now, and
+    // respond immediately. The translated TTS audio is generated in a separate
+    // request (phase 2: POST …/messages/:msgId/audio) so solo HTTP gets the text
+    // fast instead of blocking on — and freezing at — audio generation.
     const { originalAudioFile, translatedAudioFiles } = persistMessageAudio({
       msgId,
       originalAudio: { audioBase64, mimeType },
@@ -412,13 +453,47 @@ app.post('/api/solo/rooms/:code/audio', async (req, res) => {
         // Original audio is recovered on demand via GET …/audio/original, not pushed.
         originalAudio: null,
         hasOriginalAudio: Boolean(originalAudioFile),
-        translatedAudio: audioOutputs[targetLang] ?? null,
+        translatedAudio: null,
+        audioPending: shouldGenerateAudio,
         timestamp: Date.now(),
       },
     });
   } catch (err: any) {
     logger.error({ event: 'solo.message.audio_failed', severity: severity.P2, roomCode: req.params.code, msgId, err }, 'Solo audio message failed');
     res.status(500).json({ ok: false, id: msgId, error: err.message });
+  }
+});
+
+// Phase 2 for solo HTTP: generate the translated TTS audio on demand. The client
+// calls this after it has shown the text (when audioPending was true), so the
+// text arrives fast and the audio follows in a second request.
+app.post('/api/solo/rooms/:code/messages/:msgId/audio', async (req, res) => {
+  try {
+    const room = await getSoloRoomOr404(req.params.code, res);
+    if (!room) return;
+    const { msgId } = req.params;
+    if (!isUuid(msgId)) {
+      res.status(400).json({ ok: false, error: 'Invalid message id.' });
+      return;
+    }
+    const lang = String(req.body?.lang || room.config.soloLanguages?.[1] || 'en');
+    const text = String(req.body?.text || '').trim();
+    if (!text) {
+      res.status(400).json({ ok: false, error: 'Text is required.' });
+      return;
+    }
+
+    const audio = await synthesizeForRoom(text, lang);
+    if (!audio) {
+      // TTS unavailable for this language — not an error; just no audio.
+      res.json({ ok: true, translatedAudio: null });
+      return;
+    }
+    saveAudioFile(audio, `${msgId}.${lang}`);
+    res.json({ ok: true, translatedAudio: audio });
+  } catch (err: any) {
+    logger.error({ event: 'solo.message.audio_phase2_failed', severity: severity.P3, roomCode: req.params.code, msgId: req.params.msgId, err }, 'Solo audio phase-2 failed');
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 
@@ -472,6 +547,14 @@ function formatStoredMessageForLanguage(msg: any, targetLang: string, isMine = f
     translatedAudio: msg.audioOutputs?.[targetLang] ?? null,
     timestamp:       msg.timestamp,
   };
+}
+
+function getSocketMessageTargetLang(room: any, participant: any, senderLang: string) {
+  if (room?.config?.mode === 'solo_multilang' && Array.isArray(room.config.soloLanguages)) {
+    return room.config.soloLanguages.find((lang: string) => lang && lang !== senderLang)
+      ?? participant.language;
+  }
+  return participant.language;
 }
 
 async function getSoloRoomOr404(code: string, res: express.Response) {
@@ -538,6 +621,38 @@ async function startQueueConsumer() {
       emitToRoom(roomCode, 'message:progress', { id: data.msgId, progress: data.progress, stage: data.stage });
     }
 
+    if (type === 'message:translated') {
+      const room = roomManager.get(roomCode);
+      if (!room) return;
+
+      const participants = roomManager.getParticipants(roomCode);
+      participants.forEach((participant: any) => {
+        const targetLang = getSocketMessageTargetLang(room, participant, message.senderLang);
+        const translated = message.translations[targetLang]
+          ?? message.translations[message.senderLang]
+          ?? message.original;
+        const isSender = participant.socketId === message.senderSocketId;
+
+        io.to(participant.socketId).emit('message:translated', {
+          id:         message.id,
+          original:   message.original,
+          translated,
+          sender:     message.sender,
+          senderLang: message.senderLang,
+          targetLang,
+          isMine:     isSender,
+          isAudio:    message.isAudio,
+          originalAudio: null,
+          hasOriginalAudio: Boolean(message.isAudio) && (isSender || participant.language === message.senderLang),
+          translatedAudio: null,
+          audioPending: true,
+          timestamp:  message.timestamp,
+          progress:      message.progress ?? 75,
+          progressStage: message.progressStage ?? message.stage ?? 'generatingAudio',
+        });
+      });
+    }
+
     if (type === 'message:incoming') {
       // Each client receives only the translation for their language
       const room = roomManager.get(roomCode);
@@ -547,12 +662,29 @@ async function startQueueConsumer() {
       const others = participants.filter((p: any) => p.socketId !== message.senderSocketId);
 
       participants.forEach((participant: any) => {
-        const translated = message.translations[participant.language]
+        const targetLang = getSocketMessageTargetLang(room, participant, message.senderLang);
+        const translated = message.translations[targetLang]
           ?? message.translations[message.senderLang]
           ?? message.original;
         const isSender = participant.socketId === message.senderSocketId;
         const isSoloRoom = room.config?.mode === 'solo_multilang';
-        const translatedAudio = isSender && !isSoloRoom ? null : (message.audioOutputs?.[participant.language] ?? null);
+        const translatedAudio = isSender && !isSoloRoom ? null : (message.audioOutputs?.[targetLang] ?? null);
+        const audioOutputLangs = Object.keys(message.audioOutputs || {});
+        const ttsStatus = room.config?.output?.translatedAudio
+          ? (translatedAudio ? 'ready' : 'empty')
+          : 'disabled';
+        logger.info({
+          event: 'socket.message_incoming.emit',
+          roomCode,
+          msgId: message.id,
+          socketId: participant.socketId,
+          targetLang,
+          isSender,
+          isSoloRoom,
+          hasTranslatedAudio: Boolean(translatedAudio),
+          audioOutputLangs,
+          ttsStatus,
+        }, 'Emitting final message to socket');
 
         io.to(participant.socketId).emit('message:incoming', {
           id:         message.id,
@@ -560,7 +692,7 @@ async function startQueueConsumer() {
           translated,
           sender:     message.sender,
           senderLang: message.senderLang,
-          targetLang: participant.language,
+          targetLang,
           isMine:     isSender,
           isAudio:    message.isAudio,
           // Original audio is no longer pushed inline — recovered on demand via
@@ -568,6 +700,9 @@ async function startQueueConsumer() {
           originalAudio: null,
           hasOriginalAudio: Boolean(message.isAudio) && (isSender || participant.language === message.senderLang),
           translatedAudio,
+          audioPending: false,
+          ttsStatus,
+          ttsError: ttsStatus === 'empty' ? `No translated audio for ${targetLang}; audio outputs: ${audioOutputLangs.join(',') || 'none'}` : undefined,
           timestamp:  message.timestamp,
         });
       });

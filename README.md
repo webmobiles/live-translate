@@ -382,11 +382,11 @@ The web (`./web`) and phone (`./phone`) apps share the same backend and implemen
 | 2 | Room creation (solo mode) | ✅ | ✅ | Web: HTTP or socket (env `WEB_SOLOROOM_SOCKET=yes`). Phone: HTTP or socket (dart define `PHONE_SOLOROOM_SOCKET=yes`) |
 | 3 | Room join by code (normal) | ✅ | ✅ | Socket.io `room:join` + code peek for guest language |
 | 4 | Solo room — double-language toggle UI | ✅ | ✅ | Web and Phone: A⇄B language toggle; solo message bubbles use language-code labels (`es:`, `en:`), no flag headers, and order translated bubbles as source text → translated text → translated audio |
-| 5 | Text message send (normal) | ✅ | ✅ | Socket.io `message:text` with ack; same-language receivers keep original text and can still receive generated audio |
-| 6 | Text message send (solo) | ✅ | ✅ | Web and Phone: HTTP or socket; socket solo sends translated audio back to the same room socket |
+| 5 | Text/voice message send (normal) | ✅ | ✅ | Socket.io `message:text` / `message:audio` with ack; same-language receivers keep original text and still receive generated audio |
+| 6 | Text message send (solo) | ✅ | ✅ | Web and Phone: HTTP or socket; socket solo targets the opposite solo language for translated text/audio even when only one participant socket is present |
 | 7 | Voice message send (normal) | ✅ | ✅ | Press & hold mic → socket `message:audio` |
 | 8 | Voice message send (solo) | ✅ | ✅ | Web and Phone: HTTP or socket. Phone solo also supports press-and-hold directly on a language toggle side; pressing selects that speaker language, starts recording, and lightens the active background while held |
-| 9 | Translation spinner while in-flight | ✅ | ✅ | Web and Phone: progress bar + delivery icons + instant mic placeholder with fake waveform + audio client stages (`preparing audio`, `encoding audio`, `sending audio`) + server-confirmed stage labels (`received`, `transcribing`, `translating`, `generating audio`, `saving`, `delivering`) |
+| 9 | Translation spinner while in-flight | ✅ | ✅ | Web and Phone: progress bar + delivery icons + instant mic placeholder with fake waveform + audio client stages (`preparing audio`, `encoding audio`, `sending audio`) + server-confirmed stage labels (`received`, `transcribing`, `translating`, `translated`, `generating audio`, `saving`, `delivering`). Server emits and flushes `message:translated` as soon as text is ready, then flushes the final `message:incoming` patch before DB persistence; TTS has a timeout fallback so clients do not stay stuck on `generating audio` |
 | 10 | Delivery status icons (sending / queued / delivered / read / failed) | ✅ | ✅ | Web and Phone: WhatsApp-style checkmarks/status markers |
 | 11 | Message bubble — tap to toggle original / translation | ✅ | ❌ | Web only. Phone shows both simultaneously |
 | 12 | Audio autoplay with shared player element | ✅ | ✅ | Web: unified Audio element with queued retry/gesture unlock. Phone: per-bubble player with room-level autoplay enabled by default |
@@ -440,7 +440,8 @@ The score counts features that work identically on both platforms (✅✅). Feat
 | server → client | `room:participant-joined` | `{ participant }` |
 | server → client | `room:participant-left` | `{ socketId }` |
 | server → client | `message:translating` | `{ id }` |
-| server → client | `message:incoming` | `{ id, original, translated, sender, senderLang, targetLang, isMine, isAudio, originalAudio, translatedAudio, timestamp }` |
+| server → client | `message:translated` | `{ id, original, translated, sender, senderLang, targetLang, isMine, isAudio, originalAudio, hasOriginalAudio, translatedAudio, audioPending, timestamp, progress, progressStage }` |
+| server → client | `message:incoming` | `{ id, original, translated, sender, senderLang, targetLang, isMine, isAudio, originalAudio, hasOriginalAudio, translatedAudio, audioPending, ttsStatus, ttsError, timestamp }` |
 
 ---
 

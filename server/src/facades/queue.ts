@@ -49,7 +49,21 @@ export async function publishMessageProgress(roomCode: string, msgId: string, pr
 }
 
 export async function publishMessageReady(roomCode: string, message: Record<string, unknown>) {
-  return getProvider().publish('message:incoming', { roomCode, message });
+  const provider = getProvider();
+  await provider.publish('message:incoming', { roomCode, message });
+
+  // Final message patches carry translated audio and clear pending UI state.
+  // Flush NATS so clients do not stay stuck on the previous progress stage.
+  if (getProviderName() === 'nats') await provider.ping();
+}
+
+export async function publishMessageTranslated(roomCode: string, message: Record<string, unknown>) {
+  const provider = getProvider();
+  await provider.publish('message:translated', { roomCode, message });
+
+  // Text-ready updates are latency-sensitive: with NATS, a publish can remain
+  // buffered long enough for the later audio-ready event to arrive together.
+  if (getProviderName() === 'nats') await provider.ping();
 }
 
 // ── Consuming ──────────────────────────────────────────────────────────────

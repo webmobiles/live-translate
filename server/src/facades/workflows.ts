@@ -15,10 +15,10 @@ import { serve } from 'inngest/express';
  * Trigger the text translation workflow.
  * Steps inside: translate → save to DB → broadcast to clients.
  */
-export async function triggerTranslate({ msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, participants, roomConfig }: any) {
+export async function triggerTranslate({ msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, participants, knownLanguages, roomConfig }: any) {
   return inngest.send({
     name: 'message/translate',
-    data: { msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, participants, roomConfig },
+    data: { msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, participants, knownLanguages, roomConfig },
   });
 }
 
@@ -26,10 +26,10 @@ export async function triggerTranslate({ msgId, roomCode, roomId, text, senderLa
  * Trigger the voice transcription + translation workflow.
  * Steps inside: transcribe audio → translate → save to DB → broadcast.
  */
-export async function triggerTranscribe({ msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, participants, roomConfig }: any) {
+export async function triggerTranscribe({ msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, participants, knownLanguages, roomConfig }: any) {
   return inngest.send({
     name: 'message/transcribe',
-    data: { msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, participants, roomConfig },
+    data: { msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, participants, knownLanguages, roomConfig },
   });
 }
 

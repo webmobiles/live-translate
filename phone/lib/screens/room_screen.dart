@@ -246,8 +246,17 @@ class _RoomScreenState extends State<RoomScreen> {
     );
     final autoPlay = _shouldAutoplay(resolved);
     setState(() {
-      _messages.removeWhere((m) => m.id == resolved.id);
-      _messages.add(resolved);
+      final i = _messages.indexWhere((m) => m.id == resolved.id);
+      if (i >= 0) {
+        _messages[i] = resolved.copyWith(
+          originalAudio: resolved.originalAudio ?? _messages[i].originalAudio,
+          translatedAudio:
+              resolved.translatedAudio ?? _messages[i].translatedAudio,
+          clearProgress: true,
+        );
+      } else {
+        _messages.add(resolved);
+      }
       if (autoPlay) _autoplayMessageId = resolved.id;
     });
     if (autoPlay) _clearAutoplayAfter(resolved.id);
