@@ -672,6 +672,32 @@ class _RoomScreenState extends State<RoomScreen> {
     }
   }
 
+  /// Stop the in-progress recording and discard it — no message is sent.
+  /// Triggered by dragging the held mic button onto the trash target.
+  Future<void> _cancelRecording() async {
+    if (!_isRecording && _recordingPath == null) return;
+    setState(() => _isRecording = false);
+    try {
+      final path = await _recorder.stop();
+      await _ampSub?.cancel();
+      _ampSub = null;
+      _recordingStartedAt = 0;
+      final filePath = path ?? _recordingPath;
+      _recordingPath = null;
+      if (filePath != null) {
+        final file = File(filePath);
+        if (await file.exists()) await file.delete();
+      }
+      _snack('Recording cancelled');
+    } catch (e) {
+      debugPrint('cancelRecording $e');
+      await _ampSub?.cancel();
+      _ampSub = null;
+      _recordingStartedAt = 0;
+      _recordingPath = null;
+    }
+  }
+
   void _snack(String msg) {
     if (!mounted) return;
     // Top toast (instead of a bottom SnackBar) so it doesn't sit over the input.
@@ -1463,6 +1489,7 @@ class _RoomScreenState extends State<RoomScreen> {
                       isRecording: _isRecording,
                       onPressIn: _startRecording,
                       onPressOut: _stopAndSend,
+                      onCancel: _cancelRecording,
                       disabled: !_isConnected,
                     ),
         ],
