@@ -705,6 +705,38 @@ class _RoomScreenState extends State<RoomScreen> {
     }
   }
 
+  // Phase 2 (solo HTTP): fetch the translated TTS audio after the text is shown,
+  // then attach it to the message and autoplay it. Keeps the text fast.
+  Future<void> _fetchSoloAudio(Message msg) async {
+    try {
+      final audio = await SoloApi.fetchTranslatedAudio(
+        code: widget.code,
+        msgId: msg.id,
+        lang: msg.targetLang,
+        text: msg.translated,
+      );
+      if (!mounted) return;
+      setState(() {
+        final i = _messages.indexWhere((m) => m.id == msg.id);
+        if (i < 0) return;
+        final updated =
+            _messages[i].copyWith(translatedAudio: audio, audioPending: false);
+        _messages[i] = updated;
+        if (audio != null && _shouldAutoplay(updated)) {
+          _autoplayMessageId = updated.id;
+        }
+      });
+      if (_autoplayMessageId == msg.id) _clearAutoplayAfter(msg.id);
+    } catch (_) {
+      if (!mounted) return;
+      // Text already delivered; just stop showing the audio-pending state.
+      setState(() {
+        final i = _messages.indexWhere((m) => m.id == msg.id);
+        if (i >= 0) _messages[i] = _messages[i].copyWith(audioPending: false);
+      });
+    }
+  }
+
   // ── Solo send (HTTP, no socket) ─────────────────────────────────────────────
   Future<void> _sendTextSolo(String text, {String? senderLangOverride}) async {
     final id = SoloApi.newId();
@@ -761,6 +793,8 @@ class _RoomScreenState extends State<RoomScreen> {
       });
       if (autoPlay) _clearAutoplayAfter(msg.id);
       _scrollToEnd();
+      // Phase 2: text is shown; now fetch the audio in a second request.
+      if (msg.audioPending) _fetchSoloAudio(msg);
     } catch (e) {
       if (!mounted) return;
       ClientLogService.error('client.solo.text.error', {
@@ -851,6 +885,8 @@ class _RoomScreenState extends State<RoomScreen> {
       });
       if (autoPlay) _clearAutoplayAfter(msg.id);
       _scrollToEnd();
+      // Phase 2: text is shown; now fetch the audio in a second request.
+      if (msg.audioPending) _fetchSoloAudio(msg);
     } catch (e) {
       if (!mounted) return;
       ClientLogService.error('client.solo.audio.error', {

@@ -20,6 +20,9 @@ class Message {
   // Original audio is recoverable from the server on demand (GET …/audio/original)
   // rather than shipped inline in [originalAudio].
   final bool hasOriginalAudio;
+  // Solo: the text arrived first; the translated TTS audio is still being
+  // fetched in a second request (GET text fast, then audio). See README.
+  final bool audioPending;
 
   const Message({
     required this.id,
@@ -40,6 +43,7 @@ class Message {
     this.originalAudio,
     this.translatedAudio,
     this.hasOriginalAudio = false,
+    this.audioPending = false,
   });
 
   bool get isSystem => sender == 'system';
@@ -66,6 +70,7 @@ class Message {
             ? Map<String, dynamic>.from(j['translatedAudio'] as Map)
             : null,
         hasOriginalAudio: j['hasOriginalAudio'] as bool? ?? false,
+        audioPending: j['audioPending'] as bool? ?? false,
       );
 
   Message copyWith({
@@ -81,6 +86,7 @@ class Message {
     Map<String, dynamic>? originalAudio,
     Map<String, dynamic>? translatedAudio,
     bool? hasOriginalAudio,
+    bool? audioPending,
     bool clearProgress = false,
   }) =>
       Message(
@@ -102,5 +108,6 @@ class Message {
         originalAudio: originalAudio ?? this.originalAudio,
         translatedAudio: translatedAudio ?? this.translatedAudio,
         hasOriginalAudio: hasOriginalAudio ?? this.hasOriginalAudio,
+        audioPending: audioPending ?? this.audioPending,
       );
 }
