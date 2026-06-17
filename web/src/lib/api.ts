@@ -34,6 +34,37 @@ export async function authenticateWithEmail(data: {
   return res.json()
 }
 
+// ── Email verification (registration) ───────────────────────────────────────
+
+// Step 1: ask the server to email a 6-digit verification code.
+export async function sendEmailCode(email: string): Promise<void> {
+  const res = await fetch('/auth/email/send-code', {
+    method:      'POST',
+    credentials: 'include',
+    headers:     { 'Content-Type': 'application/json' },
+    body:        JSON.stringify({ email }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error ?? `HTTP ${res.status}`)
+  }
+}
+
+// Step 2: verify the code the user typed. Throws with the server error code
+// ('invalid_code' | 'code_expired' | 'too_many_attempts') on failure.
+export async function verifyEmailCode(email: string, code: string): Promise<void> {
+  const res = await fetch('/auth/email/verify-code', {
+    method:      'POST',
+    credentials: 'include',
+    headers:     { 'Content-Type': 'application/json' },
+    body:        JSON.stringify({ email, code }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error ?? `HTTP ${res.status}`)
+  }
+}
+
 // firstName/lastName/country are optional here: the onboarding flow saves only
 // nickname + languages, and the server preserves any field that is omitted. The
 // settings screen requires all of them client-side before calling this.

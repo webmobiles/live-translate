@@ -6,8 +6,9 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { promisify } from 'util';
 import { rateLimitLogin } from './rateLimiter';
-import { createPasswordUser, findUserByEmail, setPasswordForUser, updateProfile, updateAvatarUrl, ensureApiToken } from './db';
+import { createPasswordUser, findUserByEmail, setPasswordForUser, updateProfile, updateAvatarUrl, ensureApiToken, upsertPreuserWithCode, verifyPreuserCode, isEmailValidated, clearPreuser } from './db';
 import { requireAuth } from './middleware';
+import { publishVerificationEmail } from '../email/queue';
 
 const IMAGES_DIR = () => process.env.PROFILE_IMAGES_DIR ?? './data/images/profiles';
 
@@ -68,6 +69,24 @@ function normalizePassword(value: unknown) {
 function publicUser(user: any) {
   const { id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language } = user;
   return { id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language };
+}
+
+// ── Email verification codes ────────────────────────────────────────────────
+
+function codeTtlMs() {
+  return (parseInt(process.env.EMAIL_CODE_TTL_SECONDS || '7200', 10)) * 1000;
+}
+
+function codeMaxAttempts() {
+  return parseInt(process.env.EMAIL_CODE_MAX_ATTEMPTS || '5', 10);
+}
+
+function generateCode() {
+  return crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
+}
+
+function hashCode(code: string) {
+  return crypto.createHash('sha256').update(code).digest('hex');
 }
 
 async function hashPassword(password: string) {
@@ -159,6 +178,47 @@ router.get('/google/callback', rateLimitLogin, (req, res, next) => {
   });
 });
 
+// ── Email verification (registration codes) ─────────────────────────────────
+
+// Step 1: arm a verification code and enqueue the email (Redpanda → emailWorker).
+router.post('/email/send-code', rateLimitLogin, async (req, res, next) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+    if (!email || !email.includes('@')) return res.status(400).json({ error: 'email_invalid' });
+
+    // Already a full password account — they should sign in, not re-register.
+    const existing = await findUserByEmail(email);
+    if (existing?.password_hash) return res.status(409).json({ error: 'email_already_registered' });
+
+    const code = generateCode();
+    const expiresAt = new Date(Date.now() + codeTtlMs());
+    const preuser = await upsertPreuserWithCode(email, hashCode(code), expiresAt);
+    await publishVerificationEmail({ preuserId: preuser.id, email: preuser.email, code });
+
+    // Never leak the code in the response.
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Step 2: verify the submitted code. Marks the pre-user validated on success,
+// which is what gates /email/signup below.
+router.post('/email/verify-code', rateLimitLogin, async (req, res, next) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+    const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
+    if (!email || !/^\d{6}$/.test(code)) return res.status(400).json({ error: 'invalid_code' });
+
+    const result = await verifyPreuserCode(email, hashCode(code), codeMaxAttempts());
+    if (!result.ok) return res.status(400).json({ error: result.reason });
+
+    res.json({ verified: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── Email + password ──────────────────────────────────────────────────────
 
 router.post('/email/signup', rateLimitLogin, async (req, res, next) => {
@@ -172,6 +232,9 @@ router.post('/email/signup', rateLimitLogin, async (req, res, next) => {
     if (!email || !email.includes('@')) return res.status(400).json({ error: 'email_invalid' });
     if (password.length < 8) return res.status(400).json({ error: 'password_too_short' });
 
+    // Email must have passed code verification first (the pre-user is validated).
+    if (!(await isEmailValidated(email))) return res.status(403).json({ error: 'email_not_verified' });
+
     const passwordHash = await hashPassword(password);
     const existing = await findUserByEmail(email);
     if (existing?.password_hash) return res.status(409).json({ error: 'email_already_registered' });
@@ -179,6 +242,9 @@ router.post('/email/signup', rateLimitLogin, async (req, res, next) => {
     const user = existing
       ? await setPasswordForUser(existing.id, passwordHash)
       : await createPasswordUser({ email, name, passwordHash });
+
+    // Promoted to a real account — the pre-user row is no longer needed.
+    await clearPreuser(email);
 
     loginAndRespond(req, res, next, user);
   } catch (err) {

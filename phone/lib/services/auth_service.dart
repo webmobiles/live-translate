@@ -107,6 +107,58 @@ class AuthService {
         name: name,
       );
 
+  /// Step 1 of email-code registration: ask the server to email a 6-digit code.
+  static Future<AuthResult> sendEmailCode(String email) =>
+      _postJson('/auth/email/send-code', {'email': email});
+
+  /// Step 2: verify the code the user typed. Success marks the email validated
+  /// server-side, which gates `createAccountWithEmail`.
+  static Future<AuthResult> verifyEmailCode({
+    required String email,
+    required String code,
+  }) =>
+      _postJson('/auth/email/verify-code', {'email': email, 'code': code});
+
+  /// POSTs a JSON body and maps a non-2xx `{error}` payload to [AuthResult].
+  /// Used by the verification endpoints, which return no session/token.
+  static Future<AuthResult> _postJson(
+      String path, Map<String, dynamic> body) async {
+    final uri = Uri.parse('$kServerUrl$path');
+    ClientLogService.info('client.http.request', {
+      'method': 'POST',
+      'url': uri.toString(),
+      'path': path,
+    });
+    try {
+      final client = HttpClient();
+      final req = await client.postUrl(uri);
+      req.headers.contentType = ContentType.json;
+      req.write(jsonEncode(body));
+      final res = await req.close();
+      final resBody = await utf8.decoder.bind(res).join();
+      final decoded = resBody.isNotEmpty ? jsonDecode(resBody) : null;
+      client.close(force: true);
+      final error = decoded is Map ? decoded['error']?.toString() : null;
+      ClientLogService.info('client.http.response', {
+        'method': 'POST',
+        'path': path,
+        'statusCode': res.statusCode,
+        'error': error,
+      });
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        return AuthResult(success: false, error: error ?? 'auth_failed');
+      }
+      return const AuthResult(success: true);
+    } catch (err) {
+      ClientLogService.error('client.http.exception', {
+        'method': 'POST',
+        'path': path,
+        'error': err.toString(),
+      });
+      return const AuthResult(success: false, error: 'network');
+    }
+  }
+
   static Future<AuthResult> _authenticateWithEmail({
     required String path,
     required String email,

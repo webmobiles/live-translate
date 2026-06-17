@@ -63,6 +63,37 @@
     "joinRoom": "Join Room",
     "joinRoomSub": "Enter a room code to join"
   },
+  "signup": {
+    "title": "Create your account",
+    "subtitle": "Verify your email to get started",
+    "emailPlaceholder": "Email",
+    "sendCode": "Send code",
+    "resendIn": "Resend in {{seconds}}s",
+    "codePlaceholder": "6-digit code",
+    "codeSent": "We emailed you a 6-digit code.",
+    "verified": "Email verified",
+    "passwordPlaceholder": "Password (min. 8 characters)",
+    "agreePrefix": "I have read and agree to the",
+    "terms": "Terms of Service",
+    "and": "and",
+    "privacy": "Privacy Policy",
+    "createAccount": "Create account",
+    "haveAccount": "Already have an account?",
+    "signIn": "Sign in",
+    "error": {
+      "email_invalid": "Enter a valid email address.",
+      "email_already_registered": "That email is already registered. Sign in instead.",
+      "send_failed": "Couldn't send the code. Please try again.",
+      "invalid_code": "That code is incorrect.",
+      "code_expired": "That code has expired. Send a new one.",
+      "too_many_attempts": "Too many attempts. Send a new code.",
+      "email_not_verified": "Verify your email before creating the account.",
+      "password_too_short": "Password must be at least 8 characters.",
+      "too_many_requests": "Too many attempts. Please wait a moment and try again.",
+      "network": "Could not reach the server. Check your network.",
+      "auth_failed": "Sign-up failed. Please try again."
+    }
+  },
   "login": {
     "title": "Welcome",
     "subtitle": "Sign in to start translating",

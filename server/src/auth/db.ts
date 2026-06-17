@@ -163,6 +163,23 @@ async function initSchema() {
       used       BOOLEAN      NOT NULL DEFAULT FALSE,
       created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
     );
+
+    -- ── Pre-users (email-code registration, before the real account exists) ───
+    -- A row is created when a visitor requests a verification code on the
+    -- sign-up screen. Once the code is verified (validated = TRUE) the email/
+    -- password signup endpoint promotes it into a real users row and deletes
+    -- this one. code_hash is sha256(code); the code itself is never stored.
+    CREATE TABLE IF NOT EXISTS preusers (
+      id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+      email       VARCHAR(255) NOT NULL UNIQUE,
+      nickname    VARCHAR(100),
+      code_hash   TEXT,
+      attempts    INTEGER      NOT NULL DEFAULT 0,
+      validated   BOOLEAN      NOT NULL DEFAULT FALSE,
+      expires_at  TIMESTAMPTZ,
+      created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+      updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    );
   `);
 
   await seedLanguageDefaults();
@@ -363,4 +380,70 @@ export async function findUserByApiToken(token: string) {
     [token],
   );
   return rows[0] ?? null;
+}
+
+// ── Pre-users (email-code registration) ──────────────────────────────────────
+
+/**
+ * Creates or refreshes the pre-user row for an email and arms it with a fresh
+ * verification code. Resets attempts/validated so a re-send starts clean.
+ * `codeHash` is sha256(code); the plaintext code travels only in the Redpanda
+ * message to the email worker, never into the database.
+ */
+export async function upsertPreuserWithCode(email: string, codeHash: string, expiresAt: Date): Promise<{ id: string; email: string }> {
+  const { rows } = await pool.query(
+    `INSERT INTO preusers (email, code_hash, expires_at, attempts, validated, updated_at)
+     VALUES (lower($1), $2, $3, 0, FALSE, NOW())
+     ON CONFLICT (email) DO UPDATE
+       SET code_hash  = EXCLUDED.code_hash,
+           expires_at = EXCLUDED.expires_at,
+           attempts   = 0,
+           validated  = FALSE,
+           updated_at = NOW()
+     RETURNING id, email`,
+    [email, codeHash, expiresAt],
+  );
+  return rows[0];
+}
+
+type VerifyResult = { ok: boolean; reason?: 'invalid_code' | 'code_expired' | 'too_many_attempts' };
+
+/**
+ * Checks a submitted code against the stored hash. Enforces expiry and a max
+ * attempt count, incrementing attempts on every miss. Idempotent once validated.
+ */
+export async function verifyPreuserCode(email: string, codeHash: string, maxAttempts: number): Promise<VerifyResult> {
+  const { rows } = await pool.query(
+    `SELECT code_hash, attempts, validated, expires_at FROM preusers WHERE email = lower($1)`,
+    [email],
+  );
+  const row = rows[0];
+  if (!row) return { ok: false, reason: 'invalid_code' };
+  if (row.validated) return { ok: true };
+  if (!row.expires_at || new Date(row.expires_at).getTime() < Date.now()) {
+    return { ok: false, reason: 'code_expired' };
+  }
+  if (row.attempts >= maxAttempts) return { ok: false, reason: 'too_many_attempts' };
+
+  if (!row.code_hash || row.code_hash !== codeHash) {
+    await pool.query(`UPDATE preusers SET attempts = attempts + 1, updated_at = NOW() WHERE email = lower($1)`, [email]);
+    return { ok: false, reason: 'invalid_code' };
+  }
+
+  await pool.query(`UPDATE preusers SET validated = TRUE, updated_at = NOW() WHERE email = lower($1)`, [email]);
+  return { ok: true };
+}
+
+/** True once the email has passed code verification (gates email/password signup). */
+export async function isEmailValidated(email: string): Promise<boolean> {
+  const { rows } = await pool.query(
+    `SELECT validated FROM preusers WHERE email = lower($1)`,
+    [email],
+  );
+  return rows[0]?.validated === true;
+}
+
+/** Removes the pre-user row once it has been promoted to a real account. */
+export async function clearPreuser(email: string): Promise<void> {
+  await pool.query(`DELETE FROM preusers WHERE email = lower($1)`, [email]);
 }

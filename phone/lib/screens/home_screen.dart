@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../config.dart';
 import '../services/auth_service.dart';
@@ -32,10 +34,32 @@ class _HomeScreenState extends State<HomeScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _name = TextEditingController();
+  final _code = TextEditingController();
   bool? _signedIn;
   bool _signingIn = false;
   bool _emailModeIsSignup = false;
   String? _authError;
+
+  // Email-code verification (signup only)
+  bool _codeSending = false;
+  bool _codeVerifying = false;
+  bool _codeVerified = false;
+  int _resendCooldown = 0;
+  Timer? _cooldownTimer;
+
+  static const _resendCooldownSeconds = 60;
+
+  bool get _isValidEmail =>
+      RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(_email.text.trim());
+
+  void _resetCodeState() {
+    _cooldownTimer?.cancel();
+    _code.clear();
+    _codeSending = false;
+    _codeVerifying = false;
+    _codeVerified = false;
+    _resendCooldown = 0;
+  }
 
   @override
   void initState() {
@@ -52,9 +76,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _cooldownTimer?.cancel();
     _email.dispose();
     _password.dispose();
     _name.dispose();
+    _code.dispose();
     super.dispose();
   }
 
@@ -83,6 +109,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _signInWithEmail() async {
+    if (_emailModeIsSignup && !_codeVerified) {
+      setState(() => _authError = 'email_not_verified');
+      return;
+    }
     setState(() {
       _signingIn = true;
       _authError = null;
@@ -113,6 +143,63 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       if (result.needsOnboarding) _openSettings(onboarding: true);
     }
+  }
+
+  Future<void> _sendCode() async {
+    if (!_isValidEmail) {
+      setState(() => _authError = 'email_invalid');
+      return;
+    }
+    setState(() {
+      _codeSending = true;
+      _authError = null;
+    });
+    final result = await AuthService.sendEmailCode(_email.text.trim());
+    if (!mounted) return;
+    setState(() {
+      _codeSending = false;
+      if (result.success) {
+        _startCooldown();
+      } else {
+        _authError = result.error ?? 'send_failed';
+      }
+    });
+  }
+
+  void _startCooldown() {
+    _cooldownTimer?.cancel();
+    setState(() => _resendCooldown = _resendCooldownSeconds);
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _resendCooldown -= 1;
+        if (_resendCooldown <= 0) timer.cancel();
+      });
+    });
+  }
+
+  Future<void> _onCodeChanged(String value) async {
+    setState(() {
+      if (_codeVerified) _codeVerified = false;
+    });
+    if (value.length != 6 || _codeVerifying) return;
+    setState(() {
+      _codeVerifying = true;
+      _authError = null;
+    });
+    final result = await AuthService.verifyEmailCode(
+      email: _email.text.trim(),
+      code: value,
+    );
+    if (!mounted) return;
+    setState(() {
+      _codeVerifying = false;
+      _codeVerified = result.success;
+      if (!result.success) _authError = result.error ?? 'invalid_code';
+    });
   }
 
   Future<void> _openSettings({bool onboarding = false}) async {
@@ -232,6 +319,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   () => setState(() {
                                     _emailModeIsSignup = false;
                                     _authError = null;
+                                    _resetCodeState();
                                   }),
                                 ),
                               ),
@@ -242,6 +330,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   () => setState(() {
                                     _emailModeIsSignup = true;
                                     _authError = null;
+                                    _resetCodeState();
                                   }),
                                 ),
                               ),
@@ -261,9 +350,54 @@ class _HomeScreenState extends State<HomeScreen> {
                           hint: s.t('login.emailPlaceholder'),
                           controller: _email,
                           keyboardType: TextInputType.emailAddress,
-                          onChanged: (_) => setState(() {}),
+                          onChanged: (_) => setState(() {
+                            if (_emailModeIsSignup) _codeVerified = false;
+                          }),
                         ),
                         SizedBox(height: 12),
+                        if (_emailModeIsSignup) ...[
+                          Row(
+                            children: [
+                              Expanded(
+                                child: AppInput(
+                                  hint: s.t('signup.codePlaceholder'),
+                                  controller: _code,
+                                  keyboardType: TextInputType.number,
+                                  maxLength: 6,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                  ],
+                                  onChanged: _onCodeChanged,
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              AppButton(
+                                variant: AppButtonVariant.secondary,
+                                loading: _codeSending,
+                                disabled: !_isValidEmail || _resendCooldown > 0,
+                                onPressed: _sendCode,
+                                label: _resendCooldown > 0
+                                    ? s.t('signup.resendIn',
+                                        params: {'seconds': '$_resendCooldown'})
+                                    : s.t('signup.sendCode'),
+                                labelColor: AppColors.primary,
+                              ),
+                            ],
+                          ),
+                          if (_codeVerified)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text(
+                                s.t('signup.verified'),
+                                style: const TextStyle(
+                                  color: Color(0xFF22C55E),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          SizedBox(height: 12),
+                        ],
                         AppInput(
                           hint: s.t('login.passwordPlaceholder'),
                           controller: _password,
@@ -274,7 +408,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         AppButton(
                           loading: _signingIn,
                           disabled: _email.text.trim().isEmpty ||
-                              _password.text.isEmpty,
+                              _password.text.isEmpty ||
+                              (_emailModeIsSignup &&
+                                  (!_codeVerified ||
+                                      _password.text.length < 8)),
                           onPressed: _signInWithEmail,
                           child: Text(
                             _emailModeIsSignup

@@ -33,6 +33,7 @@ import * as voiceTranslation from './facades/voiceTranslation';
 import * as realtime from './facades/realtime';
 import { healthRouter } from './startup/healthEndpoint';
 import { runHealthChecks } from './startup/healthCheck';
+import { connectEmailQueue } from './email/queue';
 
 const PgSession = connectPgSimple(session);
 const STREAM_AUDIO_SAMPLE_RATE = 16000;
@@ -1401,6 +1402,9 @@ async function start() {
   await queue.connect();
   await realtime.configureSocketAdapter(io);
   await startQueueConsumer();
+
+  // Email verification producer (Redpanda) — used by /auth/email/send-code.
+  await connectEmailQueue();
 
   const PORT = process.env.PORT || 4000;
   httpServer.listen(PORT, () => {

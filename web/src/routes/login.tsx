@@ -103,8 +103,8 @@ function LoginScreen() {
             </button>
             <button
               type="button"
-              onClick={() => { setMode('signup'); setFormError(null) }}
-              className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${mode === 'signup' ? 'bg-lt-primary text-lt-text' : 'text-lt-muted hover:text-lt-text'}`}
+              onClick={() => navigate({ to: '/signup' })}
+              className="rounded-lg px-3 py-2 text-sm font-semibold text-lt-muted transition-colors hover:text-lt-text"
             >
               {t('login.createAccount')}
             </button>

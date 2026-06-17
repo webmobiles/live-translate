@@ -7,9 +7,12 @@
     "build": "tsc -p tsconfig.json",
     "dev": "nodemon --watch src --ext ts --exec \"node --import tsx --import ./src/observability/tracing.ts src/server.ts\"",
     "start": "node --require ./dist/observability/tracing.js dist/server.js",
+    "worker:email": "node dist/workers/emailWorker.js",
+    "dev:worker:email": "nodemon --watch src --ext ts --exec \"node --import tsx src/workers/emailWorker.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-ses": "^3.1070.0",
     "@opentelemetry/auto-instrumentations-node": "^0.76.0",
     "@opentelemetry/exporter-metrics-otlp-http": "^0.218.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.218.0",
