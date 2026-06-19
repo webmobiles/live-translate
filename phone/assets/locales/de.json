@@ -244,6 +244,10 @@
     "uiLanguage": "App-Sprache",
     "save": "Änderungen speichern",
     "saved": "Gespeichert!",
-    "signOutConfirm": "Wirklich abmelden?"
+    "signOutConfirm": "Wirklich abmelden?",
+    "error": {
+      "required": "Dieses Feld ist erforderlich.",
+      "tooLong": "Verwenden Sie höchstens 40 Zeichen."
+    }
   }
 }

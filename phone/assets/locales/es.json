@@ -244,6 +244,10 @@
     "uiLanguage": "Idioma de la aplicación",
     "save": "Guardar cambios",
     "saved": "¡Guardado!",
-    "signOutConfirm": "¿Seguro que quieres cerrar sesión?"
+    "signOutConfirm": "¿Seguro que quieres cerrar sesión?",
+    "error": {
+      "required": "Este campo es obligatorio.",
+      "tooLong": "Usa 40 caracteres o menos."
+    }
   }
 }

@@ -244,6 +244,10 @@
     "uiLanguage": "Langue de l'application",
     "save": "Enregistrer",
     "saved": "Enregistré !",
-    "signOutConfirm": "Êtes-vous sûr de vouloir vous déconnecter ?"
+    "signOutConfirm": "Êtes-vous sûr de vouloir vous déconnecter ?",
+    "error": {
+      "required": "Ce champ est obligatoire.",
+      "tooLong": "Utilisez 40 caractères ou moins."
+    }
   }
 }

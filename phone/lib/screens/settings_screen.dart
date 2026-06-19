@@ -88,7 +88,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final s = context.appState;
     if (!_canSave) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(s.t('create.errors.nickRequired'))),
+        SnackBar(content: Text(s.t('settings.error.required'))),
       );
       return;
     }
@@ -126,8 +126,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (err) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(s.t('common.error.generic',
-              fallback: 'Could not save. Please try again.'))),
+          SnackBar(
+              content: Text(s.t('common.error.generic',
+                  fallback: 'Could not save. Please try again.'))),
         );
       }
     } finally {
