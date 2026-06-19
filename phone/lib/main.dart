@@ -10,7 +10,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Startup diagnostics — confirms which server URL the build is actually using.
-  debugPrint('[config] SERVER_URL=$kServerUrl  REQUIRE_AUTH=$kRequireAuth');
+  debugPrint('[config] SERVER_URL=$kServerUrl');
 
   final state = AppState();
   await state.init();

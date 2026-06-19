@@ -10,6 +10,7 @@ import { persistMessageAudio } from '../audio/store';
 import { logger } from '../observability/logger';
 import { severity } from '../observability/severity';
 import * as appMetrics from '../observability/metrics';
+import { recordUsage, wordCount } from '../auth/usage';
 
 const TRANSLATION_RETRIES = 2;
 const TRANSLATION_RETRY_DELAY_MS = 500;
@@ -144,7 +145,7 @@ type StepRunner = (label: string, fn: () => unknown | Promise<unknown>) => Promi
 const inlineStep: StepRunner = async (_label, fn) => fn();
 
 export async function runTranslateWorkflow(data: any, runStep: StepRunner = inlineStep) {
-  const { msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, participants, knownLanguages } = data;
+  const { msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, senderUserId, participants, knownLanguages } = data;
   const roomConfig = normalizeRoomConfig(data.roomConfig);
   const targetLangs = getTextTargetLangs(roomConfig, knownLanguages, participants);
   const audioTargetLangs = getSoloTargetLangs(roomConfig, senderLang)
@@ -193,13 +194,16 @@ export async function runTranslateWorkflow(data: any, runStep: StepRunner = inli
   await runStep('save-to-db', async () => {
     await queue.publishMessageProgress(roomCode, msgId, 95, 'delivering');
     await db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: false });
+    if (senderUserId) {
+      await recordUsage({ userId: senderUserId, usageKind: 'text_words', amount: wordCount(text), roomCode });
+    }
   });
 
   return { ok: true, msgId };
 }
 
 export async function runTranscribeWorkflow(data: any, runStep: StepRunner = inlineStep) {
-  const { msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, participants, knownLanguages } = data;
+  const { msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, senderUserId, audioSeconds, participants, knownLanguages } = data;
   const roomConfig = normalizeRoomConfig(data.roomConfig);
   const targetLangs = getTextTargetLangs(roomConfig, knownLanguages, participants);
   const audioTargetLangs = getSoloTargetLangs(roomConfig, senderLang)
@@ -250,6 +254,9 @@ export async function runTranscribeWorkflow(data: any, runStep: StepRunner = inl
     await runStep('save-to-db', async () => {
       await queue.publishMessageProgress(roomCode, msgId, 95, 'delivering');
       await db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true, ...directAudioFiles });
+      if (senderUserId) {
+        await recordUsage({ userId: senderUserId, usageKind: 'realtime_seconds', amount: Math.ceil(Number(audioSeconds) || 0), roomCode });
+      }
     });
 
     return { ok: true, msgId, text };
@@ -324,6 +331,9 @@ export async function runTranscribeWorkflow(data: any, runStep: StepRunner = inl
   await runStep('save-to-db', async () => {
     await queue.publishMessageProgress(roomCode, msgId, 95, 'delivering');
     await db.saveMessage({ roomId, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true, ...audioFiles });
+    if (senderUserId) {
+      await recordUsage({ userId: senderUserId, usageKind: 'voice_seconds', amount: Math.ceil(Number(audioSeconds) || 0), roomCode });
+    }
   });
 
   return { ok: true, msgId, text };

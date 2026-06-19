@@ -6,6 +6,7 @@ import 'dart:math';
 import '../config.dart';
 import '../models/message.dart';
 import '../models/room_config.dart';
+import 'auth_service.dart';
 import 'client_log_service.dart';
 
 /// HTTP client for solo ("Solo / Duo") rooms.
@@ -35,6 +36,10 @@ class SoloApi {
     try {
       final req = await client.postUrl(uri);
       req.headers.contentType = ContentType.json;
+      final token = await AuthService.getToken();
+      if (token != null) {
+        req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+      }
       req.write(jsonEncode(body));
       // Overall response deadline. `connectionTimeout` only covers establishing
       // the socket; this covers the "connected but the server never replies"
@@ -104,6 +109,10 @@ class SoloApi {
     try {
       final req = await client.patchUrl(uri);
       req.headers.contentType = ContentType.json;
+      final token = await AuthService.getToken();
+      if (token != null) {
+        req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+      }
       req.write(jsonEncode(body));
       final res = await req.close().timeout(timeout);
       final text = await utf8.decoder

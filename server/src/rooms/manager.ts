@@ -69,10 +69,10 @@ export const roomManager = {
     return rooms.get(code?.toUpperCase()) || null;
   },
 
-  addParticipant(code: string, { socketId, nickname, language, isHost }: any) {
+  addParticipant(code: string, { socketId, nickname, language, isHost, userId }: any) {
     const room = this.get(code);
     if (!room) throw new Error('Room not found');
-    const participant = { socketId, nickname, language, isHost, joinedAt: Date.now() };
+    const participant = { socketId, nickname, language, isHost, userId: userId ?? null, joinedAt: Date.now() };
     room.participants.set(socketId, participant);
 
     if (language && !room.knownLanguages.has(language)) {
@@ -115,6 +115,10 @@ export const roomManager = {
     return Array.from(this.get(code)?.participants.values() ?? []);
   },
 
+  getPublicParticipants(code: string) {
+    return this.getParticipants(code).map(({ userId: _userId, ...participant }: any) => participant);
+  },
+
   getPublic(code: string) {
     const room = this.get(code);
     if (!room) return null;
@@ -123,7 +127,7 @@ export const roomManager = {
       code: room.code,
       name: room.name,
       config: room.config,
-      participants: this.getParticipants(code),
+      participants: this.getPublicParticipants(code),
       createdAt: room.createdAt,
     };
   },

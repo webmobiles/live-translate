@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
+import { ChevronDown, Globe2 } from 'lucide-react'
 import { authenticateWithEmail } from '@/lib/api'
 
 export const Route = createFileRoute('/login')({
@@ -30,6 +31,41 @@ function EyeIcon({ off }: { off?: boolean }) {
       <circle cx="12" cy="12" r="3" />
       {off && <line x1="3" y1="3" x2="21" y2="21" />}
     </svg>
+  )
+}
+
+const UI_LANGUAGES = [
+  { code: 'en', name: 'English' },
+  { code: 'fr', name: 'Français' },
+  { code: 'es', name: 'Español' },
+  { code: 'pt', name: 'Português' },
+  { code: 'de', name: 'Deutsch' },
+  { code: 'it', name: 'Italiano' },
+]
+
+function UiLanguageSelect() {
+  const { t, i18n } = useTranslation()
+  const currentLang = i18n.resolvedLanguage?.split('-')[0] ?? 'en'
+
+  return (
+    <div className="relative inline-flex items-center rounded-full border border-lt-border bg-lt-card/90 text-lt-muted shadow-sm transition-colors focus-within:border-lt-primary hover:text-lt-text">
+      <span className="pointer-events-none absolute left-3 flex items-center">
+        <Globe2 size={18} aria-hidden="true" />
+      </span>
+      <select
+        value={currentLang}
+        onChange={(event) => void i18n.changeLanguage(event.target.value)}
+        aria-label={t('settings.uiLanguage')}
+        className="h-10 cursor-pointer appearance-none rounded-full bg-transparent pl-9 pr-8 text-sm font-medium text-lt-text outline-none"
+      >
+        {UI_LANGUAGES.map((language) => (
+          <option key={language.code} value={language.code}>{language.name}</option>
+        ))}
+      </select>
+      <span className="pointer-events-none absolute right-3 text-lt-muted">
+        <ChevronDown size={14} strokeWidth={2.5} aria-hidden="true" />
+      </span>
+    </div>
   )
 }
 
@@ -64,7 +100,7 @@ function LoginScreen() {
   const displayError = formError ?? error
 
   return (
-    <div className="min-h-screen bg-lt-bg flex items-center justify-center px-6">
+    <div className="min-h-screen bg-lt-bg flex items-center justify-center px-6 py-6">
       <div className="w-full max-w-sm flex flex-col items-center gap-10">
 
         {/* Logo / brand */}
@@ -76,6 +112,7 @@ function LoginScreen() {
             <h1 className="text-lt-text text-3xl font-bold tracking-tight">HelloVia Translate</h1>
             <p className="text-lt-muted text-sm mt-1">{t('home.tagline')}</p>
           </div>
+          <UiLanguageSelect />
         </div>
 
         {/* Card */}

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { recordUsage, getUserUsageSummary } from './usage';
-import type { UsageEntry } from './usage';
+import type { UsageEntry, UsageKind } from './usage';
 
 const router = Router();
 
@@ -13,39 +13,66 @@ router.use((req, res, next) => {
   res.status(403).json({ error: 'forbidden' });
 });
 
-// POST /internal/usage/words
-router.post('/usage/words', async (req, res, next) => {
+function usageKindFromLegacy(type: string): UsageKind | null {
+  if (type === 'words') return 'text_words';
+  if (type === 'audio') return 'voice_seconds';
+  return null;
+}
+
+// POST /internal/usage/text
+router.post('/usage/text', async (req, res, next) => {
   try {
-    const { userId, languageCode, words, roomCode, isGuest } = req.body;
-    if (!userId || !languageCode || typeof words !== 'number' || words <= 0)
+    const { userId, words, roomCode } = req.body;
+    if (!userId || typeof words !== 'number' || words <= 0)
       return res.status(400).json({ error: 'invalid_params' });
 
-    await recordUsage({ userId, languageCode, usageType: 'words', amount: words, roomCode, isGuest });
-    res.json({ ok: true });
+    const balance = await recordUsage({ userId, usageKind: 'text_words', amount: words, roomCode });
+    res.json({ ok: true, balance });
   } catch (err) { next(err); }
 });
 
-// POST /internal/usage/audio
-router.post('/usage/audio', async (req, res, next) => {
+// POST /internal/usage/voice
+router.post('/usage/voice', async (req, res, next) => {
   try {
-    const { userId, languageCode, seconds, roomCode, isGuest } = req.body;
-    if (!userId || !languageCode || typeof seconds !== 'number' || seconds <= 0)
+    const { userId, seconds, roomCode } = req.body;
+    if (!userId || typeof seconds !== 'number' || seconds <= 0)
       return res.status(400).json({ error: 'invalid_params' });
 
-    await recordUsage({ userId, languageCode, usageType: 'audio', amount: seconds, roomCode, isGuest });
-    res.json({ ok: true });
+    const balance = await recordUsage({ userId, usageKind: 'voice_seconds', amount: seconds, roomCode });
+    res.json({ ok: true, balance });
+  } catch (err) { next(err); }
+});
+
+// POST /internal/usage/realtime
+router.post('/usage/realtime', async (req, res, next) => {
+  try {
+    const { userId, seconds, roomCode } = req.body;
+    if (!userId || typeof seconds !== 'number' || seconds <= 0)
+      return res.status(400).json({ error: 'invalid_params' });
+
+    const balance = await recordUsage({ userId, usageKind: 'realtime_seconds', amount: seconds, roomCode });
+    res.json({ ok: true, balance });
   } catch (err) { next(err); }
 });
 
 // POST /internal/usage/batch
 router.post('/usage/batch', async (req, res, next) => {
   try {
-    const { entries } = req.body as { entries: UsageEntry[] };
+    const { entries } = req.body as { entries: Array<UsageEntry & {
+      usageType?: string;
+      words?: number;
+      seconds?: number;
+    }> };
     if (!Array.isArray(entries) || entries.length === 0)
       return res.status(400).json({ error: 'invalid_params' });
 
-    await Promise.all(entries.map(e => recordUsage(e)));
-    res.json({ ok: true, processed: entries.length });
+    const balances = await Promise.all(entries.map(e => {
+      const usageKind = e.usageKind ?? usageKindFromLegacy(String(e.usageType || ''));
+      const amount = e.amount ?? e.words ?? e.seconds ?? 0;
+      if (!usageKind) throw new Error('invalid_usage_kind');
+      return recordUsage({ userId: e.userId, usageKind, amount, roomCode: e.roomCode });
+    }));
+    res.json({ ok: true, processed: entries.length, balances });
   } catch (err) { next(err); }
 });
 

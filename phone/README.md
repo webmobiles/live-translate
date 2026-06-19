@@ -160,7 +160,6 @@ Flutter's built-in `--dart-define-from-file` (no package needed):
 ```env
 # phone/.env
 SERVER_URL=https://livetranslate.hellovia.app
-REQUIRE_AUTH=false      # skip the Google sign-in gate during dev
 PHONE_SOLOROOM_SOCKET=yes # use Socket.IO for solo rooms, matching WEB_SOLOROOM_SOCKET=yes
 ```
 
@@ -169,9 +168,9 @@ flutter run --dart-define-from-file=.env
 ```
 
 The keys map to `fromEnvironment()` constants in `lib/config.dart`
-(`SERVER_URL` → `kServerUrl`, `REQUIRE_AUTH` → `kRequireAuth`,
-`PHONE_SOLOROOM_SOCKET` → `kPhoneSoloRoomSocket`). To require login again, set
-`REQUIRE_AUTH=true` (or just run without the flag — the default).
+(`SERVER_URL` → `kServerUrl`, `PHONE_SOLOROOM_SOCKET` →
+`kPhoneSoloRoomSocket`). Login is always required before creating or joining
+chat rooms.
 
 ---
 

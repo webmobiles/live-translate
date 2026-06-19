@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { connectSocket, SOLOROOM_SOCKET } from '@/lib/socket'
+import { fetchUser } from '@/lib/api'
 import { LanguageSelector, LanguageBadge } from '@/components/LanguageSelector'
-import type { RoomConfig, User } from '@/types'
+import type { RoomConfig } from '@/types'
 
 export const Route = createFileRoute('/create')({
   component: CreateScreen,
@@ -15,8 +17,12 @@ type RoomMode = 'normal' | 'solo_multilang'
 function CreateScreen() {
   const { t }        = useTranslation()
   const navigate     = useNavigate()
-  const queryClient  = useQueryClient()
-  const me = queryClient.getQueryData<User | null>(['auth-me'])
+  const { data: me, isError, isLoading } = useQuery({
+    queryKey: ['auth-me'],
+    queryFn:  fetchUser,
+    retry:    false,
+    staleTime: 60_000,
+  })
 
   const [roomMode, setRoomMode] = useState<RoomMode>('normal')
 
@@ -43,6 +49,20 @@ function CreateScreen() {
   const [error, setError]     = useState('')
 
   const isSolo = roomMode === 'solo_multilang'
+
+  useEffect(() => {
+    if (!isLoading && (isError || !me)) {
+      navigate({ to: '/login', search: { error: undefined } })
+    }
+  }, [isError, isLoading, me, navigate])
+
+  if (isLoading) {
+    return <LoadingScreen label={t('common.loading')} />
+  }
+
+  if (isError || !me) {
+    return <LoadingScreen label={t('common.loading')} />
+  }
 
   const handleCreate = () => {
     if (!isSolo && !nickname.trim()) { setError(t('create.errors.nickRequired')); return }
@@ -286,14 +306,17 @@ function CreateScreen() {
             {t('create.options.title')}
           </label>
           <div className="bg-lt-card border border-lt-border rounded-xl p-4 flex flex-col gap-3">
-            <select
-              className="bg-lt-bg border border-lt-border rounded-lg px-3 py-2 text-lt-text text-sm focus:outline-none focus:border-lt-primary"
-              value={config.voicePipeline}
-              onChange={e => setConfig(prev => ({ ...prev, voicePipeline: e.target.value as RoomConfig['voicePipeline'] }))}
-            >
-              <option value="stt-text-translate">STT then translate</option>
-              <option value="direct-voice-translation">{t('create.options.pipeline.direct')}</option>
-            </select>
+            <label className="flex items-center justify-between gap-3 text-lt-text text-sm">
+              <span>{t('create.options.realtimeVoice')}</span>
+              <input
+                type="checkbox"
+                checked={config.voicePipeline === 'direct-voice-translation'}
+                onChange={e => setConfig(prev => ({
+                  ...prev,
+                  voicePipeline: e.target.checked ? 'direct-voice-translation' : 'stt-text-translate',
+                }))}
+              />
+            </label>
             <label className="flex items-center justify-between gap-3 text-lt-text text-sm">
               <span>{t('create.options.translatedAudio')}</span>
               <input type="checkbox" checked={config.output.translatedAudio}
@@ -337,6 +360,17 @@ function CreateScreen() {
       <LanguageSelector visible={showSoloPickerB} selected={soloLangB}
         onSelect={lang => { setSoloLangB(lang); setShowSoloPickerB(false) }}
         onClose={() => setShowSoloPickerB(false)} />
+    </div>
+  )
+}
+
+function LoadingScreen({ label }: { label: string }) {
+  return (
+    <div className="min-h-screen bg-lt-bg flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <span className="text-4xl">🌐</span>
+        <p className="text-lt-muted text-sm">{label}</p>
+      </div>
     </div>
   )
 }

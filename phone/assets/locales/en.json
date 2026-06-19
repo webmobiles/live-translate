@@ -152,6 +152,7 @@
         "stt": "STT then translate",
         "direct": "Direct voice translation"
       },
+      "realtimeVoice": "Realtime voice translation",
       "translatedText": "Translated text",
       "translatedAudio": "Translated audio"
     },

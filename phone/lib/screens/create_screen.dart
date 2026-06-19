@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../config.dart';
 import '../models/room_config.dart';
+import '../services/auth_service.dart';
 import '../services/client_log_service.dart';
 import '../services/socket_service.dart';
 import '../services/solo_api.dart';
@@ -54,8 +55,12 @@ class _CreateScreenState extends State<CreateScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  void _handleCreate() {
+  Future<void> _handleCreate() async {
     final s = context.appState;
+    if (!await AuthService.isSignedIn()) {
+      if (mounted) Navigator.of(context).pop();
+      return;
+    }
     if (!_isSolo && _nickname.text.trim().isEmpty) {
       _snack(s.t('create.errors.nickRequired'));
       return;
@@ -227,10 +232,26 @@ class _CreateScreenState extends State<CreateScreen> {
               AppCard(
                 child: Column(
                   children: [
-                    _PipelineToggle(
-                      value: _voicePipeline,
-                      directLabel: s.t('create.options.pipeline.direct'),
-                      onChanged: (v) => setState(() => _voicePipeline = v),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          s.t('create.options.realtimeVoice',
+                              fallback: 'Realtime voice translation'),
+                          style: TextStyle(
+                              color: AppColors.text, fontSize: 14),
+                        ),
+                        Switch(
+                          value:
+                              _voicePipeline == 'direct-voice-translation',
+                          activeThumbColor: AppColors.text,
+                          activeTrackColor: AppColors.primary,
+                          inactiveTrackColor: AppColors.border,
+                          onChanged: (v) => setState(() => _voicePipeline = v
+                              ? 'direct-voice-translation'
+                              : 'stt-text-translate'),
+                        ),
+                      ],
                     ),
                     SizedBox(height: 16),
                     Row(
@@ -512,55 +533,6 @@ class _SoloLangCard extends StatelessWidget {
             SizedBox(height: 8),
             LanguageBadge(code: code),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PipelineToggle extends StatelessWidget {
-  final String value;
-  final String directLabel;
-  final ValueChanged<String> onChanged;
-  const _PipelineToggle({
-    required this.value,
-    required this.directLabel,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          children: [
-            _seg('stt-text-translate', 'STT + Translate'),
-            _seg('direct-voice-translation', directLabel),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _seg(String key, String text) {
-    final active = value == key;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => onChanged(key),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          color: active ? AppColors.primary : AppColors.card,
-          alignment: Alignment.center,
-          child: Text(text,
-              style: TextStyle(
-                  color: active ? Colors.white : AppColors.muted,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500)),
         ),
       ),
     );

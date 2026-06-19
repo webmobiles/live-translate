@@ -5,6 +5,15 @@ const { Pool } = pg;
 
 export let pool: pg.Pool;
 
+const PUBLIC_USER_COLUMNS = `
+  id, nickname, first_name, last_name, country, email, avatar_url,
+  mother_language, target_language,
+  realtime_provider,
+  realtime_seconds_used, realtime_seconds_credit,
+  voice_seconds_used, voice_seconds_credit,
+  text_words_used, text_words_credit
+`;
+
 export async function connectAuthDb() {
   const url = process.env.AUTH_DB_URL;
   if (!url) throw new Error('AUTH_DB_URL is not set');
@@ -33,6 +42,13 @@ async function initSchema() {
       password_hash    TEXT,
       mother_language  VARCHAR(10),
       target_language  VARCHAR(10),
+      realtime_provider VARCHAR(30),
+      realtime_seconds_used BIGINT NOT NULL DEFAULT 0,
+      realtime_seconds_credit BIGINT NOT NULL DEFAULT 0,
+      voice_seconds_used BIGINT NOT NULL DEFAULT 0,
+      voice_seconds_credit BIGINT NOT NULL DEFAULT 0,
+      text_words_used BIGINT NOT NULL DEFAULT 0,
+      text_words_credit BIGINT NOT NULL DEFAULT 0,
       created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
       updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
       CONSTRAINT uq_provider UNIQUE (provider, provider_id)
@@ -62,6 +78,22 @@ async function initSchema() {
     -- Long-lived bearer token for native clients (the phone has no cookie jar).
     ALTER TABLE users ADD COLUMN IF NOT EXISTS api_token UUID;
 
+    -- ── User-level translation quotas ────────────────────────────────────────
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS realtime_provider VARCHAR(30);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS realtime_seconds_used BIGINT NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS realtime_seconds_credit BIGINT NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS voice_seconds_used BIGINT NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS voice_seconds_credit BIGINT NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS text_words_used BIGINT NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS text_words_credit BIGINT NOT NULL DEFAULT 0;
+
+    -- Remove the older per-language remaining-credit model. Usage now lives on
+    -- users as three account-level buckets: realtime seconds, voice seconds,
+    -- and text words.
+    DROP TABLE IF EXISTS user_language_credits;
+    DROP TABLE IF EXISTS user_language_stats;
+    DROP TABLE IF EXISTS language_credits_defaults;
+
     -- ── Sessions ─────────────────────────────────────────────────────────────
     CREATE TABLE IF NOT EXISTS session (
       sid    VARCHAR      NOT NULL COLLATE "default",
@@ -79,50 +111,23 @@ async function initSchema() {
     );
     CREATE INDEX IF NOT EXISTS rate_limits_expire_idx ON rate_limits (expire);
 
-    -- ── Language credit defaults (one row per supported language) ─────────────
-    CREATE TABLE IF NOT EXISTS language_credits_defaults (
-      language_code   VARCHAR(10)   PRIMARY KEY,
-      language_name   VARCHAR(100)  NOT NULL,
-      free_words      INTEGER       NOT NULL DEFAULT 10000,
-      free_seconds    INTEGER       NOT NULL DEFAULT 7200,
-      updated_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
-    );
-
-    -- ── Per-user per-language credits ─────────────────────────────────────────
-    CREATE TABLE IF NOT EXISTS user_language_credits (
-      id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id           UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      language_code     VARCHAR(10) NOT NULL,
-      words_remaining   INTEGER     NOT NULL DEFAULT 0,
-      seconds_remaining INTEGER     NOT NULL DEFAULT 0,
-      created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      CONSTRAINT uq_user_lang_credits UNIQUE (user_id, language_code)
-    );
-
-    -- ── Per-user per-language usage stats (running totals) ───────────────────
-    CREATE TABLE IF NOT EXISTS user_language_stats (
-      id                      UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id                 UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      language_code           VARCHAR(10) NOT NULL,
-      words_consumed          BIGINT      NOT NULL DEFAULT 0,
-      seconds_consumed        BIGINT      NOT NULL DEFAULT 0,
-      guest_words_consumed    BIGINT      NOT NULL DEFAULT 0,
-      guest_seconds_consumed  BIGINT      NOT NULL DEFAULT 0,
-      created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      CONSTRAINT uq_user_lang_stats UNIQUE (user_id, language_code)
-    );
-
     -- ── Detailed usage log ────────────────────────────────────────────────────
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'usage_log' AND column_name = 'usage_type'
+      ) THEN
+        DROP TABLE usage_log;
+      END IF;
+    END $$;
     CREATE TABLE IF NOT EXISTS usage_log (
       id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id        UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       room_code      VARCHAR(20),
-      language_code  VARCHAR(10) NOT NULL,
-      usage_type     VARCHAR(10) NOT NULL CHECK (usage_type IN ('words','audio')),
-      amount         INTEGER     NOT NULL CHECK (amount > 0),
-      is_guest       BOOLEAN     NOT NULL DEFAULT FALSE,
+      usage_kind     VARCHAR(30) NOT NULL CHECK (usage_kind IN ('text_words','voice_seconds','realtime_seconds')),
+      amount         BIGINT      NOT NULL CHECK (amount > 0),
+      balance_after  BIGINT      NOT NULL,
       created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS usage_log_user_idx ON usage_log (user_id, created_at DESC);
@@ -182,55 +187,6 @@ async function initSchema() {
     );
   `);
 
-  await seedLanguageDefaults();
-}
-
-const LANGUAGE_DEFAULTS: [string, string][] = [
-  ['af', 'Afrikaans'],  ['sq', 'Albanian'],    ['am', 'Amharic'],
-  ['ar', 'Arabic'],     ['hy', 'Armenian'],    ['az', 'Azerbaijani'],
-  ['eu', 'Basque'],     ['be', 'Belarusian'],  ['bn', 'Bengali'],
-  ['bs', 'Bosnian'],    ['bg', 'Bulgarian'],   ['ca', 'Catalan'],
-  ['zh', 'Chinese'],    ['hr', 'Croatian'],    ['cs', 'Czech'],
-  ['da', 'Danish'],     ['nl', 'Dutch'],       ['en', 'English'],
-  ['et', 'Estonian'],   ['fi', 'Finnish'],     ['fr', 'French'],
-  ['gl', 'Galician'],   ['ka', 'Georgian'],    ['de', 'German'],
-  ['el', 'Greek'],      ['gu', 'Gujarati'],    ['ht', 'Haitian Creole'],
-  ['ha', 'Hausa'],      ['he', 'Hebrew'],      ['hi', 'Hindi'],
-  ['hu', 'Hungarian'],  ['is', 'Icelandic'],   ['ig', 'Igbo'],
-  ['id', 'Indonesian'], ['ga', 'Irish'],       ['it', 'Italian'],
-  ['ja', 'Japanese'],   ['kn', 'Kannada'],     ['kk', 'Kazakh'],
-  ['km', 'Khmer'],      ['ko', 'Korean'],      ['ku', 'Kurdish'],
-  ['ky', 'Kyrgyz'],     ['lo', 'Lao'],         ['lv', 'Latvian'],
-  ['lt', 'Lithuanian'], ['lb', 'Luxembourgish'],['mk', 'Macedonian'],
-  ['mg', 'Malagasy'],   ['ms', 'Malay'],       ['ml', 'Malayalam'],
-  ['mt', 'Maltese'],    ['mi', 'Maori'],       ['mr', 'Marathi'],
-  ['mn', 'Mongolian'],  ['my', 'Myanmar'],     ['ne', 'Nepali'],
-  ['no', 'Norwegian'],  ['ps', 'Pashto'],      ['fa', 'Persian'],
-  ['pl', 'Polish'],     ['pt', 'Portuguese'],  ['pa', 'Punjabi'],
-  ['ro', 'Romanian'],   ['ru', 'Russian'],     ['sm', 'Samoan'],
-  ['sr', 'Serbian'],    ['st', 'Sesotho'],     ['sn', 'Shona'],
-  ['sd', 'Sindhi'],     ['si', 'Sinhala'],     ['sk', 'Slovak'],
-  ['sl', 'Slovenian'],  ['so', 'Somali'],      ['es', 'Spanish'],
-  ['su', 'Sundanese'],  ['sw', 'Swahili'],     ['sv', 'Swedish'],
-  ['tl', 'Tagalog'],    ['tg', 'Tajik'],       ['ta', 'Tamil'],
-  ['te', 'Telugu'],     ['th', 'Thai'],        ['tr', 'Turkish'],
-  ['uk', 'Ukrainian'],  ['ur', 'Urdu'],        ['uz', 'Uzbek'],
-  ['vi', 'Vietnamese'], ['cy', 'Welsh'],       ['xh', 'Xhosa'],
-  ['yi', 'Yiddish'],    ['yo', 'Yoruba'],      ['zu', 'Zulu'],
-];
-
-async function seedLanguageDefaults() {
-  if (LANGUAGE_DEFAULTS.length === 0) return;
-  const values = LANGUAGE_DEFAULTS
-    .map((_, i) => `($${i * 2 + 1}, $${i * 2 + 2}, 10000, 7200)`)
-    .join(', ');
-  const params = LANGUAGE_DEFAULTS.flat();
-  await pool.query(
-    `INSERT INTO language_credits_defaults (language_code, language_name, free_words, free_seconds)
-     VALUES ${values}
-     ON CONFLICT (language_code) DO NOTHING`,
-    params,
-  );
 }
 
 export async function findOrCreateUser(profile: {
@@ -239,7 +195,7 @@ export async function findOrCreateUser(profile: {
   name: string;
   email?: string;
   avatarUrl?: string;
-}): Promise<{ id: string; nickname: string | null; first_name: string | null; last_name: string | null; country: string | null; mother_language: string | null; target_language: string | null }> {
+}): Promise<any> {
   // The provider's display name seeds first_name for brand-new accounts; we
   // never overwrite a name the user has already edited in settings.
   const byProvider = await pool.query(
@@ -249,7 +205,7 @@ export async function findOrCreateUser(profile: {
          avatar_url = COALESCE($5, avatar_url),
          updated_at = NOW()
      WHERE provider = $1 AND provider_id = $2
-     RETURNING id, nickname, first_name, last_name, country, mother_language, target_language`,
+     RETURNING ${PUBLIC_USER_COLUMNS}`,
     [profile.provider, profile.providerId, profile.name, profile.email ?? null, profile.avatarUrl ?? null],
   );
   if (byProvider.rows[0]) return byProvider.rows[0];
@@ -263,7 +219,7 @@ export async function findOrCreateUser(profile: {
            provider_id = $4,
            updated_at = NOW()
        WHERE lower(email) = lower($5)
-       RETURNING id, nickname, first_name, last_name, country, mother_language, target_language`,
+       RETURNING ${PUBLIC_USER_COLUMNS}`,
       [profile.name, profile.avatarUrl ?? null, profile.provider, profile.providerId, profile.email],
     );
     if (byEmail.rows[0]) return byEmail.rows[0];
@@ -272,7 +228,7 @@ export async function findOrCreateUser(profile: {
   const inserted = await pool.query(
     `INSERT INTO users (first_name, email, avatar_url, provider, provider_id)
      VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, nickname, first_name, last_name, country, mother_language, target_language`,
+     RETURNING ${PUBLIC_USER_COLUMNS}`,
     [profile.name, profile.email ?? null, profile.avatarUrl ?? null, profile.provider, profile.providerId],
   );
   return inserted.rows[0];
@@ -280,7 +236,7 @@ export async function findOrCreateUser(profile: {
 
 export async function findUserByEmail(email: string) {
   const { rows } = await pool.query(
-    `SELECT id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language, password_hash
+    `SELECT ${PUBLIC_USER_COLUMNS}, password_hash
      FROM users WHERE lower(email) = lower($1)`,
     [email],
   );
@@ -295,7 +251,7 @@ export async function createPasswordUser(data: {
   const { rows } = await pool.query(
     `INSERT INTO users (first_name, email, provider, provider_id, password_hash)
      VALUES ($1, $2, 'email', $4, $3)
-     RETURNING id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language`,
+     RETURNING ${PUBLIC_USER_COLUMNS}`,
     [data.name, data.email, data.passwordHash, data.email.toLowerCase()],
   );
   return rows[0];
@@ -306,7 +262,7 @@ export async function setPasswordForUser(id: string, passwordHash: string) {
     `UPDATE users
      SET password_hash = $2, updated_at = NOW()
      WHERE id = $1
-     RETURNING id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language`,
+     RETURNING ${PUBLIC_USER_COLUMNS}`,
     [id, passwordHash],
   );
   return rows[0] ?? null;
@@ -314,7 +270,7 @@ export async function setPasswordForUser(id: string, passwordHash: string) {
 
 export async function findUserById(id: string) {
   const { rows } = await pool.query(
-    `SELECT id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language
+    `SELECT ${PUBLIC_USER_COLUMNS}
      FROM users WHERE id = $1`,
     [id],
   );
@@ -341,7 +297,7 @@ export async function updateProfile(id: string, data: {
          target_language = $7,
          updated_at      = NOW()
      WHERE id = $1
-     RETURNING id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language`,
+     RETURNING ${PUBLIC_USER_COLUMNS}`,
     [id, data.nickname, data.firstName ?? null, data.lastName ?? null, data.country ?? null, data.motherLanguage, data.targetLanguage],
   );
   return rows[0] ?? null;
@@ -352,7 +308,7 @@ export async function updateAvatarUrl(id: string, avatarUrl: string) {
     `UPDATE users
      SET avatar_url = $2, updated_at = NOW()
      WHERE id = $1
-     RETURNING id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language`,
+     RETURNING ${PUBLIC_USER_COLUMNS}`,
     [id, avatarUrl],
   );
   return rows[0] ?? null;
@@ -375,7 +331,7 @@ export async function ensureApiToken(id: string): Promise<string | null> {
 /** Looks up a user by bearer token (public columns only — same shape as the session user). */
 export async function findUserByApiToken(token: string) {
   const { rows } = await pool.query(
-    `SELECT id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language
+    `SELECT ${PUBLIC_USER_COLUMNS}
      FROM users WHERE api_token = $1`,
     [token],
   );

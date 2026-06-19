@@ -10,11 +10,12 @@ import cors from 'cors';
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
 import passport from 'passport';
-import { connectAuthDb, pool as authPool } from './auth/db';
+import { connectAuthDb, pool as authPool, findUserByApiToken } from './auth/db';
 import { configurePassport } from './auth/passport';
 import { authRouter } from './auth/routes';
 import { internalRouter } from './auth/internalRoutes';
 import { rateLimitApi } from './auth/rateLimiter';
+import { hasUsageBalance, recordUsage, wordCount } from './auth/usage';
 import { logger, flushLogs } from './observability/logger';
 import { dumpIncomingAudio } from './debug/audioDump';
 import { persistMessageAudio, findOriginalAudio, saveAudioFile } from './audio/store';
@@ -42,6 +43,17 @@ const STREAM_AUDIO_BITS_PER_SAMPLE = 16;
 const STREAM_AUDIO_MAX_CHUNK_BYTES = 256 * 1024;
 const STREAM_AUDIO_MAX_AGE_MS = 10 * 60 * 1000;
 
+function ceilSeconds(value: any) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.ceil(n) : 0;
+}
+
+function userBalanceError(kind: 'text' | 'voice' | 'realtime') {
+  if (kind === 'text') return 'Text credit exhausted.';
+  if (kind === 'realtime') return 'Realtime voice credit exhausted.';
+  return 'Voice credit exhausted.';
+}
+
 type AudioUploadSession = {
   sessionId: string;
   msgId: string;
@@ -49,6 +61,7 @@ type AudioUploadSession = {
   roomId: string;
   socketId: string;
   sender: string;
+  userId?: string | null;
   senderLang: string;
   tempPcmPath: string;
   nextSeq: number;
@@ -149,6 +162,20 @@ app.use((req, res, next) => {
 app.use(passport.initialize());
 app.use(passport.session());
 
+app.use(async (req, _res, next) => {
+  if (req.user) return next();
+  const header = req.headers.authorization;
+  const token = header?.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (!token) return next();
+  try {
+    const user = await findUserByApiToken(token);
+    if (user) (req as any).user = user;
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── Client logs ─────────────────────────────────────────────────────────────
 // Mobile/web clients can send compact diagnostic events here; the server emits
 // them through the normal logger, which can fan out to Loki/OpenObserve.
@@ -216,6 +243,20 @@ const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
   maxHttpBufferSize: 1e8,
+});
+
+io.use(async (socket, next) => {
+  const rawToken = socket.handshake.auth?.token
+    ?? socket.handshake.headers.authorization?.toString().replace(/^Bearer\s+/i, '');
+  const token = typeof rawToken === 'string' ? rawToken.trim() : '';
+  if (!token) return next();
+  try {
+    const user = await findUserByApiToken(token);
+    if (user) socket.data.user = user;
+    next();
+  } catch (err) {
+    next(err as Error);
+  }
 });
 
 // ── Inngest HTTP handler ───────────────────────────────────────────────────
@@ -351,6 +392,11 @@ app.post('/api/solo/rooms/:code/text', async (req, res) => {
       res.status(400).json({ ok: false, id: msgId, error: 'Message text is required.' });
       return;
     }
+    const user = req.user as any;
+    if (user?.id && !(await hasUsageBalance(user.id, 'text_words'))) {
+      res.status(402).json({ ok: false, id: msgId, error: userBalanceError('text') });
+      return;
+    }
 
     appMetrics.recordMessage({ type: 'text', roomCode: room.code, roomId: room.id, language: senderLang, text });
     logger.info({
@@ -370,10 +416,14 @@ app.post('/api/solo/rooms/:code/text', async (req, res) => {
     // Phase 1: save + return the text now. TTS audio is fetched separately
     // (phase 2: POST …/messages/:msgId/audio) so the text isn't held up by it.
     await db.saveMessage({ roomId: room.id, msgId, sender, senderLang, original: text, translations, audioOutputs: {}, isAudio: false });
+    const usageBalance = user?.id
+      ? await recordUsage({ userId: user.id, usageKind: 'text_words', amount: wordCount(text), roomCode: room.code })
+      : null;
 
     res.json({
       ok: true,
       id: msgId,
+      usageBalance,
       message: {
         id: msgId,
         original: text,
@@ -413,6 +463,18 @@ app.post('/api/solo/rooms/:code/audio', async (req, res) => {
     const sender = String(req.body?.sender || 'Solo');
     if (!audioBase64) {
       res.status(400).json({ ok: false, id: msgId, error: 'Audio is required.' });
+      return;
+    }
+    const user = req.user as any;
+    const usageKind = room.config.voicePipeline === 'direct-voice-translation'
+      ? 'realtime_seconds'
+      : 'voice_seconds';
+    if (user?.id && !(await hasUsageBalance(user.id, usageKind))) {
+      res.status(402).json({
+        ok: false,
+        id: msgId,
+        error: userBalanceError(usageKind === 'realtime_seconds' ? 'realtime' : 'voice'),
+      });
       return;
     }
 
@@ -475,10 +537,19 @@ app.post('/api/solo/rooms/:code/audio', async (req, res) => {
         audioOutputs,
       });
       await db.saveMessage({ roomId: room.id, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true, originalAudioFile, translatedAudioFiles });
+      const usageBalance = user?.id
+        ? await recordUsage({
+            userId: user.id,
+            usageKind: 'realtime_seconds',
+            amount: ceilSeconds(audioDuration.seconds),
+            roomCode: room.code,
+          })
+        : null;
 
       res.json({
         ok: true,
         id: msgId,
+        usageBalance,
         message: {
           id: msgId,
           original: text,
@@ -524,10 +595,19 @@ app.post('/api/solo/rooms/:code/audio', async (req, res) => {
       audioOutputs,
     });
     await db.saveMessage({ roomId: room.id, msgId, sender, senderLang, original: text, translations, audioOutputs, isAudio: true, originalAudioFile, translatedAudioFiles });
+    const usageBalance = user?.id
+      ? await recordUsage({
+          userId: user.id,
+          usageKind: 'voice_seconds',
+          amount: ceilSeconds(audioDuration.seconds),
+          roomCode: room.code,
+        })
+      : null;
 
     res.json({
       ok: true,
       id: msgId,
+      usageBalance,
       message: {
         id: msgId,
         original: text,
@@ -843,11 +923,13 @@ io.on('connection', (socket) => {
   socket.on('room:create', async ({ name, nickname, language, config }: any = {}, cb) => {
     try {
       const room = await roomManager.create({ name, config: normalizeRoomConfig(config) });
+      const user = socket.data.user;
       const participant = roomManager.addParticipant(room.code, {
         socketId: socket.id,
         nickname: nickname || 'Host',
         language: language || 'en',
         isHost: true,
+        userId: user?.id,
       });
 
       socket.join(`room:${room.code}`);
@@ -883,12 +965,14 @@ io.on('connection', (socket) => {
       const existingParticipant = socket.data.roomCode === room.code
         ? socket.data.participant
         : null;
+      const user = socket.data.user;
 
       const participant = roomManager.addParticipant(room.code, {
         socketId: socket.id,
         nickname: nickname || existingParticipant?.nickname || 'Guest',
         language: language || existingParticipant?.language || 'en',
         isHost:   existingParticipant?.isHost || clientIsHost || false,
+        userId:   existingParticipant?.userId || user?.id,
       });
 
       socket.join(`room:${room.code}`);
@@ -899,10 +983,11 @@ io.on('connection', (socket) => {
       // Notify other participants only for a new member. Existing sockets can
       // rejoin to refresh state after navigation, reload, or reconnect.
       if (!existingParticipant) {
-        socket.to(`room:${room.code}`).emit('room:participant-joined', { participant });
+        const { userId: _userId, ...publicParticipant } = participant as any;
+        socket.to(`room:${room.code}`).emit('room:participant-joined', { participant: publicParticipant });
       }
       io.to(`room:${room.code}`).emit('room:participants-updated', {
-        participants: roomManager.getParticipants(room.code),
+        participants: roomManager.getPublicParticipants(room.code),
       });
 
       // Load chat history and send to the joining participant, translating any
@@ -977,7 +1062,7 @@ io.on('connection', (socket) => {
     roomManager.updateParticipantLanguage(roomCode, socket.id, language);
     socket.data.participant = { ...participant, language };
     io.to(`room:${roomCode}`).emit('room:participants-updated', {
-      participants: roomManager.getParticipants(roomCode),
+      participants: roomManager.getPublicParticipants(roomCode),
     });
     cb?.({ ok: true });
   });
@@ -1019,6 +1104,10 @@ io.on('connection', (socket) => {
       cb?.({ ok: false, error: 'Text input is disabled for this room.' });
       return;
     }
+    if (participant.userId && !(await hasUsageBalance(participant.userId, 'text_words'))) {
+      cb?.({ ok: false, error: userBalanceError('text') });
+      return;
+    }
 
     try {
       appMetrics.recordMessage({
@@ -1053,6 +1142,7 @@ io.on('connection', (socket) => {
         senderLang:     effectiveSenderLang,
         sender:         participant.nickname,
         senderSocketId: socket.id,
+        senderUserId:   participant.userId,
         participants,
         knownLanguages: roomManager.getKnownLanguages(roomCode),
         roomConfig,
@@ -1085,6 +1175,16 @@ io.on('connection', (socket) => {
       cb?.({ ok: false, error: 'Voice input is disabled for this room.' });
       return;
     }
+    const requestedDirectVoice = roomConfig?.voicePipeline === 'direct-voice-translation';
+    const isRealtimeAllowedHere = roomConfig?.mode === 'solo_multilang' || participant.isHost;
+    const usageKind = requestedDirectVoice && isRealtimeAllowedHere ? 'realtime_seconds' : 'voice_seconds';
+    if (participant.userId && !(await hasUsageBalance(participant.userId, usageKind))) {
+      cb?.({
+        ok: false,
+        error: userBalanceError(usageKind === 'realtime_seconds' ? 'realtime' : 'voice'),
+      });
+      return;
+    }
     if (encoding !== 'pcm16' || sampleRate !== STREAM_AUDIO_SAMPLE_RATE || channels !== STREAM_AUDIO_CHANNELS) {
       cb?.({ ok: false, error: 'Unsupported audio stream format.' });
       return;
@@ -1105,6 +1205,7 @@ io.on('connection', (socket) => {
       roomId,
       socketId: socket.id,
       sender: participant.nickname,
+      userId: participant.userId,
       senderLang: effectiveSenderLang,
       tempPcmPath,
       nextSeq: 0,
@@ -1191,6 +1292,9 @@ io.on('connection', (socket) => {
     const { roomCode, roomId, msgId } = session;
     const participants = roomManager.getParticipants(roomCode);
     const roomConfig = roomManager.get(roomCode)?.config;
+    const senderParticipant = participants.find((p: any) => p.socketId === session.socketId) as any;
+    const requestedDirectVoice = roomConfig?.voicePipeline === 'direct-voice-translation';
+    const isRealtimeAllowedHere = roomConfig?.mode === 'solo_multilang' || senderParticipant?.isHost;
 
     try {
       if (typeof finalSeq === 'number' && finalSeq !== session.nextSeq - 1) {
@@ -1253,9 +1357,13 @@ io.on('connection', (socket) => {
         senderLang:     session.senderLang,
         sender:         session.sender,
         senderSocketId: socket.id,
+        senderUserId:   session.userId,
+        audioSeconds:   audioDuration.seconds,
         participants,
         knownLanguages: roomManager.getKnownLanguages(roomCode),
-        roomConfig,
+        roomConfig: requestedDirectVoice && !isRealtimeAllowedHere
+          ? { ...roomConfig, voicePipeline: 'stt-text-translate' }
+          : roomConfig,
       });
 
       cb?.({ ok: true, id: msgId });
@@ -1281,6 +1389,13 @@ io.on('connection', (socket) => {
     const roomConfig   = roomManager.get(roomCode)?.config;
 
     if (roomConfig && !roomConfig.input.voice) return;
+    const requestedDirectVoice = roomConfig?.voicePipeline === 'direct-voice-translation';
+    const isRealtimeAllowedHere = roomConfig?.mode === 'solo_multilang' || participant.isHost;
+    const usageKind = requestedDirectVoice && isRealtimeAllowedHere ? 'realtime_seconds' : 'voice_seconds';
+    if (participant.userId && !(await hasUsageBalance(participant.userId, usageKind))) {
+      await publishMessageError(roomCode, msgId);
+      return;
+    }
 
     try {
       const audioDuration = appMetrics.getAudioDurationSeconds({
@@ -1335,9 +1450,13 @@ io.on('connection', (socket) => {
         senderLang:     effectiveSenderLang,
         sender:         participant.nickname,
         senderSocketId: socket.id,
+        senderUserId:   participant.userId,
+        audioSeconds:   audioDuration.seconds,
         participants,
         knownLanguages: roomManager.getKnownLanguages(roomCode),
-        roomConfig,
+        roomConfig: requestedDirectVoice && !isRealtimeAllowedHere
+          ? { ...roomConfig, voicePipeline: 'stt-text-translate' }
+          : roomConfig,
       });
     } catch (err: any) {
       logger.error({ event: 'message.audio_failed', severity: severity.P2, roomCode, roomId, msgId, socketId: socket.id, err }, 'Audio message failed');
@@ -1369,7 +1488,7 @@ io.on('connection', (socket) => {
       roomManager.removeParticipant(roomCode, socket.id);
       io.to(`room:${roomCode}`).emit('room:participant-left', { socketId: socket.id });
       io.to(`room:${roomCode}`).emit('room:participants-updated', {
-        participants: roomManager.getParticipants(roomCode),
+        participants: roomManager.getPublicParticipants(roomCode),
       });
       logger.info({
         event: 'room.left',

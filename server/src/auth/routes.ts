@@ -67,8 +67,60 @@ function normalizePassword(value: unknown) {
 }
 
 function publicUser(user: any) {
-  const { id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language } = user;
-  return { id, nickname, first_name, last_name, country, email, avatar_url, mother_language, target_language };
+  const {
+    id,
+    nickname,
+    first_name,
+    last_name,
+    country,
+    email,
+    avatar_url,
+    mother_language,
+    target_language,
+    realtime_provider,
+    realtime_seconds_used,
+    realtime_seconds_credit,
+    voice_seconds_used,
+    voice_seconds_credit,
+    text_words_used,
+    text_words_credit,
+  } = user;
+  return {
+    id,
+    nickname,
+    first_name,
+    last_name,
+    country,
+    email,
+    avatar_url,
+    mother_language,
+    target_language,
+    realtime_provider,
+    realtime_seconds_used,
+    realtime_seconds_credit,
+    voice_seconds_used,
+    voice_seconds_credit,
+    text_words_used,
+    text_words_credit,
+    usage_balance: {
+      realtime: {
+        provider: realtime_provider ?? null,
+        usedSeconds: Number(realtime_seconds_used ?? 0),
+        creditSeconds: Number(realtime_seconds_credit ?? 0),
+        balanceSeconds: Number(realtime_seconds_credit ?? 0) - Number(realtime_seconds_used ?? 0),
+      },
+      voice: {
+        usedSeconds: Number(voice_seconds_used ?? 0),
+        creditSeconds: Number(voice_seconds_credit ?? 0),
+        balanceSeconds: Number(voice_seconds_credit ?? 0) - Number(voice_seconds_used ?? 0),
+      },
+      text: {
+        usedWords: Number(text_words_used ?? 0),
+        creditWords: Number(text_words_credit ?? 0),
+        balanceWords: Number(text_words_credit ?? 0) - Number(text_words_used ?? 0),
+      },
+    },
+  };
 }
 
 // ── Email verification codes ────────────────────────────────────────────────

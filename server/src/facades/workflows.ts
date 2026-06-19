@@ -27,8 +27,8 @@ export function isInngestEnabled() {
  * Trigger the text translation workflow.
  * Steps inside: translate → save to DB → broadcast to clients.
  */
-export async function triggerTranslate({ msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, participants, knownLanguages, roomConfig }: any) {
-  const data = { msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, participants, knownLanguages, roomConfig };
+export async function triggerTranslate({ msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, senderUserId, participants, knownLanguages, roomConfig }: any) {
+  const data = { msgId, roomCode, roomId, text, senderLang, sender, senderSocketId, senderUserId, participants, knownLanguages, roomConfig };
   if (!isInngestEnabled()) {
     void runTranslateWorkflow(data).catch(async err => {
       logger.error({ event: 'workflow.inline_translate_failed', severity: severity.P2, roomCode, roomId, msgId, err }, 'Inline translation workflow failed');
@@ -47,8 +47,8 @@ export async function triggerTranslate({ msgId, roomCode, roomId, text, senderLa
  * Trigger the voice transcription + translation workflow.
  * Steps inside: transcribe audio → translate → save to DB → broadcast.
  */
-export async function triggerTranscribe({ msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, participants, knownLanguages, roomConfig }: any) {
-  const data = { msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, participants, knownLanguages, roomConfig };
+export async function triggerTranscribe({ msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, senderUserId, audioSeconds, participants, knownLanguages, roomConfig }: any) {
+  const data = { msgId, roomCode, roomId, audioBase64, mimeType, senderLang, sender, senderSocketId, senderUserId, audioSeconds, participants, knownLanguages, roomConfig };
   if (!isInngestEnabled()) {
     void runTranscribeWorkflow(data).catch(async err => {
       logger.error({ event: 'workflow.inline_transcribe_failed', severity: severity.P2, roomCode, roomId, msgId, err }, 'Inline transcription workflow failed');

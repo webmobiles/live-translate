@@ -1,63 +1,124 @@
 import { pool } from './db';
 
+export type UsageKind = 'text_words' | 'voice_seconds' | 'realtime_seconds';
+
 export interface UsageEntry {
   userId: string;
-  languageCode: string;
-  usageType: 'words' | 'audio';
+  usageKind: UsageKind;
   amount: number;
-  roomCode?: string;
-  isGuest?: boolean;
+  roomCode?: string | null;
 }
 
-// Record usage and deduct from credits. Initialises credits from defaults on first use.
-export async function recordUsage(entry: UsageEntry): Promise<void> {
-  const { userId, languageCode, usageType, amount, roomCode = null, isGuest = false } = entry;
+export type UsageBalance = {
+  realtime: {
+    provider: string | null;
+    usedSeconds: number;
+    creditSeconds: number;
+    balanceSeconds: number;
+  };
+  voice: {
+    usedSeconds: number;
+    creditSeconds: number;
+    balanceSeconds: number;
+  };
+  text: {
+    usedWords: number;
+    creditWords: number;
+    balanceWords: number;
+  };
+};
+
+const USAGE_COLUMNS: Record<UsageKind, { used: string; credit: string }> = {
+  text_words: {
+    used: 'text_words_used',
+    credit: 'text_words_credit',
+  },
+  voice_seconds: {
+    used: 'voice_seconds_used',
+    credit: 'voice_seconds_credit',
+  },
+  realtime_seconds: {
+    used: 'realtime_seconds_used',
+    credit: 'realtime_seconds_credit',
+  },
+};
+
+function toInt(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') return Number.parseInt(value, 10) || 0;
+  return 0;
+}
+
+export function buildUsageBalance(row: any): UsageBalance {
+  const realtimeUsed = toInt(row.realtime_seconds_used);
+  const realtimeCredit = toInt(row.realtime_seconds_credit);
+  const voiceUsed = toInt(row.voice_seconds_used);
+  const voiceCredit = toInt(row.voice_seconds_credit);
+  const textUsed = toInt(row.text_words_used);
+  const textCredit = toInt(row.text_words_credit);
+
+  return {
+    realtime: {
+      provider: row.realtime_provider ?? null,
+      usedSeconds: realtimeUsed,
+      creditSeconds: realtimeCredit,
+      balanceSeconds: realtimeCredit - realtimeUsed,
+    },
+    voice: {
+      usedSeconds: voiceUsed,
+      creditSeconds: voiceCredit,
+      balanceSeconds: voiceCredit - voiceUsed,
+    },
+    text: {
+      usedWords: textUsed,
+      creditWords: textCredit,
+      balanceWords: textCredit - textUsed,
+    },
+  };
+}
+
+export function wordCount(text: string): number {
+  const matches = text.trim().match(/\S+/g);
+  return matches?.length ?? 0;
+}
+
+export async function recordUsage(entry: UsageEntry): Promise<UsageBalance | null> {
+  const { userId, usageKind, roomCode = null } = entry;
+  const amount = Math.ceil(Number(entry.amount));
+  const columns = USAGE_COLUMNS[usageKind];
+  if (!userId || !columns || amount <= 0) return null;
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // Log the event
-    await client.query(
-      `INSERT INTO usage_log (user_id, room_code, language_code, usage_type, amount, is_guest)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [userId, roomCode, languageCode, usageType, amount, isGuest],
+    const updated = await client.query(
+      `UPDATE users
+       SET ${columns.used} = ${columns.used} + $2,
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING realtime_provider,
+                 realtime_seconds_used, realtime_seconds_credit,
+                 voice_seconds_used, voice_seconds_credit,
+                 text_words_used, text_words_credit`,
+      [userId, amount],
     );
 
-    // Upsert running totals
-    const wordsCol   = isGuest ? 'guest_words_consumed'   : 'words_consumed';
-    const secondsCol = isGuest ? 'guest_seconds_consumed' : 'seconds_consumed';
-    const col = usageType === 'words' ? wordsCol : secondsCol;
-
-    await client.query(
-      `INSERT INTO user_language_stats (user_id, language_code, ${col})
-       VALUES ($1, $2, $3)
-       ON CONFLICT (user_id, language_code)
-       DO UPDATE SET ${col} = user_language_stats.${col} + $3, updated_at = NOW()`,
-      [userId, languageCode, amount],
-    );
-
-    // Deduct from credits (initialise from defaults if row missing)
-    if (!isGuest) {
-      await client.query(
-        `INSERT INTO user_language_credits (user_id, language_code, words_remaining, seconds_remaining)
-         SELECT $1, $2, free_words, free_seconds
-         FROM language_credits_defaults
-         WHERE language_code = $2
-         ON CONFLICT (user_id, language_code) DO NOTHING`,
-        [userId, languageCode],
-      );
-
-      const creditCol = usageType === 'words' ? 'words_remaining' : 'seconds_remaining';
-      await client.query(
-        `UPDATE user_language_credits
-         SET ${creditCol} = GREATEST(0, ${creditCol} - $3), updated_at = NOW()
-         WHERE user_id = $1 AND language_code = $2`,
-        [userId, languageCode, amount],
-      );
+    const row = updated.rows[0];
+    if (!row) {
+      await client.query('ROLLBACK');
+      return null;
     }
 
+    const balanceAfter = toInt(row[columns.credit]) - toInt(row[columns.used]);
+    await client.query(
+      `INSERT INTO usage_log (user_id, room_code, usage_kind, amount, balance_after)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [userId, roomCode, usageKind, amount, balanceAfter],
+    );
+
     await client.query('COMMIT');
+    return buildUsageBalance(row);
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -66,55 +127,29 @@ export async function recordUsage(entry: UsageEntry): Promise<void> {
   }
 }
 
-export async function getUserUsageSummary(userId: string) {
-  const [stats, credits, billing] = await Promise.all([
-    pool.query(
-      `SELECT language_code, words_consumed, seconds_consumed,
-              guest_words_consumed, guest_seconds_consumed
-       FROM user_language_stats WHERE user_id = $1 ORDER BY words_consumed DESC`,
-      [userId],
-    ),
-    pool.query(
-      `SELECT c.language_code, c.words_remaining, c.seconds_remaining,
-              d.free_words, d.free_seconds
-       FROM user_language_credits c
-       JOIN language_credits_defaults d USING (language_code)
-       WHERE c.user_id = $1`,
-      [userId],
-    ),
-    pool.query(
-      `SELECT balance, currency, total_paid, total_consumed
-       FROM user_billing WHERE user_id = $1`,
-      [userId],
-    ),
-  ]);
-
-  return {
-    stats:   stats.rows,
-    credits: credits.rows,
-    billing: billing.rows[0] ?? null,
-  };
+export async function getUserUsageSummary(userId: string): Promise<UsageBalance | null> {
+  const { rows } = await pool.query(
+    `SELECT realtime_provider,
+            realtime_seconds_used, realtime_seconds_credit,
+            voice_seconds_used, voice_seconds_credit,
+            text_words_used, text_words_credit
+     FROM users WHERE id = $1`,
+    [userId],
+  );
+  return rows[0] ? buildUsageBalance(rows[0]) : null;
 }
 
-export async function hasCredits(
-  userId: string,
-  languageCode: string,
-  type: 'words' | 'audio',
-): Promise<boolean> {
-  const col = type === 'words' ? 'words_remaining' : 'seconds_remaining';
-
-  // Initialise from defaults if no row yet
-  await pool.query(
-    `INSERT INTO user_language_credits (user_id, language_code, words_remaining, seconds_remaining)
-     SELECT $1, $2, free_words, free_seconds
-     FROM language_credits_defaults WHERE language_code = $2
-     ON CONFLICT (user_id, language_code) DO NOTHING`,
-    [userId, languageCode],
-  );
+export async function hasUsageBalance(userId: string, usageKind: UsageKind): Promise<boolean> {
+  const columns = USAGE_COLUMNS[usageKind];
+  if (!userId || !columns) return false;
 
   const { rows } = await pool.query(
-    `SELECT ${col} FROM user_language_credits WHERE user_id = $1 AND language_code = $2`,
-    [userId, languageCode],
+    `SELECT realtime_provider, ${columns.used} AS used, ${columns.credit} AS credit
+     FROM users WHERE id = $1`,
+    [userId],
   );
-  return rows.length > 0 && rows[0][col] > 0;
+  const row = rows[0];
+  if (!row) return false;
+  if (usageKind === 'realtime_seconds' && row.realtime_provider !== 'openai') return false;
+  return toInt(row.credit) - toInt(row.used) > 0;
 }

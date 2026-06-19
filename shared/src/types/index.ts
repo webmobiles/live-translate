@@ -8,6 +8,31 @@ export interface User {
   avatar_url: string | null
   mother_language: string | null
   target_language: string | null
+  realtime_provider: string | null
+  realtime_seconds_used: number
+  realtime_seconds_credit: number
+  voice_seconds_used: number
+  voice_seconds_credit: number
+  text_words_used: number
+  text_words_credit: number
+  usage_balance?: {
+    realtime: {
+      provider: string | null
+      usedSeconds: number
+      creditSeconds: number
+      balanceSeconds: number
+    }
+    voice: {
+      usedSeconds: number
+      creditSeconds: number
+      balanceSeconds: number
+    }
+    text: {
+      usedWords: number
+      creditWords: number
+      balanceWords: number
+    }
+  }
 }
 
 export interface Participant {

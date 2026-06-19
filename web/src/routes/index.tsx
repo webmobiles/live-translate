@@ -1,26 +1,44 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { User } from '@/types'
+import { fetchUser, logout } from '@/lib/api'
 
 export const Route = createFileRoute('/')({
   component: HomeScreen,
 })
 
-const UI_LANGUAGES = [
-  { code: 'en', name: 'English' },
-  { code: 'fr', name: 'Français' },
-  { code: 'es', name: 'Español' },
-  { code: 'pt', name: 'Português' },
-  { code: 'de', name: 'Deutsch' },
-  { code: 'it', name: 'Italiano' },
-]
-
 function HomeScreen() {
-  const { t, i18n }  = useTranslation()
+  const { t }       = useTranslation()
   const navigate     = useNavigate()
   const queryClient  = useQueryClient()
-  const me = queryClient.getQueryData<User | null>(['auth-me'])
+  const { data: me, isError, isLoading } = useQuery({
+    queryKey: ['auth-me'],
+    queryFn:  fetchUser,
+    retry:    false,
+    staleTime: 60_000,
+  })
+
+  useEffect(() => {
+    if (!isLoading && (isError || !me)) {
+      navigate({ to: '/login', search: { error: undefined } })
+    }
+  }, [isError, isLoading, me, navigate])
+
+  if (isLoading) {
+    return <LoadingScreen label={t('common.loading')} />
+  }
+
+  if (isError || !me) {
+    return <LoadingScreen label={t('common.loading')} />
+  }
+
+  const handleLogout = async () => {
+    if (!confirm(t('settings.signOutConfirm'))) return
+    await logout()
+    queryClient.setQueryData(['auth-me'], null)
+    navigate({ to: '/login', search: { error: undefined } })
+  }
 
   return (
     <div className="min-h-screen bg-lt-bg flex items-center justify-center px-6">
@@ -37,41 +55,28 @@ function HomeScreen() {
           </div>
         </div>
 
-        {/* App language — persisted client-side (i18next cookie), independent of
-            the room "mother language". */}
-        <div className="flex flex-col gap-2">
-          <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
-            {t('settings.uiLanguage')}
-          </label>
-          <select
-            value={i18n.resolvedLanguage?.split('-')[0] ?? 'en'}
-            onChange={e => void i18n.changeLanguage(e.target.value)}
-            className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-lt-text text-base focus:outline-none focus:border-lt-primary transition-colors appearance-none"
-          >
-            {UI_LANGUAGES.map(l => (
-              <option key={l.code} value={l.code}>{l.name}</option>
-            ))}
-          </select>
-        </div>
-
         {/* User bar */}
         {me && (
-          <div className="flex items-center justify-between bg-lt-card border border-lt-border rounded-xl px-4 py-3">
+          <div className="flex items-center justify-between gap-3 bg-lt-card border border-lt-border rounded-xl px-3 py-2.5">
+            {/* Identity */}
             <div className="flex items-center gap-3 min-w-0">
-              {me.avatar_url
-                ? <img src={me.avatar_url} alt="" className="w-8 h-8 rounded-full flex-shrink-0 object-cover" />
-                : <span className="text-2xl flex-shrink-0">👤</span>
-              }
-              <span className="text-lt-text text-sm font-medium truncate">
+              <div className="w-9 h-9 rounded-full bg-lt-bg border border-lt-border flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {me.avatar_url
+                  ? <img src={me.avatar_url} alt="" className="w-full h-full object-cover" />
+                  : <span className="text-lg leading-none">👤</span>
+                }
+              </div>
+              <span className="text-lt-text text-sm font-semibold truncate">
                 {me.nickname ?? me.first_name ?? ''}
               </span>
             </div>
+
+            {/* Sign out (settings lives in the top-right global controls) */}
             <button
-              onClick={() => navigate({ to: '/settings' })}
-              className="text-lt-muted text-xl hover:text-lt-text transition-colors flex-shrink-0 ml-3 p-1"
-              aria-label="Settings"
+              onClick={handleLogout}
+              className="flex h-9 flex-shrink-0 items-center rounded-full px-3 text-xs font-medium text-lt-muted transition-colors hover:bg-lt-bg hover:text-lt-text"
             >
-              ⚙
+              {t('common.signOut')}
             </button>
           </div>
         )}
@@ -101,6 +106,17 @@ function HomeScreen() {
           </button>
         </div>
 
+      </div>
+    </div>
+  )
+}
+
+function LoadingScreen({ label }: { label: string }) {
+  return (
+    <div className="min-h-screen bg-lt-bg flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <span className="text-4xl">🌐</span>
+        <p className="text-lt-muted text-sm">{label}</p>
       </div>
     </div>
   )

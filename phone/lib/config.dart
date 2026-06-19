@@ -10,14 +10,6 @@ const String kServerUrl = String.fromEnvironment(
   defaultValue: 'https://livetranslate.hellovia.app',
 );
 
-/// When false, the Google sign-in gate on the home screen is bypassed
-/// (handy for local development without OAuth configured).
-///
-/// Toggle via .env (`REQUIRE_AUTH=false`) + `--dart-define-from-file=.env`,
-/// or directly: `--dart-define=REQUIRE_AUTH=false`.
-const bool kRequireAuth =
-    bool.fromEnvironment('REQUIRE_AUTH', defaultValue: true);
-
 /// When true, solo rooms use Socket.IO like the web app's
 /// `WEB_SOLOROOM_SOCKET=yes` mode. Default stays HTTP for compatibility.
 ///
