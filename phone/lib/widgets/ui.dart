@@ -194,6 +194,7 @@ class ReactiveAppInput extends StatefulWidget {
   final bool obscureText;
   final TextInputType? keyboardType;
   final Map<String, String Function(Object)>? validationMessages;
+  final bool readOnly;
 
   const ReactiveAppInput({
     super.key,
@@ -210,6 +211,7 @@ class ReactiveAppInput extends StatefulWidget {
     this.obscureText = false,
     this.keyboardType,
     this.validationMessages,
+    this.readOnly = false,
   });
 
   @override
@@ -238,6 +240,7 @@ class _ReactiveAppInputState extends State<ReactiveAppInput> {
         ],
         ReactiveTextField<String>(
           formControlName: widget.formControlName,
+          readOnly: widget.readOnly,
           onChanged: (control) => widget.onChanged?.call(control.value ?? ''),
           autofocus: widget.autofocus,
           textAlign: widget.textAlign,

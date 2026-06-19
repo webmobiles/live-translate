@@ -382,6 +382,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                               ReactiveAppInput(
                                 formControlName: 'email',
+                                readOnly: _codeVerified,
                                 hint: s.t('login.emailPlaceholder'),
                                 keyboardType: TextInputType.emailAddress,
                                 onChanged: (_) => setState(() {
@@ -401,6 +402,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     Expanded(
                                       child: ReactiveAppInput(
                                         formControlName: 'code',
+                                        readOnly: _codeVerified,
                                         hint: s.t('signup.codePlaceholder'),
                                         keyboardType: TextInputType.number,
                                         maxLength: 6,
@@ -411,20 +413,22 @@ class _HomeScreenState extends State<HomeScreen> {
                                         onChanged: _onCodeChanged,
                                       ),
                                     ),
-                                    SizedBox(width: 8),
-                                    AppButton(
-                                      variant: AppButtonVariant.secondary,
-                                      loading: _codeSending,
-                                      disabled:
-                                          !_isValidEmail || _resendCooldown > 0,
-                                      onPressed: _sendCode,
-                                      label: _resendCooldown > 0
-                                          ? s.t('signup.resendIn', params: {
-                                              'seconds': '$_resendCooldown'
-                                            })
-                                          : s.t('signup.sendCode'),
-                                      labelColor: AppColors.primary,
-                                    ),
+                                    if (!_codeVerified) ...[
+                                      SizedBox(width: 8),
+                                      AppButton(
+                                        variant: AppButtonVariant.secondary,
+                                        loading: _codeSending,
+                                        disabled: !_isValidEmail ||
+                                            _resendCooldown > 0,
+                                        onPressed: _sendCode,
+                                        label: _resendCooldown > 0
+                                            ? s.t('signup.resendIn', params: {
+                                                'seconds': '$_resendCooldown'
+                                              })
+                                            : s.t('signup.sendCode'),
+                                        labelColor: AppColors.primary,
+                                      ),
+                                    ],
                                   ],
                                 ),
                                 if (_codeVerified)

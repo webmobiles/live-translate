@@ -158,7 +158,8 @@ function SignupScreen() {
               type="email"
               autoComplete="email"
               required
-              className="w-full rounded-xl border border-lt-border bg-lt-bg px-4 py-3 text-lt-text outline-none transition-colors placeholder:text-lt-muted focus:border-lt-primary"
+              disabled={verified}
+              className="w-full rounded-xl border border-lt-border bg-lt-bg px-4 py-3 text-lt-text outline-none transition-colors placeholder:text-lt-muted focus:border-lt-primary disabled:opacity-60 disabled:cursor-not-allowed"
             />
 
             {/* Verification code + send button */}
@@ -170,20 +171,23 @@ function SignupScreen() {
                   placeholder={t('signup.codePlaceholder')}
                   inputMode="numeric"
                   autoComplete="one-time-code"
-                  className={`w-full rounded-xl border bg-lt-bg px-4 py-3 pr-10 text-lt-text tracking-[0.3em] outline-none transition-colors placeholder:tracking-normal placeholder:text-lt-muted focus:border-lt-primary ${verified ? 'border-green-500' : 'border-lt-border'}`}
+                  disabled={verified}
+                  className={`w-full rounded-xl border bg-lt-bg px-4 py-3 pr-10 text-lt-text tracking-[0.3em] outline-none transition-colors placeholder:tracking-normal placeholder:text-lt-muted focus:border-lt-primary disabled:cursor-not-allowed ${verified ? 'border-green-500' : 'border-lt-border'}`}
                 />
                 {verified && (
                   <span className="absolute inset-y-0 right-3 flex items-center text-green-500" aria-label={t('signup.verified')}>✓</span>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => void handleSendCode()}
-                disabled={!canSend}
-                className="shrink-0 rounded-xl border border-lt-border bg-lt-bg px-4 text-sm font-semibold text-lt-primary transition-colors hover:border-lt-primary disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {cooldown > 0 ? t('signup.resendIn', { seconds: cooldown }) : t('signup.sendCode')}
-              </button>
+              {!verified && (
+                <button
+                  type="button"
+                  onClick={() => void handleSendCode()}
+                  disabled={!canSend}
+                  className="shrink-0 rounded-xl border border-lt-border bg-lt-bg px-4 text-sm font-semibold text-lt-primary transition-colors hover:border-lt-primary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {cooldown > 0 ? t('signup.resendIn', { seconds: cooldown }) : t('signup.sendCode')}
+                </button>
+              )}
             </div>
             {codeError && <p className="text-lt-danger text-xs -mt-1">{tError(codeError)}</p>}
             {!codeError && verifying && <p className="text-lt-muted text-xs -mt-1">…</p>}
