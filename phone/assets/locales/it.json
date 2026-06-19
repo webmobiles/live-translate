@@ -202,6 +202,8 @@
     "alert": {
       "tooShortTitle": "Messaggio vocale troppo breve",
       "tooShortBody": "Registra almeno 1 secondo prima di inviare.",
+      "emptyTitle": "Audio vuoto",
+      "emptyBody": "Non e stato rilevato alcun suono. Riprova.",
       "dismiss": "Chiudi avviso messaggio vocale"
     },
     "solo": {
@@ -239,9 +241,6 @@
     "countryPlaceholder": "Seleziona il tuo paese",
     "motherLang": "Lingua madre",
     "targetLang": "Lingua di traduzione preferita",
-    "theme": "Tema",
-    "lightMode": "Modalità chiara",
-    "darkMode": "Modalità scura",
     "uiLanguage": "Lingua dell'app",
     "save": "Salva modifiche",
     "saved": "Salvato!",

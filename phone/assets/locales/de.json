@@ -202,6 +202,8 @@
     "alert": {
       "tooShortTitle": "Sprachnachricht zu kurz",
       "tooShortBody": "Nehmen Sie vor dem Senden mindestens 1 Sekunde auf.",
+      "emptyTitle": "Audio leer",
+      "emptyBody": "Es wurde kein Ton erkannt. Bitte versuchen Sie es erneut.",
       "dismiss": "Hinweis zur Sprachnachricht schließen"
     },
     "solo": {
@@ -239,9 +241,6 @@
     "countryPlaceholder": "Wählen Sie Ihr Land",
     "motherLang": "Muttersprache",
     "targetLang": "Bevorzugte Übersetzungssprache",
-    "theme": "Design",
-    "lightMode": "Heller Modus",
-    "darkMode": "Dunkler Modus",
     "uiLanguage": "App-Sprache",
     "save": "Änderungen speichern",
     "saved": "Gespeichert!",

@@ -64,10 +64,35 @@
     "joinRoomSub": "Enter a room code to join"
   },
   "signup": {
-    "codePlaceholder": "6-digit code",
+    "title": "Create your account",
+    "subtitle": "Verify your email to get started",
+    "emailPlaceholder": "Email",
     "sendCode": "Send code",
     "resendIn": "Resend in {{seconds}}s",
-    "verified": "Email verified"
+    "codePlaceholder": "6-digit code",
+    "codeSent": "We emailed you a 6-digit code.",
+    "verified": "Email verified",
+    "passwordPlaceholder": "Password (min. 8 characters)",
+    "agreePrefix": "I have read and agree to the",
+    "terms": "Terms of Service",
+    "and": "and",
+    "privacy": "Privacy Policy",
+    "createAccount": "Create account",
+    "haveAccount": "Already have an account?",
+    "signIn": "Sign in",
+    "error": {
+      "email_invalid": "Enter a valid email address.",
+      "email_already_registered": "That email is already registered. Sign in instead.",
+      "send_failed": "Couldn't send the code. Please try again.",
+      "invalid_code": "That code is incorrect.",
+      "code_expired": "That code has expired. Send a new one.",
+      "too_many_attempts": "Too many attempts. Send a new code.",
+      "email_not_verified": "Verify your email before creating the account.",
+      "password_too_short": "Password must be at least 8 characters.",
+      "too_many_requests": "Too many attempts. Please wait a moment and try again.",
+      "network": "Could not reach the server. Check your network.",
+      "auth_failed": "Sign-up failed. Please try again."
+    }
   },
   "login": {
     "title": "Welcome",
@@ -91,11 +116,6 @@
       "email_password_required": "Enter your email and password.",
       "invalid_credentials": "Email or password is incorrect.",
       "network": "Could not reach the server. Check your network.",
-      "invalid_code": "That code is incorrect.",
-      "code_expired": "That code has expired. Send a new one.",
-      "too_many_attempts": "Too many attempts. Send a new code.",
-      "email_not_verified": "Verify your email before creating the account.",
-      "send_failed": "Couldn't send the code. Please try again.",
       "auth_failed": "Sign-in failed. Please try again."
     }
   },
@@ -158,7 +178,7 @@
     },
     "info": {
       "soloTitle": "How Solo / Duo works",
-      "soloBody": "A big toggle lets you switch who is speaking. Tap your language side, then speak or type.",
+      "soloBody": "A big toggle lets you switch who is speaking. Tap your language side, then speak or type. The translation appears instantly. No sharing needed — it's just the two of you on one device.",
       "normalTitle": "How it works",
       "normalBody": "Share the room code with others. Each person selects their language. Messages are translated live — everyone reads in their own language."
     },
@@ -227,6 +247,8 @@
     "alert": {
       "tooShortTitle": "Voice message too short",
       "tooShortBody": "Record at least 1 second before sending.",
+      "emptyTitle": "Audio empty",
+      "emptyBody": "No sound was detected. Try again.",
       "dismiss": "Dismiss voice message alert"
     },
     "solo": {
@@ -264,12 +286,13 @@
     "countryPlaceholder": "Select your country",
     "motherLang": "Native language",
     "targetLang": "Preferred translation language",
-    "theme": "Theme",
-    "lightMode": "Light mode",
-    "darkMode": "Dark mode",
     "uiLanguage": "App language",
     "save": "Save changes",
     "saved": "Saved!",
-    "signOutConfirm": "Are you sure you want to sign out?"
+    "signOutConfirm": "Are you sure you want to sign out?",
+    "error": {
+      "required": "This field is required.",
+      "tooLong": "Use 40 characters or fewer."
+    }
   }
 }

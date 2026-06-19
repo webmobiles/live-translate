@@ -1,6 +1,10 @@
 {
   "name": "live-translate",
   "private": true,
+  "scripts": {
+    "locales:sync": "node scripts/sync-locales.mjs",
+    "locales:check": "node scripts/sync-locales.mjs --check"
+  },
   "workspaces": ["shared", "web"],
   "devDependencies": {
     "react-native": "0.81.5"

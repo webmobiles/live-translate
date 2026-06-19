@@ -202,6 +202,8 @@
     "alert": {
       "tooShortTitle": "Message vocal trop court",
       "tooShortBody": "Enregistrez au moins 1 seconde avant d'envoyer.",
+      "emptyTitle": "Audio vide",
+      "emptyBody": "Aucun son n'a ete detecte. Reessayez.",
       "dismiss": "Fermer l'alerte"
     },
     "solo": {
@@ -239,9 +241,6 @@
     "countryPlaceholder": "Sélectionnez votre pays",
     "motherLang": "Langue maternelle",
     "targetLang": "Langue de traduction préférée",
-    "theme": "Thème",
-    "lightMode": "Mode clair",
-    "darkMode": "Mode sombre",
     "uiLanguage": "Langue de l'application",
     "save": "Enregistrer",
     "saved": "Enregistré !",

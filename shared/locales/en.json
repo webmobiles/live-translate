@@ -289,6 +289,10 @@
     "uiLanguage": "App language",
     "save": "Save changes",
     "saved": "Saved!",
-    "signOutConfirm": "Are you sure you want to sign out?"
+    "signOutConfirm": "Are you sure you want to sign out?",
+    "error": {
+      "required": "This field is required.",
+      "tooLong": "Use 40 characters or fewer."
+    }
   }
 }

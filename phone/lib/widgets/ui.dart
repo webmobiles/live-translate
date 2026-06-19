@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:reactive_forms/reactive_forms.dart';
 
 import '../theme.dart';
 
@@ -177,6 +178,121 @@ class AppInput extends StatefulWidget {
 
   @override
   State<AppInput> createState() => _AppInputState();
+}
+
+class ReactiveAppInput extends StatefulWidget {
+  final String formControlName;
+  final String? label;
+  final String? hint;
+  final ValueChanged<String>? onChanged;
+  final int? maxLength;
+  final bool autofocus;
+  final TextAlign textAlign;
+  final TextCapitalization textCapitalization;
+  final TextStyle? textStyle;
+  final List<TextInputFormatter>? inputFormatters;
+  final bool obscureText;
+  final TextInputType? keyboardType;
+  final Map<String, String Function(Object)>? validationMessages;
+
+  const ReactiveAppInput({
+    super.key,
+    required this.formControlName,
+    this.label,
+    this.hint,
+    this.onChanged,
+    this.maxLength,
+    this.autofocus = false,
+    this.textAlign = TextAlign.start,
+    this.textCapitalization = TextCapitalization.none,
+    this.textStyle,
+    this.inputFormatters,
+    this.obscureText = false,
+    this.keyboardType,
+    this.validationMessages,
+  });
+
+  @override
+  State<ReactiveAppInput> createState() => _ReactiveAppInputState();
+}
+
+class _ReactiveAppInputState extends State<ReactiveAppInput> {
+  late bool _obscured = widget.obscureText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (widget.label != null) ...[
+          Text(
+            widget.label!.toUpperCase(),
+            style: TextStyle(
+              color: AppColors.muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 1,
+            ),
+          ),
+          SizedBox(height: 6),
+        ],
+        ReactiveTextField<String>(
+          formControlName: widget.formControlName,
+          onChanged: (control) => widget.onChanged?.call(control.value ?? ''),
+          autofocus: widget.autofocus,
+          textAlign: widget.textAlign,
+          textCapitalization: widget.textCapitalization,
+          inputFormatters: widget.inputFormatters,
+          obscureText: _obscured,
+          keyboardType: widget.keyboardType,
+          maxLength: widget.maxLength,
+          maxLines: 1,
+          style: widget.textStyle ??
+              TextStyle(color: AppColors.text, fontSize: 16),
+          cursorColor: AppColors.primary,
+          validationMessages: widget.validationMessages,
+          decoration: InputDecoration(
+            counterText: '',
+            hintText: widget.hint,
+            hintStyle: TextStyle(color: AppColors.muted),
+            errorStyle: TextStyle(color: AppColors.danger, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.card,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            suffixIcon: widget.obscureText
+                ? IconButton(
+                    icon: Icon(
+                      _obscured ? Icons.visibility_off : Icons.visibility,
+                      color: AppColors.muted,
+                      size: 20,
+                    ),
+                    splashRadius: 20,
+                    tooltip: _obscured ? 'Show password' : 'Hide password',
+                    onPressed: () => setState(() => _obscured = !_obscured),
+                  )
+                : null,
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AppColors.primary),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AppColors.danger),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AppColors.danger),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _AppInputState extends State<AppInput> {

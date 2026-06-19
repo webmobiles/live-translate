@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:reactive_forms/reactive_forms.dart';
 
 import '../services/auth_service.dart';
 import '../state/app_state.dart';
@@ -30,10 +31,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final _email = TextEditingController();
-  final _password = TextEditingController();
-  final _name = TextEditingController();
-  final _code = TextEditingController();
+  late final FormGroup _authForm;
   bool? _signedIn;
   bool _signingIn = false;
   bool _emailModeIsSignup = false;
@@ -48,12 +46,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
   static const _resendCooldownSeconds = 60;
 
-  bool get _isValidEmail =>
-      RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(_email.text.trim());
+  String get _emailValue =>
+      (_authForm.control('email').value as String? ?? '').trim();
+  String get _passwordValue =>
+      _authForm.control('password').value as String? ?? '';
+  String get _nameValue => _authForm.control('name').value as String? ?? '';
+
+  bool get _isValidEmail => _authForm.control('email').valid;
+  bool get _canSubmitEmailForm =>
+      !_signingIn &&
+      _isValidEmail &&
+      _passwordValue.isNotEmpty &&
+      (!_emailModeIsSignup || (_codeVerified && _passwordValue.length >= 8));
 
   void _resetCodeState() {
     _cooldownTimer?.cancel();
-    _code.clear();
+    _authForm.control('code').reset(value: '');
     _codeSending = false;
     _codeVerifying = false;
     _codeVerified = false;
@@ -63,6 +71,21 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _authForm = FormGroup({
+      'name': FormControl<String>(value: ''),
+      'email': FormControl<String>(
+        value: '',
+        validators: [Validators.required, Validators.email],
+      ),
+      'code': FormControl<String>(
+        value: '',
+        validators: [Validators.minLength(6)],
+      ),
+      'password': FormControl<String>(
+        value: '',
+        validators: [Validators.required],
+      ),
+    });
     AuthService.isSignedIn().then((v) {
       if (mounted) setState(() => _signedIn = v);
       if (v) context.appState.syncProfileFromServer();
@@ -72,10 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _cooldownTimer?.cancel();
-    _email.dispose();
-    _password.dispose();
-    _name.dispose();
-    _code.dispose();
+    _authForm.dispose();
     super.dispose();
   }
 
@@ -104,6 +124,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _signInWithEmail() async {
+    _authForm.markAllAsTouched();
+    if (!_canSubmitEmailForm) return;
     if (_emailModeIsSignup && !_codeVerified) {
       setState(() => _authError = 'email_not_verified');
       return;
@@ -115,13 +137,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final result = _emailModeIsSignup
         ? await AuthService.createAccountWithEmail(
-            email: _email.text.trim(),
-            password: _password.text,
-            name: _name.text,
+            email: _emailValue,
+            password: _passwordValue,
+            name: _nameValue,
           )
         : await AuthService.signInWithEmail(
-            email: _email.text.trim(),
-            password: _password.text,
+            email: _emailValue,
+            password: _passwordValue,
           );
 
     if (!mounted) return;
@@ -141,6 +163,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _sendCode() async {
+    _authForm.control('email').markAsTouched();
     if (!_isValidEmail) {
       setState(() => _authError = 'email_invalid');
       return;
@@ -149,7 +172,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _codeSending = true;
       _authError = null;
     });
-    final result = await AuthService.sendEmailCode(_email.text.trim());
+    final result = await AuthService.sendEmailCode(_emailValue);
     if (!mounted) return;
     setState(() {
       _codeSending = false;
@@ -186,7 +209,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _authError = null;
     });
     final result = await AuthService.verifyEmailCode(
-      email: _email.text.trim(),
+      email: _emailValue,
       code: value,
     );
     if (!mounted) return;
@@ -278,214 +301,226 @@ class _HomeScreenState extends State<HomeScreen> {
                       SizedBox(height: 40),
                       AppCard(
                         padding: const EdgeInsets.all(32),
-                        child: Column(
-                          children: [
-                            Text(s.t('login.title'),
-                                style: TextStyle(
-                                    color: AppColors.text,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w600)),
-                            SizedBox(height: 4),
-                            Text(s.t('login.subtitle'),
-                                style: TextStyle(
-                                    color: AppColors.muted, fontSize: 14)),
-                            SizedBox(height: 24),
-                            if (_authError != null) ...[
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 12),
-                                decoration: BoxDecoration(
-                                  color:
-                                      const Color(0x1AFF4757), // danger @ 10%
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: AppColors.danger),
-                                ),
-                                child: Text(
-                                  s.t('login.error.$_authError',
-                                      fallback:
-                                          s.t('login.error.oauth_failed')),
-                                  textAlign: TextAlign.center,
+                        child: ReactiveForm(
+                          formGroup: _authForm,
+                          child: Column(
+                            children: [
+                              Text(s.t('login.title'),
                                   style: TextStyle(
-                                      color: AppColors.danger, fontSize: 14),
+                                      color: AppColors.text,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w600)),
+                              SizedBox(height: 4),
+                              Text(s.t('login.subtitle'),
+                                  style: TextStyle(
+                                      color: AppColors.muted, fontSize: 14)),
+                              SizedBox(height: 24),
+                              if (_authError != null) ...[
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color:
+                                        const Color(0x1AFF4757), // danger @ 10%
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: AppColors.danger),
+                                  ),
+                                  child: Text(
+                                    s.t('login.error.$_authError',
+                                        fallback:
+                                            s.t('login.error.oauth_failed')),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        color: AppColors.danger, fontSize: 14),
+                                  ),
+                                ),
+                                SizedBox(height: 24),
+                              ],
+                              Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.bg,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: _modeButton(
+                                        s.t('login.emailSignIn'),
+                                        !_emailModeIsSignup,
+                                        () => setState(() {
+                                          _emailModeIsSignup = false;
+                                          _authError = null;
+                                          _resetCodeState();
+                                        }),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: _modeButton(
+                                        s.t('login.createAccount'),
+                                        _emailModeIsSignup,
+                                        () => setState(() {
+                                          _emailModeIsSignup = true;
+                                          _authError = null;
+                                          _resetCodeState();
+                                        }),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              SizedBox(height: 24),
-                            ],
-                            Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: AppColors.bg,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.border),
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: _modeButton(
-                                      s.t('login.emailSignIn'),
-                                      !_emailModeIsSignup,
-                                      () => setState(() {
-                                        _emailModeIsSignup = false;
-                                        _authError = null;
-                                        _resetCodeState();
-                                      }),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: _modeButton(
-                                      s.t('login.createAccount'),
-                                      _emailModeIsSignup,
-                                      () => setState(() {
-                                        _emailModeIsSignup = true;
-                                        _authError = null;
-                                        _resetCodeState();
-                                      }),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            SizedBox(height: 16),
-                            if (_emailModeIsSignup) ...[
-                              AppInput(
-                                hint: s.t('login.namePlaceholder'),
-                                controller: _name,
-                                textCapitalization: TextCapitalization.words,
+                              SizedBox(height: 16),
+                              if (_emailModeIsSignup) ...[
+                                ReactiveAppInput(
+                                  formControlName: 'name',
+                                  hint: s.t('login.namePlaceholder'),
+                                  textCapitalization: TextCapitalization.words,
+                                ),
+                                SizedBox(height: 12),
+                              ],
+                              ReactiveAppInput(
+                                formControlName: 'email',
+                                hint: s.t('login.emailPlaceholder'),
+                                keyboardType: TextInputType.emailAddress,
+                                onChanged: (_) => setState(() {
+                                  if (_emailModeIsSignup) _codeVerified = false;
+                                }),
+                                validationMessages: {
+                                  ValidationMessage.required: (_) =>
+                                      s.t('login.error.email_invalid'),
+                                  ValidationMessage.email: (_) =>
+                                      s.t('login.error.email_invalid'),
+                                },
                               ),
                               SizedBox(height: 12),
-                            ],
-                            AppInput(
-                              hint: s.t('login.emailPlaceholder'),
-                              controller: _email,
-                              keyboardType: TextInputType.emailAddress,
-                              onChanged: (_) => setState(() {
-                                if (_emailModeIsSignup) _codeVerified = false;
-                              }),
-                            ),
-                            SizedBox(height: 12),
-                            if (_emailModeIsSignup) ...[
+                              if (_emailModeIsSignup) ...[
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: ReactiveAppInput(
+                                        formControlName: 'code',
+                                        hint: s.t('signup.codePlaceholder'),
+                                        keyboardType: TextInputType.number,
+                                        maxLength: 6,
+                                        inputFormatters: [
+                                          FilteringTextInputFormatter
+                                              .digitsOnly,
+                                        ],
+                                        onChanged: _onCodeChanged,
+                                      ),
+                                    ),
+                                    SizedBox(width: 8),
+                                    AppButton(
+                                      variant: AppButtonVariant.secondary,
+                                      loading: _codeSending,
+                                      disabled:
+                                          !_isValidEmail || _resendCooldown > 0,
+                                      onPressed: _sendCode,
+                                      label: _resendCooldown > 0
+                                          ? s.t('signup.resendIn', params: {
+                                              'seconds': '$_resendCooldown'
+                                            })
+                                          : s.t('signup.sendCode'),
+                                      labelColor: AppColors.primary,
+                                    ),
+                                  ],
+                                ),
+                                if (_codeVerified)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Text(
+                                      s.t('signup.verified'),
+                                      style: const TextStyle(
+                                        color: Color(0xFF22C55E),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                SizedBox(height: 12),
+                              ],
+                              ReactiveAppInput(
+                                formControlName: 'password',
+                                hint: s.t('login.passwordPlaceholder'),
+                                obscureText: true,
+                                onChanged: (_) => setState(() {}),
+                                validationMessages: {
+                                  ValidationMessage.required: (_) =>
+                                      s.t('login.passwordPlaceholder'),
+                                },
+                              ),
+                              SizedBox(height: 16),
+                              ReactiveFormConsumer(
+                                builder: (context, form, child) => AppButton(
+                                  loading: _signingIn,
+                                  disabled: !_canSubmitEmailForm,
+                                  onPressed: _signInWithEmail,
+                                  child: Text(
+                                    _emailModeIsSignup
+                                        ? s.t('login.createAccount')
+                                        : s.t('login.emailSignIn'),
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: 20),
                               Row(
                                 children: [
                                   Expanded(
-                                    child: AppInput(
-                                      hint: s.t('signup.codePlaceholder'),
-                                      controller: _code,
-                                      keyboardType: TextInputType.number,
-                                      maxLength: 6,
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.digitsOnly,
-                                      ],
-                                      onChanged: _onCodeChanged,
-                                    ),
-                                  ),
-                                  SizedBox(width: 8),
-                                  AppButton(
-                                    variant: AppButtonVariant.secondary,
-                                    loading: _codeSending,
-                                    disabled:
-                                        !_isValidEmail || _resendCooldown > 0,
-                                    onPressed: _sendCode,
-                                    label: _resendCooldown > 0
-                                        ? s.t('signup.resendIn', params: {
-                                            'seconds': '$_resendCooldown'
-                                          })
-                                        : s.t('signup.sendCode'),
-                                    labelColor: AppColors.primary,
-                                  ),
-                                ],
-                              ),
-                              if (_codeVerified)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 6),
-                                  child: Text(
-                                    s.t('signup.verified'),
-                                    style: const TextStyle(
-                                      color: Color(0xFF22C55E),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              SizedBox(height: 12),
-                            ],
-                            AppInput(
-                              hint: s.t('login.passwordPlaceholder'),
-                              controller: _password,
-                              obscureText: true,
-                              onChanged: (_) => setState(() {}),
-                            ),
-                            SizedBox(height: 16),
-                            AppButton(
-                              loading: _signingIn,
-                              disabled: _email.text.trim().isEmpty ||
-                                  _password.text.isEmpty ||
-                                  (_emailModeIsSignup &&
-                                      (!_codeVerified ||
-                                          _password.text.length < 8)),
-                              onPressed: _signInWithEmail,
-                              child: Text(
-                                _emailModeIsSignup
-                                    ? s.t('login.createAccount')
-                                    : s.t('login.emailSignIn'),
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700),
-                              ),
-                            ),
-                            SizedBox(height: 20),
-                            Row(
-                              children: [
-                                Expanded(
-                                    child: Divider(color: AppColors.border)),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12),
-                                  child: Text(s.t('login.or'),
-                                      style: TextStyle(
-                                          color: AppColors.muted,
-                                          fontSize: 12)),
-                                ),
-                                Expanded(
-                                    child: Divider(color: AppColors.border)),
-                              ],
-                            ),
-                            SizedBox(height: 20),
-                            AppButton(
-                              variant: AppButtonVariant.secondary,
-                              loading: _signingIn,
-                              onPressed: _signInWithGoogle,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    width: 24,
-                                    height: 24,
-                                    decoration: BoxDecoration(
-                                        color: AppColors.text,
-                                        shape: BoxShape.circle),
-                                    alignment: Alignment.center,
-                                    child: Text('G',
+                                      child: Divider(color: AppColors.border)),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12),
+                                    child: Text(s.t('login.or'),
                                         style: TextStyle(
-                                            color: Color(0xFF374151),
-                                            fontWeight: FontWeight.bold)),
+                                            color: AppColors.muted,
+                                            fontSize: 12)),
                                   ),
-                                  SizedBox(width: 12),
-                                  Text(s.t('login.continueWithGoogle'),
-                                      style: TextStyle(
-                                          color: Color(0xFF1F2937),
-                                          fontWeight: FontWeight.w600)),
+                                  Expanded(
+                                      child: Divider(color: AppColors.border)),
                                 ],
                               ),
-                            ),
-                            SizedBox(height: 24),
-                            Text(s.t('login.terms'),
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                    color: AppColors.muted,
-                                    fontSize: 12,
-                                    height: 1.5)),
-                          ],
+                              SizedBox(height: 20),
+                              AppButton(
+                                variant: AppButtonVariant.secondary,
+                                loading: _signingIn,
+                                onPressed: _signInWithGoogle,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      width: 24,
+                                      height: 24,
+                                      decoration: BoxDecoration(
+                                          color: AppColors.text,
+                                          shape: BoxShape.circle),
+                                      alignment: Alignment.center,
+                                      child: Text('G',
+                                          style: TextStyle(
+                                              color: Color(0xFF374151),
+                                              fontWeight: FontWeight.bold)),
+                                    ),
+                                    SizedBox(width: 12),
+                                    Text(s.t('login.continueWithGoogle'),
+                                        style: TextStyle(
+                                            color: Color(0xFF1F2937),
+                                            fontWeight: FontWeight.w600)),
+                                  ],
+                                ),
+                              ),
+                              SizedBox(height: 24),
+                              Text(s.t('login.terms'),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      color: AppColors.muted,
+                                      fontSize: 12,
+                                      height: 1.5)),
+                            ],
+                          ),
                         ),
                       ),
                       SizedBox(height: 40),

@@ -202,6 +202,8 @@
     "alert": {
       "tooShortTitle": "Mensagem de voz muito curta",
       "tooShortBody": "Grave por pelo menos 1 segundo antes de enviar.",
+      "emptyTitle": "Audio vazio",
+      "emptyBody": "Nenhum som foi detectado. Tente novamente.",
       "dismiss": "Dispensar alerta de mensagem de voz"
     },
     "solo": {
@@ -239,9 +241,6 @@
     "countryPlaceholder": "Selecione seu país",
     "motherLang": "Idioma nativo",
     "targetLang": "Idioma de tradução preferido",
-    "theme": "Tema",
-    "lightMode": "Modo claro",
-    "darkMode": "Modo escuro",
     "uiLanguage": "Idioma do aplicativo",
     "save": "Salvar alterações",
     "saved": "Salvo!",
