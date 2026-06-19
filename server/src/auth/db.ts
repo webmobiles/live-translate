@@ -5,6 +5,16 @@ const { Pool } = pg;
 
 export let pool: pg.Pool;
 
+function nonNegativeEnvInt(name: string, fallback: number): number {
+  const value = Number.parseInt(process.env[name] ?? '', 10);
+  return Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
+const DEFAULT_REALTIME_PROVIDER = process.env.DEFAULT_REALTIME_PROVIDER || 'openai';
+const DEFAULT_REALTIME_SECONDS_CREDIT = nonNegativeEnvInt('DEFAULT_REALTIME_SECONDS_CREDIT', 180);
+const DEFAULT_VOICE_SECONDS_CREDIT = nonNegativeEnvInt('DEFAULT_VOICE_SECONDS_CREDIT', 1800);
+const DEFAULT_TEXT_WORDS_CREDIT = nonNegativeEnvInt('DEFAULT_TEXT_WORDS_CREDIT', 10_000);
+
 const PUBLIC_USER_COLUMNS = `
   id, nickname, first_name, last_name, country, email, avatar_url,
   mother_language, target_language,
@@ -42,13 +52,13 @@ async function initSchema() {
       password_hash    TEXT,
       mother_language  VARCHAR(10),
       target_language  VARCHAR(10),
-      realtime_provider VARCHAR(30),
+      realtime_provider VARCHAR(30) DEFAULT '${DEFAULT_REALTIME_PROVIDER.replaceAll("'", "''")}',
       realtime_seconds_used BIGINT NOT NULL DEFAULT 0,
-      realtime_seconds_credit BIGINT NOT NULL DEFAULT 0,
+      realtime_seconds_credit BIGINT NOT NULL DEFAULT ${DEFAULT_REALTIME_SECONDS_CREDIT},
       voice_seconds_used BIGINT NOT NULL DEFAULT 0,
-      voice_seconds_credit BIGINT NOT NULL DEFAULT 0,
+      voice_seconds_credit BIGINT NOT NULL DEFAULT ${DEFAULT_VOICE_SECONDS_CREDIT},
       text_words_used BIGINT NOT NULL DEFAULT 0,
-      text_words_credit BIGINT NOT NULL DEFAULT 0,
+      text_words_credit BIGINT NOT NULL DEFAULT ${DEFAULT_TEXT_WORDS_CREDIT},
       created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
       updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
       CONSTRAINT uq_provider UNIQUE (provider, provider_id)
@@ -61,13 +71,19 @@ async function initSchema() {
       ADD COLUMN IF NOT EXISTS last_name VARCHAR(100),
       ADD COLUMN IF NOT EXISTS country VARCHAR(2),
       ADD COLUMN IF NOT EXISTS api_token UUID,
-      ADD COLUMN IF NOT EXISTS realtime_provider VARCHAR(30),
+      ADD COLUMN IF NOT EXISTS realtime_provider VARCHAR(30) DEFAULT '${DEFAULT_REALTIME_PROVIDER.replaceAll("'", "''")}',
       ADD COLUMN IF NOT EXISTS realtime_seconds_used BIGINT NOT NULL DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS realtime_seconds_credit BIGINT NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS realtime_seconds_credit BIGINT NOT NULL DEFAULT ${DEFAULT_REALTIME_SECONDS_CREDIT},
       ADD COLUMN IF NOT EXISTS voice_seconds_used BIGINT NOT NULL DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS voice_seconds_credit BIGINT NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS voice_seconds_credit BIGINT NOT NULL DEFAULT ${DEFAULT_VOICE_SECONDS_CREDIT},
       ADD COLUMN IF NOT EXISTS text_words_used BIGINT NOT NULL DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS text_words_credit BIGINT NOT NULL DEFAULT 0;
+      ADD COLUMN IF NOT EXISTS text_words_credit BIGINT NOT NULL DEFAULT ${DEFAULT_TEXT_WORDS_CREDIT};
+
+    ALTER TABLE users
+      ALTER COLUMN realtime_provider SET DEFAULT '${DEFAULT_REALTIME_PROVIDER.replaceAll("'", "''")}',
+      ALTER COLUMN realtime_seconds_credit SET DEFAULT ${DEFAULT_REALTIME_SECONDS_CREDIT},
+      ALTER COLUMN voice_seconds_credit SET DEFAULT ${DEFAULT_VOICE_SECONDS_CREDIT},
+      ALTER COLUMN text_words_credit SET DEFAULT ${DEFAULT_TEXT_WORDS_CREDIT};
 
     -- ── Profile fields (replaces the legacy single name column) ──────────────
     -- Migrate any existing name into first_name, then drop it. Guarded so this
