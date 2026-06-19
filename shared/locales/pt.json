@@ -200,6 +200,8 @@
       "audioOut": "Áudio de saída"
     },
     "alert": {
+      "micRequiredTitle": "Acesso ao microfone necessário",
+      "micRequiredBody": "É necessário acesso ao microfone para mensagens de voz.",
       "tooShortTitle": "Mensagem de voz muito curta",
       "tooShortBody": "Grave por pelo menos 1 segundo antes de enviar.",
       "emptyTitle": "Audio vazio",

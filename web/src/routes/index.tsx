@@ -1,8 +1,9 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { fetchUser, logout } from '@/lib/api'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 
 export const Route = createFileRoute('/')({
   component: HomeScreen,
@@ -18,6 +19,7 @@ function HomeScreen() {
     retry:    false,
     staleTime: 60_000,
   })
+  const [confirmSignOut, setConfirmSignOut] = useState(false)
 
   useEffect(() => {
     if (!isLoading && (isError || !me)) {
@@ -34,7 +36,6 @@ function HomeScreen() {
   }
 
   const handleLogout = async () => {
-    if (!confirm(t('settings.signOutConfirm'))) return
     await logout()
     queryClient.setQueryData(['auth-me'], null)
     navigate({ to: '/login', search: { error: undefined } })
@@ -73,7 +74,7 @@ function HomeScreen() {
 
             {/* Sign out (settings lives in the top-right global controls) */}
             <button
-              onClick={handleLogout}
+              onClick={() => setConfirmSignOut(true)}
               className="flex h-9 flex-shrink-0 items-center rounded-full px-3 text-xs font-medium text-lt-muted transition-colors hover:bg-lt-bg hover:text-lt-text"
             >
               {t('common.signOut')}
@@ -105,6 +106,17 @@ function HomeScreen() {
             <span className="text-lt-muted text-sm mt-0.5">{t('home.joinRoomSub')}</span>
           </button>
         </div>
+
+        <ConfirmDialog
+          open={confirmSignOut}
+          onOpenChange={setConfirmSignOut}
+          title={t('common.signOut')}
+          description={t('settings.signOutConfirm')}
+          confirmLabel={t('common.signOut')}
+          cancelLabel={t('common.cancel')}
+          onConfirm={handleLogout}
+          destructive
+        />
 
       </div>
     </div>

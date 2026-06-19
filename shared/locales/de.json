@@ -200,6 +200,8 @@
       "audioOut": "Audioausgabe"
     },
     "alert": {
+      "micRequiredTitle": "Mikrofonzugriff erforderlich",
+      "micRequiredBody": "Für Sprachnachrichten ist Mikrofonzugriff erforderlich.",
       "tooShortTitle": "Sprachnachricht zu kurz",
       "tooShortBody": "Nehmen Sie vor dem Senden mindestens 1 Sekunde auf.",
       "emptyTitle": "Audio leer",

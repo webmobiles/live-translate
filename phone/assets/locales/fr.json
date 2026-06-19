@@ -200,6 +200,8 @@
       "audioOut": "Audio traduit"
     },
     "alert": {
+      "micRequiredTitle": "Accès au microphone requis",
+      "micRequiredBody": "L'accès au microphone est requis pour les messages vocaux.",
       "tooShortTitle": "Message vocal trop court",
       "tooShortBody": "Enregistrez au moins 1 seconde avant d'envoyer.",
       "emptyTitle": "Audio vide",

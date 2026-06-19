@@ -34,7 +34,7 @@ type SharedAudioSnapshot = {
 }
 type MessageAudioPayload = NonNullable<Message['translatedAudio']>
 type RoomTransport = 'loading' | 'solo-http' | 'socket'
-type VoiceAlertReason = 'tooShort' | 'empty'
+type VoiceAlertReason = 'tooShort' | 'empty' | 'micRequired'
 type MessageProgressStage =
   | 'sending'
   | 'preparingAudio'
@@ -1141,7 +1141,7 @@ function RoomScreen() {
       setVoiceAlertReason(null)
       setIsRecording(true)
     } catch {
-      alert(t('room.micRequired'))
+      setVoiceAlertReason('micRequired')
     }
   }, [roomConfig.input.voice, startAudioLevelMeter])
 

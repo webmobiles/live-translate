@@ -245,6 +245,8 @@
       "audioOut": "Audio out"
     },
     "alert": {
+      "micRequiredTitle": "Microphone access needed",
+      "micRequiredBody": "Microphone access is required for voice messages.",
       "tooShortTitle": "Voice message too short",
       "tooShortBody": "Record at least 1 second before sending.",
       "emptyTitle": "Audio empty",

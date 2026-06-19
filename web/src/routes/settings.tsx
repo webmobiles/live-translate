@@ -5,6 +5,7 @@ import { useForm } from '@tanstack/react-form'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 import { LanguageSelector } from '@/components/LanguageSelector'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { getLang } from '@/lib/languages'
 import { saveProfile, uploadAvatar, logout } from '@/lib/api'
 import { COUNTRY_CODES } from '@live-translate/shared'
@@ -63,6 +64,7 @@ function SettingsScreen() {
   const [saved,        setSaved]        = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [submitError,  setSubmitError]  = useState('')
+  const [confirmSignOut, setConfirmSignOut] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -118,7 +120,6 @@ function SettingsScreen() {
   }, [queryClient, t])
 
   const handleLogout = async () => {
-    if (!confirm(t('settings.signOutConfirm'))) return
     await logout()
     queryClient.setQueryData(['auth-me'], null)
     navigate({ to: '/login', search: { error: undefined } })
@@ -339,13 +340,24 @@ function SettingsScreen() {
         {/* Sign out */}
         <button
           type="button"
-          onClick={handleLogout}
+          onClick={() => setConfirmSignOut(true)}
           className="text-lt-muted text-sm hover:text-lt-danger transition-colors py-2"
         >
           {t('common.signOut')}
         </button>
 
       </form>
+
+      <ConfirmDialog
+        open={confirmSignOut}
+        onOpenChange={setConfirmSignOut}
+        title={t('common.signOut')}
+        description={t('settings.signOutConfirm')}
+        confirmLabel={t('common.signOut')}
+        cancelLabel={t('common.cancel')}
+        onConfirm={handleLogout}
+        destructive
+      />
     </div>
   )
 }
