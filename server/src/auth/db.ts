@@ -54,13 +54,22 @@ async function initSchema() {
       CONSTRAINT uq_provider UNIQUE (provider, provider_id)
     );
 
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
+    -- ── Columns added after the initial users schema ─────────────────────────
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS password_hash TEXT,
+      ADD COLUMN IF NOT EXISTS first_name VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS last_name VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS country VARCHAR(2),
+      ADD COLUMN IF NOT EXISTS api_token UUID,
+      ADD COLUMN IF NOT EXISTS realtime_provider VARCHAR(30),
+      ADD COLUMN IF NOT EXISTS realtime_seconds_used BIGINT NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS realtime_seconds_credit BIGINT NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS voice_seconds_used BIGINT NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS voice_seconds_credit BIGINT NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS text_words_used BIGINT NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS text_words_credit BIGINT NOT NULL DEFAULT 0;
 
     -- ── Profile fields (replaces the legacy single name column) ──────────────
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100);
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name  VARCHAR(100);
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS country    VARCHAR(2);
-
     -- Migrate any existing name into first_name, then drop it. Guarded so this
     -- is a no-op on fresh databases (which never create the column).
     DO $$
@@ -74,18 +83,6 @@ async function initSchema() {
         ALTER TABLE users DROP COLUMN name;
       END IF;
     END $$;
-
-    -- Long-lived bearer token for native clients (the phone has no cookie jar).
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS api_token UUID;
-
-    -- ── User-level translation quotas ────────────────────────────────────────
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS realtime_provider VARCHAR(30);
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS realtime_seconds_used BIGINT NOT NULL DEFAULT 0;
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS realtime_seconds_credit BIGINT NOT NULL DEFAULT 0;
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS voice_seconds_used BIGINT NOT NULL DEFAULT 0;
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS voice_seconds_credit BIGINT NOT NULL DEFAULT 0;
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS text_words_used BIGINT NOT NULL DEFAULT 0;
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS text_words_credit BIGINT NOT NULL DEFAULT 0;
 
     -- Remove the older per-language remaining-credit model. Usage now lives on
     -- users as three account-level buckets: realtime seconds, voice seconds,
