@@ -10,6 +10,7 @@
 
 import cassandra from 'cassandra-driver';
 import mysql from 'mysql2/promise';
+import pg from 'pg';
 import { Surreal } from 'surrealdb';
 import { Kafka } from 'kafkajs';
 import { connect as connectNats } from 'nats';
@@ -62,6 +63,19 @@ async function checkTikv() {
     return { ok: true };
   } finally {
     await connection.end().catch(() => {});
+  }
+}
+
+async function checkPostgres() {
+  const url = process.env.ROOMS_DB_URL || process.env.AUTH_DB_URL;
+  if (!url) throw new Error('ROOMS_DB_URL (or AUTH_DB_URL) is not set');
+  const client = new pg.Client({ connectionString: url });
+  try {
+    await withTimeout(client.connect(), 'Postgres (rooms) connect');
+    await withTimeout(client.query('SELECT 1'), 'Postgres (rooms) query');
+    return { ok: true };
+  } finally {
+    await client.end().catch(() => {});
   }
 }
 
@@ -226,6 +240,7 @@ function checksForProvider() {
     scylla: { name: 'ScyllaDB', fn: checkScylla, required: true },
     tikv: { name: 'TiKV/TiDB', fn: checkTikv, required: true },
     surreal: { name: 'SurrealDB', fn: checkSurreal, required: true },
+    postgres: { name: 'PostgreSQL (rooms)', fn: checkPostgres, required: true },
   };
   const queueChecks: Record<string, any> = {
     nats: { name: 'NATS', fn: checkNats, required: true },
@@ -234,7 +249,7 @@ function checksForProvider() {
   };
 
   const dbCheck = dbChecks[dbProvider];
-  if (!dbCheck) throw new Error(`Unknown DB_PROVIDER: "${dbProvider}". Valid: scylla, tikv, surreal`);
+  if (!dbCheck) throw new Error(`Unknown DB_PROVIDER: "${dbProvider}". Valid: scylla, tikv, surreal, postgres`);
   const queueCheck = queueChecks[queueProvider];
   if (!queueCheck) throw new Error(`Unknown QUEUE_PROVIDER: "${queueProvider}". Valid: nats, redpanda`);
 

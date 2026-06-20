@@ -1,0 +1,349 @@
+name: live-translate-prod
+
+x-node-service: &node-service
+  image: live-translate-server-bundle:${APP_VERSION:-local}
+  build:
+    context: ..
+    dockerfile: tprod-docker/Dockerfile
+  env_file:
+    - ../.env
+  environment: &node-environment
+    NODE_ENV: production
+    PORT: "4000"
+    AUTH_DB_URL: postgresql://${POSTGRES_USER:-live_translate}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in server/.env}@postgres:5432/${POSTGRES_DB:-live_translate_auth}
+    SCYLLA_HOSTS: scylla
+    NATS_SERVERS: nats://nats:4222
+    REDPANDA_BROKERS: redpanda:9092
+    DRAGONFLY_URL: redis://dragonfly:6379
+    FASTER_WHISPER_BASE_URL: http://faster-whisper:8000
+    KOKORO_BASE_URL: http://kokoro:8880
+    PIPER_BASE_URL: http://piper:8881
+    OLLAMA_BASE_URL: http://ollama:11434/v1
+    AUDIOS_PATH: /app/data/audios
+    PROFILE_IMAGES_DIR: /app/data/images/profiles
+    INNGEST: "off"
+    INNGEST_DEV: "0"
+    LOG_PRETTY: "false"
+    LOKI_URL: http://loki:3100/loki/api/v1/push
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  restart: unless-stopped
+  init: true
+  networks:
+    - live-translate
+
+services:
+  api:
+    <<: *node-service
+    container_name: live-translate-api
+    command: ["node", "server.js"]
+    ports:
+      - "4000:4000"
+    volumes:
+      - app-audios:/app/data/audios
+      - profile-images:/app/data/images/profiles
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      scylla:
+        condition: service_healthy
+      scylla-init:
+        condition: service_completed_successfully
+      dragonfly:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  email-worker:
+    <<: *node-service
+    container_name: live-translate-email-worker
+    command: ["node", "emailWorker.js"]
+    profiles: ["redpanda"]
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: live-translate-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-live_translate}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in server/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-live_translate_auth}
+    volumes:
+      - ../data/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  nats:
+    image: nats:2.10-alpine
+    container_name: live-translate-nats
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    volumes:
+      - ../data/nats:/data
+    restart: unless-stopped
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redpanda:
+    image: redpandadata/redpanda:latest
+    container_name: live-translate-redpanda
+    profiles: ["redpanda"]
+    command:
+      - redpanda
+      - start
+      - --kafka-addr=0.0.0.0:9092
+      - --advertise-kafka-addr=redpanda:9092
+      - --rpc-addr=0.0.0.0:33145
+      - --advertise-rpc-addr=redpanda:33145
+      - --smp=1
+      - --default-log-level=warn
+    volumes:
+      - ../data/redpanda:/var/lib/redpanda/data
+    restart: unless-stopped
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "info"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  scylla:
+    image: scylladb/scylla:6.2
+    container_name: live-translate-scylla
+    command: ["--smp=1", "--memory=1G", "--overprovisioned=1", "--developer-mode=1"]
+    volumes:
+      - ../data/scylla:/var/lib/scylla
+    restart: unless-stopped
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 45s
+
+  scylla-init:
+    image: scylladb/scylla:6.2
+    container_name: live-translate-scylla-init
+    depends_on:
+      scylla:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        cqlsh scylla -e "CREATE KEYSPACE IF NOT EXISTS live_translate WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};"
+        cqlsh scylla -e "CREATE TABLE IF NOT EXISTS live_translate.rooms (id uuid PRIMARY KEY, code text, name text, config text, created_at bigint);"
+        cqlsh scylla -e "CREATE TABLE IF NOT EXISTS live_translate.rooms_by_code (code text PRIMARY KEY, room_id uuid);"
+        cqlsh scylla -e "CREATE TABLE IF NOT EXISTS live_translate.messages (room_id uuid, timestamp bigint, id uuid, sender text, sender_lang text, original text, translations map<text, text>, audio_outputs text, is_audio boolean, PRIMARY KEY (room_id, timestamp, id)) WITH CLUSTERING ORDER BY (timestamp DESC, id ASC);"
+    restart: "no"
+    networks:
+      - live-translate
+
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: live-translate-dragonfly
+    command: ["--logtostderr", "--proactor_threads=1", "--maxmemory=256mb"]
+    volumes:
+      - ../data/dragonfly:/data
+    restart: unless-stopped
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  faster-whisper:
+    image: fedirz/faster-whisper-server:latest-cpu
+    container_name: live-translate-faster-whisper
+    profiles: ["local-stt"]
+    environment:
+      WHISPER__MODEL: ${FASTER_WHISPER_MODEL:-Systran/faster-whisper-small}
+      WHISPER__INFERENCE_DEVICE: cpu
+      WHISPER__PRELOAD_MODEL: "true"
+    volumes:
+      - ../data/faster-whisper:/root/.cache/huggingface
+    restart: unless-stopped
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  kokoro:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
+    container_name: live-translate-kokoro
+    profiles: ["local-tts"]
+    restart: unless-stopped
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8880/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  piper:
+    build:
+      context: ./piper
+    image: live-translate-piper:local
+    container_name: live-translate-piper
+    profiles: ["local-tts"]
+    volumes:
+      - ../data/piper/models:/models:ro
+    restart: unless-stopped
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8881/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: live-translate-ollama
+    profiles: ["local-llm"]
+    volumes:
+      - ../data/ollama:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: live-translate-grafana
+    profiles: ["grafana"]
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in server/.env}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    ports:
+      - "127.0.0.1:3001:3000"
+    volumes:
+      - ../data/grafana:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - loki
+      - tempo
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - live-translate
+
+  loki:
+    image: grafana/loki:latest
+    container_name: live-translate-loki
+    profiles: ["grafana"]
+    command: ["-config.file=/etc/loki/local-config.yml", "-ingester.wal-disk-full-threshold=0", "-ingester.min-ready-duration=0s"]
+    volumes:
+      - ../data/loki:/loki
+      - ./grafana/loki.yml:/etc/loki/local-config.yml:ro
+    restart: unless-stopped
+    networks:
+      - live-translate
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: live-translate-tempo
+    profiles: ["grafana"]
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ../data/tempo:/tmp/tempo
+      - ./grafana/tempo.yml:/etc/tempo.yml:ro
+    restart: unless-stopped
+    networks:
+      - live-translate
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: live-translate-prometheus
+    profiles: ["grafana"]
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--web.enable-lifecycle"]
+    volumes:
+      - ../data/prometheus:/prometheus
+      - ./grafana/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    restart: unless-stopped
+    networks:
+      - live-translate
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: live-translate-cadvisor
+    profiles: ["grafana"]
+    volumes:
+      - /:/rootfs:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /run/containerd/containerd.sock:/run/containerd/containerd.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg
+    restart: unless-stopped
+    networks:
+      - live-translate
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:latest
+    container_name: live-translate-blackbox
+    profiles: ["grafana"]
+    restart: unless-stopped
+    networks:
+      - live-translate
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: live-translate-otel-collector
+    profiles: ["grafana"]
+    command: ["--config=/etc/otel-collector.yml"]
+    volumes:
+      - ./grafana/otel-collector.yml:/etc/otel-collector.yml:ro
+    depends_on:
+      - tempo
+    restart: unless-stopped
+    networks:
+      - live-translate
+
+networks:
+  live-translate:
+    driver: bridge
+
+volumes:
+  app-audios:
+  profile-images:

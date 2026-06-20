@@ -3,19 +3,20 @@
  *
  * Single point of access for all database operations.
  * Business code never imports database-specific drivers directly.
- * Switch providers with DB_PROVIDER=scylla|tikv|surreal.
+ * Switch providers with DB_PROVIDER=scylla|tikv|surreal|postgres.
  */
 
 import * as scylla from '../db/scylla';
 import * as tikv from '../db/tikv';
 import * as surreal from '../db/surreal';
+import * as postgres from '../db/postgres';
 
-const PROVIDERS: Record<string, typeof scylla> = { scylla, tikv, surreal };
+const PROVIDERS: Record<string, typeof scylla> = { scylla, tikv, surreal, postgres };
 
 function getProvider() {
   const name = (process.env.DB_PROVIDER || 'scylla').trim().toLowerCase();
   const provider = PROVIDERS[name];
-  if (!provider) throw new Error(`Unknown DB_PROVIDER: "${name}". Valid: scylla, tikv, surreal`);
+  if (!provider) throw new Error(`Unknown DB_PROVIDER: "${name}". Valid: scylla, tikv, surreal, postgres`);
   return provider;
 }
 
