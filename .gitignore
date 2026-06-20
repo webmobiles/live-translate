@@ -2,6 +2,7 @@
 server/.env
 node_modules/
 server/dist/
+server/bundle/
 server/data/
 server/audios/
 

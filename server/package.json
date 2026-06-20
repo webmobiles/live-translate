@@ -5,6 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "bundle": "./scripts/bundle.sh",
     "dev": "nodemon --watch src --ext ts --exec \"node --import tsx --import ./src/observability/tracing.ts src/server.ts\"",
     "start": "node --require ./dist/observability/tracing.js dist/server.js",
     "worker:email": "node dist/workers/emailWorker.js",
@@ -53,6 +54,7 @@
     "@types/passport": "^1.0.17",
     "@types/passport-google-oauth20": "^2.0.17",
     "@types/pg": "^8.20.0",
+    "esbuild": "^0.28.0",
     "nodemon": "^3.1.7",
     "tsx": "^4.22.4",
     "typescript": "^5.9.3"
