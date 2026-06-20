@@ -66,13 +66,26 @@ async function checkTikv() {
   }
 }
 
-async function checkPostgres() {
-  const url = process.env.ROOMS_DB_URL || process.env.AUTH_DB_URL;
-  if (!url) throw new Error('ROOMS_DB_URL (or AUTH_DB_URL) is not set');
+async function checkPostgresRooms() {
+  const url = process.env.DB_ROOMS_URL;
+  if (!url) throw new Error('DB_ROOMS_URL is not set');
   const client = new pg.Client({ connectionString: url });
   try {
     await withTimeout(client.connect(), 'Postgres (rooms) connect');
     await withTimeout(client.query('SELECT 1'), 'Postgres (rooms) query');
+    return { ok: true };
+  } finally {
+    await client.end().catch(() => {});
+  }
+}
+
+async function checkPostgresAuth() {
+  const url = process.env.DB_AUTH_URL;
+  if (!url) throw new Error('DB_AUTH_URL is not set');
+  const client = new pg.Client({ connectionString: url });
+  try {
+    await withTimeout(client.connect(), 'Postgres (auth) connect');
+    await withTimeout(client.query('SELECT 1'), 'Postgres (auth) query');
     return { ok: true };
   } finally {
     await client.end().catch(() => {});
@@ -233,14 +246,15 @@ function checksForProvider() {
   const sttProvider = process.env.STT_PROVIDER || 'openai';
   const ttsProvider = process.env.TTS_PROVIDER || 'none';
   const voiceTranslationProvider = process.env.VOICE_TRANSLATION_PROVIDER || 'none';
-  const dbProvider = (process.env.DB_PROVIDER || 'scylla').trim().toLowerCase();
+  const roomDbProvider = (process.env.DB_PROVIDER_ROOM || 'postgres').trim().toLowerCase();
+  const authDbProvider = (process.env.DB_PROVIDER_AUTH || 'postgres').trim().toLowerCase();
   const queueProvider = (process.env.QUEUE_PROVIDER || 'nats').trim().toLowerCase();
 
   const dbChecks: Record<string, any> = {
     scylla: { name: 'ScyllaDB', fn: checkScylla, required: true },
     tikv: { name: 'TiKV/TiDB', fn: checkTikv, required: true },
     surreal: { name: 'SurrealDB', fn: checkSurreal, required: true },
-    postgres: { name: 'PostgreSQL (rooms)', fn: checkPostgres, required: true },
+    postgres: { name: 'PostgreSQL (rooms)', fn: checkPostgresRooms, required: true },
   };
   const queueChecks: Record<string, any> = {
     nats: { name: 'NATS', fn: checkNats, required: true },
@@ -248,8 +262,11 @@ function checksForProvider() {
     kafka: { name: 'Redpanda', fn: checkRedpanda, required: true },
   };
 
-  const dbCheck = dbChecks[dbProvider];
-  if (!dbCheck) throw new Error(`Unknown DB_PROVIDER: "${dbProvider}". Valid: scylla, tikv, surreal, postgres`);
+  const dbCheck = dbChecks[roomDbProvider];
+  if (!dbCheck) throw new Error(`Unknown DB_PROVIDER_ROOM: "${roomDbProvider}". Valid: scylla, tikv, surreal, postgres`);
+  if (authDbProvider !== 'postgres') {
+    throw new Error(`Unknown DB_PROVIDER_AUTH: "${authDbProvider}". Valid: postgres`);
+  }
   const queueCheck = queueChecks[queueProvider];
   if (!queueCheck) throw new Error(`Unknown QUEUE_PROVIDER: "${queueProvider}". Valid: nats, redpanda`);
 
@@ -284,6 +301,7 @@ function checksForProvider() {
   });
 
   return [
+    { name: 'PostgreSQL (auth)', fn: checkPostgresAuth, required: true },
     dbCheck,
     queueCheck,
     { name: 'Realtime', fn: checkRealtime, required: true },

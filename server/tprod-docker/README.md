@@ -1,8 +1,9 @@
 # Production Docker stack
 
 This stack runs the two JavaScript bundles from `server/bundle` in separate
-Node.js containers. It intentionally excludes TiKV/TiDB/PD, Inngest's dev
-server, Redpanda Console, and development host port exposure.
+Node.js containers. Both auth and room data use PostgreSQL through independent
+environment variables. It intentionally excludes Scylla, TiKV/TiDB/PD,
+Inngest's dev server, Redpanda Console, and development host port exposure.
 
 ## Prepare
 
@@ -12,7 +13,7 @@ Build the bundles and create persistent host directories:
 cd server
 npm ci
 npm run bundle
-mkdir -p data/{postgres,nats,redpanda,scylla,dragonfly,faster-whisper,piper/models,ollama,grafana,loki,tempo,prometheus}
+mkdir -p data/{postgres,nats,redpanda,dragonfly,faster-whisper,piper/models,ollama,grafana,loki,tempo,prometheus}
 ```
 
 Set at least these production values in `server/.env`:

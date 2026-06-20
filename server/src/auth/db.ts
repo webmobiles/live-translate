@@ -25,13 +25,18 @@ const PUBLIC_USER_COLUMNS = `
 `;
 
 export async function connectAuthDb() {
-  const url = process.env.AUTH_DB_URL;
-  if (!url) throw new Error('AUTH_DB_URL is not set');
+  const provider = (process.env.DB_PROVIDER_AUTH || 'postgres').trim().toLowerCase();
+  if (provider !== 'postgres') {
+    throw new Error(`Unknown DB_PROVIDER_AUTH: "${provider}". Valid: postgres`);
+  }
+
+  const url = process.env.DB_AUTH_URL;
+  if (!url) throw new Error('DB_AUTH_URL is not set');
 
   pool = new Pool({ connectionString: url });
   await pool.query('SELECT 1');
   await initSchema();
-  logger.info({ event: 'auth_db.connected' }, 'Auth DB connected');
+  logger.info({ event: 'auth_db.connected', provider }, 'Auth DB connected');
 }
 
 async function initSchema() {

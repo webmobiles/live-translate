@@ -43,7 +43,7 @@ services:
       POSTGRES_PASSWORD: live_translate
       POSTGRES_DB: live_translate_auth
     ports:
-      - "127.0.0.1:5432:5432"   # localhost-only. AUTH_DB_URL=postgresql://live_translate:live_translate@localhost:5432/live_translate_auth
+      - "127.0.0.1:5432:5432"   # DB_AUTH_URL and DB_ROOMS_URL use this PostgreSQL instance
     volumes:
       - ../data/postgres:/var/lib/postgresql/data
     networks:

@@ -10,8 +10,10 @@ x-node-service: &node-service
   environment: &node-environment
     NODE_ENV: production
     PORT: "4000"
-    AUTH_DB_URL: postgresql://${POSTGRES_USER:-live_translate}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in server/.env}@postgres:5432/${POSTGRES_DB:-live_translate_auth}
-    SCYLLA_HOSTS: scylla
+    DB_PROVIDER_AUTH: postgres
+    DB_AUTH_URL: postgresql://${POSTGRES_USER:-live_translate}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in server/.env}@postgres:5432/${POSTGRES_DB:-live_translate_auth}
+    DB_PROVIDER_ROOM: postgres
+    DB_ROOMS_URL: postgresql://${POSTGRES_USER:-live_translate}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in server/.env}@postgres:5432/${POSTGRES_DB:-live_translate_auth}
     NATS_SERVERS: nats://nats:4222
     REDPANDA_BROKERS: redpanda:9092
     DRAGONFLY_URL: redis://dragonfly:6379
@@ -48,10 +50,6 @@ services:
         condition: service_healthy
       redpanda:
         condition: service_healthy
-      scylla:
-        condition: service_healthy
-      scylla-init:
-        condition: service_completed_successfully
       dragonfly:
         condition: service_healthy
     healthcheck:
@@ -126,40 +124,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-
-  scylla:
-    image: scylladb/scylla:6.2
-    container_name: live-translate-scylla
-    command: ["--smp=1", "--memory=1G", "--overprovisioned=1", "--developer-mode=1"]
-    volumes:
-      - ../data/scylla:/var/lib/scylla
-    restart: unless-stopped
-    networks:
-      - live-translate
-    healthcheck:
-      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
-      interval: 15s
-      timeout: 10s
-      retries: 15
-      start_period: 45s
-
-  scylla-init:
-    image: scylladb/scylla:6.2
-    container_name: live-translate-scylla-init
-    depends_on:
-      scylla:
-        condition: service_healthy
-    entrypoint: /bin/sh
-    command:
-      - -c
-      - |
-        cqlsh scylla -e "CREATE KEYSPACE IF NOT EXISTS live_translate WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};"
-        cqlsh scylla -e "CREATE TABLE IF NOT EXISTS live_translate.rooms (id uuid PRIMARY KEY, code text, name text, config text, created_at bigint);"
-        cqlsh scylla -e "CREATE TABLE IF NOT EXISTS live_translate.rooms_by_code (code text PRIMARY KEY, room_id uuid);"
-        cqlsh scylla -e "CREATE TABLE IF NOT EXISTS live_translate.messages (room_id uuid, timestamp bigint, id uuid, sender text, sender_lang text, original text, translations map<text, text>, audio_outputs text, is_audio boolean, PRIMARY KEY (room_id, timestamp, id)) WITH CLUSTERING ORDER BY (timestamp DESC, id ASC);"
-    restart: "no"
-    networks:
-      - live-translate
 
   dragonfly:
     image: docker.dragonflydb.io/dragonflydb/dragonfly:latest

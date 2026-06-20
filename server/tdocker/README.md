@@ -323,7 +323,7 @@ docker-compose --profile tikv up -d pd tikv tidb
 Then set:
 
 ```env
-DB_PROVIDER=tikv
+DB_PROVIDER_ROOM=tikv
 TIKV_SQL_HOST=localhost
 TIKV_SQL_PORT=14000
 TIKV_SQL_USER=root
@@ -340,7 +340,7 @@ docker-compose --profile surreal up -d surrealdb
 Then set:
 
 ```env
-DB_PROVIDER=surreal
+DB_PROVIDER_ROOM=surreal
 SURREALDB_URL=http://localhost:8000/rpc
 SURREALDB_NAMESPACE=live_translate
 SURREALDB_DATABASE=live_translate

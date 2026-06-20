@@ -624,18 +624,26 @@ audio message
 
 ## Database Providers
 
-Set `DB_PROVIDER` in server `.env`:
+Auth storage is configured independently:
+
+```env
+DB_PROVIDER_AUTH=postgres
+DB_AUTH_URL=postgresql://live_translate:live_translate@localhost:5432/live_translate_auth
+```
+
+Set `DB_PROVIDER_ROOM` for the room/message store:
 
 | Value | Status | Notes |
 |---|---|---|
-| `scylla` | ✅ Default | Uses ScyllaDB/Cassandra CQL on `SCYLLA_HOSTS` |
+| `postgres` | ✅ Default | Uses PostgreSQL at `DB_ROOMS_URL` |
+| `scylla` | ✅ Optional | Uses ScyllaDB/Cassandra CQL on `SCYLLA_HOSTS` |
 | `tikv` | ✅ TiKV via TiDB | Uses TiDB's MySQL-compatible SQL layer backed by TiKV |
 | `surreal` | ✅ SurrealDB | Uses SurrealDB over HTTP/WebSocket RPC |
 
 For TiKV mode, run a TiDB cluster and configure:
 
 ```env
-DB_PROVIDER=tikv
+DB_PROVIDER_ROOM=tikv
 TIKV_SQL_HOST=localhost
 TIKV_SQL_PORT=14000
 TIKV_SQL_USER=root
@@ -660,7 +668,7 @@ docker compose -f tdocker/docker-compose.yml --profile surreal up -d surrealdb
 Then configure:
 
 ```env
-DB_PROVIDER=surreal
+DB_PROVIDER_ROOM=surreal
 SURREALDB_URL=http://localhost:8000/rpc
 SURREALDB_NAMESPACE=live_translate
 SURREALDB_DATABASE=live_translate

@@ -3,8 +3,7 @@
  *
  * A drop-in alternative to the TiKV/Scylla providers that reuses the Postgres
  * you already run for auth — no extra database process. Selected with
- * DB_PROVIDER=postgres. Connects to ROOMS_DB_URL, falling back to AUTH_DB_URL,
- * so by default rooms/messages live in the auth database alongside users.
+ * DB_PROVIDER_ROOM=postgres and configured independently with DB_ROOMS_URL.
  */
 
 import pg from 'pg';
@@ -17,8 +16,8 @@ const { Pool } = pg;
 let pool: pg.Pool | null = null;
 
 function connectionString() {
-  const url = process.env.ROOMS_DB_URL || process.env.AUTH_DB_URL;
-  if (!url) throw new Error('[postgres] ROOMS_DB_URL (or AUTH_DB_URL) is not set');
+  const url = process.env.DB_ROOMS_URL;
+  if (!url) throw new Error('[postgres] DB_ROOMS_URL is not set');
   return url;
 }
 
