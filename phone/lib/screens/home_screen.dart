@@ -10,6 +10,7 @@ import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/language_selector.dart';
 import '../widgets/ui.dart';
+import '../widgets/usage_bars.dart';
 import 'create_screen.dart';
 import 'join_screen.dart';
 import 'settings_screen.dart';
@@ -633,6 +634,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                       ),
+                      if (s.usageBalance != null) ...[
+                        SizedBox(height: 16),
+                        UsageBars(usage: s.usageBalance!),
+                      ],
                       SizedBox(height: 32),
 
                       // Powered by

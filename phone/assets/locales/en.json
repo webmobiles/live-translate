@@ -273,6 +273,15 @@
       "delivered": "Delivered"
     }
   },
+  "usage": {
+    "title": "Usage",
+    "realtime": "Realtime",
+    "voice": "Voice",
+    "text": "Text",
+    "minutesShort": "min",
+    "words": "words",
+    "resetsMonthly": "Resets monthly"
+  },
   "settings": {
     "title": "Account settings",
     "avatar": "Profile photo",

@@ -228,6 +228,15 @@
       "delivered": "Zugestellt"
     }
   },
+  "usage": {
+    "title": "Nutzung",
+    "realtime": "Echtzeit",
+    "voice": "Sprache",
+    "text": "Text",
+    "minutesShort": "Min",
+    "words": "Wörter",
+    "resetsMonthly": "Wird monatlich zurückgesetzt"
+  },
   "settings": {
     "title": "Kontoeinstellungen",
     "avatar": "Profilfoto",

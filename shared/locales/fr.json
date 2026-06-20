@@ -228,6 +228,15 @@
       "delivered": "Livré"
     }
   },
+  "usage": {
+    "title": "Consommation",
+    "realtime": "Temps réel",
+    "voice": "Voix",
+    "text": "Texte",
+    "minutesShort": "min",
+    "words": "mots",
+    "resetsMonthly": "Réinitialisé chaque mois"
+  },
   "settings": {
     "title": "Paramètres du compte",
     "avatar": "Photo de profil",

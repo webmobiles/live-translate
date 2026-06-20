@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { fetchUser, logout } from '@/lib/api'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { UsageBars } from '@/components/UsageBars'
 
 export const Route = createFileRoute('/')({
   component: HomeScreen,
@@ -81,6 +82,9 @@ function HomeScreen() {
             </button>
           </div>
         )}
+
+        {/* Usage */}
+        {me?.usage_balance && <UsageBars usage={me.usage_balance} />}
 
         {/* Powered by */}
         <div className="flex items-center justify-center gap-2 bg-lt-card rounded-xl px-4 py-3 border border-lt-border">

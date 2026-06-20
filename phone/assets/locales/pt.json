@@ -228,6 +228,15 @@
       "delivered": "Entregue"
     }
   },
+  "usage": {
+    "title": "Uso",
+    "realtime": "Tempo real",
+    "voice": "Voz",
+    "text": "Texto",
+    "minutesShort": "min",
+    "words": "palavras",
+    "resetsMonthly": "Reinicia todo mês"
+  },
   "settings": {
     "title": "Configurações da conta",
     "avatar": "Foto de perfil",

@@ -17,9 +17,13 @@ class AppState extends ChangeNotifier {
   final Map<String, Map<String, dynamic>> _bundles = {};
   String _lang = 'en';
   UserPrefs _prefs = const UserPrefs();
+  Map<String, dynamic>? _usageBalance;
 
   String get lang => _lang;
   UserPrefs get prefs => _prefs;
+  // Server-derived translation usage (realtime/voice/text). Ephemeral — not
+  // persisted in UserPrefs; refreshed by syncProfileFromServer().
+  Map<String, dynamic>? get usageBalance => _usageBalance;
   bool get isLightTheme => _prefs.themeMode == 'light';
   AppPalette get palette => isLightTheme ? kLightPalette : kDarkPalette;
 
@@ -70,6 +74,7 @@ class AppState extends ChangeNotifier {
   Future<void> syncProfileFromServer() async {
     final me = await AuthService.fetchMe();
     if (me == null) return;
+    _usageBalance = me['usage_balance'] as Map<String, dynamic>?;
     String keep(String? remote, String fallback) =>
         (remote != null && remote.isNotEmpty) ? remote : fallback;
     final merged = _prefs.copyWith(
