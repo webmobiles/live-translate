@@ -9,7 +9,7 @@ export const Route = createRootRoute({
 })
 
 // Public paths that don't require authentication
-const PUBLIC_PATHS = ['/login', '/signup', '/onboarding']
+const PUBLIC_PATHS = ['/login', '/signup', '/forgot-password', '/reset-password', '/onboarding']
 
 function RootLayout() {
   const navigate   = useNavigate()

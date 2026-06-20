@@ -4,6 +4,22 @@ import 'package:reactive_forms/reactive_forms.dart';
 
 import '../theme.dart';
 
+/// Small inline error banner used by the auth screens.
+Widget errorBanner(String text) => Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0x1AFF4757), // danger @ 10%
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.danger),
+      ),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: TextStyle(color: AppColors.danger, fontSize: 14),
+      ),
+    );
+
 enum AppButtonVariant { primary, outline, secondary, ghost }
 
 enum AppButtonSize { normal, large, icon }

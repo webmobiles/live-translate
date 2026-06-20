@@ -11,7 +11,9 @@ import '../theme.dart';
 import '../widgets/language_selector.dart';
 import '../widgets/ui.dart';
 import '../widgets/usage_bars.dart';
+import '../utils/validation.dart';
 import 'create_screen.dart';
+import 'forgot_password_screen.dart';
 import 'join_screen.dart';
 import 'settings_screen.dart';
 
@@ -58,7 +60,8 @@ class _HomeScreenState extends State<HomeScreen> {
       !_signingIn &&
       _isValidEmail &&
       _passwordValue.isNotEmpty &&
-      (!_emailModeIsSignup || (_codeVerified && _passwordValue.length >= 8));
+      (!_emailModeIsSignup ||
+          (_codeVerified && passwordErrorCode(_passwordValue) == null));
 
   void _resetCodeState() {
     _cooldownTimer?.cancel();
@@ -456,6 +459,41 @@ class _HomeScreenState extends State<HomeScreen> {
                                       s.t('login.passwordPlaceholder'),
                                 },
                               ),
+                              if (_emailModeIsSignup &&
+                                  _passwordValue.isNotEmpty &&
+                                  passwordErrorCode(_passwordValue) !=
+                                      null) ...[
+                                const SizedBox(height: 6),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    s.t('forgot.error.${passwordErrorCode(_passwordValue)}'),
+                                    style: TextStyle(
+                                        color: AppColors.danger, fontSize: 12),
+                                  ),
+                                ),
+                              ],
+                              if (!_emailModeIsSignup) ...[
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: GestureDetector(
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const ForgotPasswordScreen(),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      s.t('login.forgotPassword'),
+                                      style: TextStyle(
+                                          color: AppColors.primary,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500),
+                                    ),
+                                  ),
+                                ),
+                              ],
                               SizedBox(height: 16),
                               ReactiveFormConsumer(
                                 builder: (context, form, child) => AppButton(

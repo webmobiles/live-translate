@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { sendEmailCode, verifyEmailCode, authenticateWithEmail } from '@/lib/api'
+import { passwordError } from '@/lib/validation'
 
 export const Route = createFileRoute('/signup')({
   component: SignupScreen,
@@ -102,7 +103,7 @@ function SignupScreen() {
   }
 
   async function handleCreateAccount() {
-    if (!verified || password.length < 8 || !accepted) return
+    if (!verified || passwordError(password) || !accepted) return
     setError(null)
     setSubmitting(true)
     try {
@@ -117,7 +118,8 @@ function SignupScreen() {
   }
 
   const canSend = isValidEmail(email) && cooldown === 0 && !sending
-  const canCreate = verified && password.length >= 8 && accepted && !submitting
+  const pwError = password ? passwordError(password) : null
+  const canCreate = verified && !passwordError(password) && accepted && !submitting
 
   return (
     <div className="min-h-screen bg-lt-bg flex items-center justify-center px-6 py-10">
@@ -214,6 +216,7 @@ function SignupScreen() {
                 <EyeIcon off={showPassword} />
               </button>
             </div>
+            {pwError && <p className="text-lt-danger text-xs -mt-1">{t(`signup.error.${pwError}`, t('signup.error.password_too_short'))}</p>}
 
             {/* Terms / privacy acceptance */}
             <label className="flex items-start gap-2 text-xs text-lt-muted leading-relaxed">

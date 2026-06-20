@@ -141,6 +141,14 @@ function hashCode(code: string) {
   return crypto.createHash('sha256').update(code).digest('hex');
 }
 
+// System-wide password policy: at least 8 characters and one uppercase letter.
+// Returns an i18n error code, or null when the password is acceptable.
+function passwordError(password: string): string | null {
+  if (password.length < 8) return 'password_too_short';
+  if (!/[A-Z]/.test(password)) return 'password_no_uppercase';
+  return null;
+}
+
 async function hashPassword(password: string) {
   const salt = crypto.randomBytes(16).toString('hex');
   const key = (await scrypt(password, salt, 64)) as Buffer;
@@ -282,7 +290,8 @@ router.post('/email/signup', rateLimitLogin, async (req, res, next) => {
       : email.split('@')[0];
 
     if (!email || !email.includes('@')) return res.status(400).json({ error: 'email_invalid' });
-    if (password.length < 8) return res.status(400).json({ error: 'password_too_short' });
+    const pwError = passwordError(password);
+    if (pwError) return res.status(400).json({ error: pwError });
 
     // Email must have passed code verification first (the pre-user is validated).
     if (!(await isEmailValidated(email))) return res.status(403).json({ error: 'email_not_verified' });
@@ -316,6 +325,55 @@ router.post('/email/login', rateLimitLogin, async (req, res, next) => {
     }
 
     loginAndRespond(req, res, next, user);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Password reset (forgot password) ────────────────────────────────────────
+
+// Step 1: email a reset code to a registered account. Anti-enumeration — always
+// responds ok, and only arms/sends a code when the account actually exists. The
+// client then verifies the code via /email/verify-code (shared with signup),
+// which marks the pre-user validated.
+router.post('/password/forgot', rateLimitLogin, async (req, res, next) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+    if (!email || !email.includes('@')) return res.status(400).json({ error: 'email_invalid' });
+
+    const user = await findUserByEmail(email);
+    if (user) {
+      const code = generateCode();
+      const expiresAt = new Date(Date.now() + codeTtlMs());
+      const preuser = await upsertPreuserWithCode(email, hashCode(code), expiresAt);
+      await publishVerificationEmail({ preuserId: preuser.id, email: preuser.email, code });
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Step 2: set the new password. Gated on the code having been verified
+// (pre-user validated). Does NOT auto-login — the client returns to /login.
+router.post('/password/reset', rateLimitLogin, async (req, res, next) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+    const password = normalizePassword(req.body?.password);
+
+    const pwError = passwordError(password);
+    if (pwError) return res.status(400).json({ error: pwError });
+
+    if (!(await isEmailValidated(email))) return res.status(403).json({ error: 'email_not_verified' });
+
+    const user = await findUserByEmail(email);
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
+
+    await setPasswordForUser(user.id, await hashPassword(password));
+    await clearPreuser(email);
+
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

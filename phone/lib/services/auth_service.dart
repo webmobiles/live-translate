@@ -119,6 +119,19 @@ class AuthService {
   }) =>
       _postJson('/auth/email/verify-code', {'email': email, 'code': code});
 
+  /// Forgot password — step 1: email a reset code to a registered account.
+  /// Anti-enumeration: always resolves ok. Code is checked with verifyEmailCode.
+  static Future<AuthResult> forgotPassword(String email) =>
+      _postJson('/auth/password/forgot', {'email': email});
+
+  /// Forgot password — step 2: set the new password (gated server-side on the
+  /// verified code).
+  static Future<AuthResult> resetPassword({
+    required String email,
+    required String password,
+  }) =>
+      _postJson('/auth/password/reset', {'email': email, 'password': password});
+
   /// POSTs a JSON body and maps a non-2xx `{error}` payload to [AuthResult].
   /// Used by the verification endpoints, which return no session/token.
   static Future<AuthResult> _postJson(

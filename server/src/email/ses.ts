@@ -27,13 +27,12 @@ export async function sendVerificationCodeEmail(to: string, code: string) {
   const subject = `${code} is your HelloVia Translate verification code`;
   const text =
     `Your HelloVia Translate verification code is ${code}.\n\n` +
-    `Enter it on the sign-up screen to finish creating your account. ` +
-    `This code expires in ${TTL_MINUTES} minutes.\n\n` +
+    `Enter it to continue. This code expires in ${TTL_MINUTES} minutes.\n\n` +
     `If you didn't request this, you can ignore this email.`;
   const html =
     `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#1a1a1a">` +
-    `<h2 style="margin:0 0 16px">Verify your email</h2>` +
-    `<p style="margin:0 0 16px;color:#555">Use this code to finish creating your HelloVia Translate account:</p>` +
+    `<h2 style="margin:0 0 16px">Your verification code</h2>` +
+    `<p style="margin:0 0 16px;color:#555">Enter this code to continue with HelloVia Translate:</p>` +
     `<div style="font-size:34px;font-weight:700;letter-spacing:8px;background:#f3f4f6;border-radius:12px;padding:18px 0;text-align:center;margin:0 0 16px">${code}</div>` +
     `<p style="margin:0 0 8px;color:#888;font-size:13px">This code expires in ${TTL_MINUTES} minutes.</p>` +
     `<p style="margin:0;color:#888;font-size:13px">If you didn't request this, you can ignore this email.</p>` +

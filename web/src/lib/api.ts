@@ -65,6 +65,37 @@ export async function verifyEmailCode(email: string, code: string): Promise<void
   }
 }
 
+// ── Password reset (forgot password) ────────────────────────────────────────
+
+// Step 1: email a reset code to a registered account (anti-enumeration: always
+// resolves). The code is then checked with verifyEmailCode().
+export async function forgotPassword(email: string): Promise<void> {
+  const res = await fetch('/auth/password/forgot', {
+    method:      'POST',
+    credentials: 'include',
+    headers:     { 'Content-Type': 'application/json' },
+    body:        JSON.stringify({ email }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error ?? `HTTP ${res.status}`)
+  }
+}
+
+// Step 2: set the new password (gated server-side on the verified code).
+export async function resetPassword(email: string, password: string): Promise<void> {
+  const res = await fetch('/auth/password/reset', {
+    method:      'POST',
+    credentials: 'include',
+    headers:     { 'Content-Type': 'application/json' },
+    body:        JSON.stringify({ email, password }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error ?? `HTTP ${res.status}`)
+  }
+}
+
 // firstName/lastName/country are optional here: the onboarding flow saves only
 // nickname + languages, and the server preserves any field that is omitted. The
 // settings screen requires all of them client-side before calling this.

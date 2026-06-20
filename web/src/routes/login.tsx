@@ -2,7 +2,7 @@ import { createFileRoute, useSearch } from '@tanstack/react-router'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, Link } from '@tanstack/react-router'
 import { ChevronDown, Globe2 } from 'lucide-react'
 import { authenticateWithEmail } from '@/lib/api'
 
@@ -186,6 +186,11 @@ function LoginScreen() {
               >
                 <EyeIcon off={showPassword} />
               </button>
+            </div>
+            <div className="flex justify-end -mt-1">
+              <Link to="/forgot-password" className="text-lt-primary text-xs font-medium hover:underline">
+                {t('login.forgotPassword')}
+              </Link>
             </div>
             <button
               type="submit"
