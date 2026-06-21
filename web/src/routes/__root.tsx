@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { createRootRoute, Outlet, useNavigate, useLocation } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { fetchUser } from '@/lib/api'
+import { fetchUser, fetchAuthToken } from '@/lib/api'
+import { setSocketAuthToken } from '@/lib/socket'
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -23,6 +24,21 @@ function RootLayout() {
   })
 
   const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p))
+
+  // Once authenticated, hand the socket the bearer token so the server can
+  // identify the user on the handshake (records room history & per-user usage).
+  // Cleared on logout so a stale token never rides a fresh session.
+  useEffect(() => {
+    if (!user) {
+      setSocketAuthToken(null)
+      return
+    }
+    let cancelled = false
+    fetchAuthToken()
+      .then(token => { if (!cancelled) setSocketAuthToken(token) })
+      .catch(() => { /* socket still connects unauthenticated */ })
+    return () => { cancelled = true }
+  }, [user])
 
   useEffect(() => {
     if (isLoading) return

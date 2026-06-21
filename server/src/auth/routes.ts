@@ -388,6 +388,19 @@ router.get('/me', requireAuth, (req, res) => {
   res.json(publicUser(req.user as any));
 });
 
+// The bearer token used to authenticate the Socket.IO handshake. Web clients
+// authenticate over the session cookie, then call this to attach the token to
+// their socket (so the server can identify the user on the socket too).
+router.get('/token', requireAuth, async (req, res, next) => {
+  try {
+    const user = req.user as any;
+    const token = await ensureApiToken(user.id);
+    res.json({ token });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Recent rooms the user has entered, capped by plan. `capped` is true when the
 // user has more rooms than their plan can show → the client offers an upsell.
 router.get('/rooms', requireAuth, async (req, res, next) => {

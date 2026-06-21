@@ -143,7 +143,7 @@
       "soloSub": "Dois idiomas, um dispositivo — alterne para trocar quem fala"
     },
     "fields": {
-      "roomName": "Nome da sala (opcional)",
+      "roomName": "Nome da sala",
       "roomNamePlaceholder": "ex.: Reunião de equipe, Conferência…",
       "yourName": "Apelido",
       "yourNamePlaceholder": "Apelido",
@@ -175,6 +175,7 @@
     },
     "errors": {
       "nickRequired": "Digite seu nome.",
+      "roomNameRequired": "Introduza um nome de sala.",
       "sameLang": "Escolha dois idiomas diferentes."
     },
     "cta": "Criar sala",

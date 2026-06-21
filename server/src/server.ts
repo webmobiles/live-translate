@@ -344,6 +344,17 @@ app.post('/api/solo/rooms', async (req, res) => {
       config,
     });
 
+    // Best-effort: remember this room in the signed-in user's history. Solo
+    // rooms are created over HTTP (not the socket), so the socket-side
+    // recordRoomVisit never runs — record it here too. req.user is resolved
+    // from the session cookie (web) or the bearer token (phone) upstream.
+    const user = req.user as any;
+    if (user?.id) {
+      recordRoomVisit(user.id, room.code, room.name ?? req.body?.name ?? null).catch(
+        (err: Error) => logger.warn({ event: 'room.visit_record_failed', roomCode: room.code, err }, 'Failed to record solo room visit'),
+      );
+    }
+
     logger.info({
       event: 'solo.room.created',
       roomCode: room.code,

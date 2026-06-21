@@ -9,6 +9,19 @@ import 'client_log_service.dart';
 class SocketService {
   static io.Socket? _socket;
 
+  /// Bearer token attached to the Socket.IO handshake so the server can
+  /// identify the signed-in user on the socket (records room history &
+  /// per-user usage). Primed from AuthService.getToken() before connecting.
+  static String? authToken;
+
+  /// Cache the token and apply it to any existing socket so a later connect
+  /// (or reconnection) carries the user identity. Pass null on sign-out.
+  static void setAuthToken(String? token) {
+    authToken = token;
+    final s = _socket;
+    if (s != null) s.auth = token != null ? {'token': token} : {};
+  }
+
   static io.Socket getSocket() {
     if (_socket != null) return _socket!;
 
@@ -20,6 +33,7 @@ class SocketService {
           .enableReconnection()
           .setReconnectionAttempts(5)
           .setReconnectionDelay(1000)
+          .setAuth(authToken != null ? {'token': authToken} : {})
           .build(),
     );
 
@@ -59,6 +73,8 @@ class SocketService {
 
   static io.Socket connect() {
     final s = getSocket();
+    // Make sure the latest token rides this (re)connection.
+    s.auth = authToken != null ? {'token': authToken} : {};
     if (!s.connected) {
       ClientLogService.info('client.socket.connect_start', {'url': kServerUrl});
       s.connect();

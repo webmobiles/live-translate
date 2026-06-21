@@ -143,7 +143,7 @@
       "soloSub": "Zwei Sprachen, ein Gerät — wechseln, um die sprechende Person zu ändern"
     },
     "fields": {
-      "roomName": "Raumname (optional)",
+      "roomName": "Raumname",
       "roomNamePlaceholder": "z. B. Teammeeting, Konferenz…",
       "yourName": "Spitzname",
       "yourNamePlaceholder": "Spitzname",
@@ -175,6 +175,7 @@
     },
     "errors": {
       "nickRequired": "Bitte geben Sie Ihren Namen ein.",
+      "roomNameRequired": "Bitte gib einen Raumnamen ein.",
       "sameLang": "Bitte wählen Sie zwei unterschiedliche Sprachen."
     },
     "cta": "Raum erstellen",

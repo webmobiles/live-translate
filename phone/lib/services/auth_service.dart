@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config.dart';
 import 'client_log_service.dart';
+import 'socket_service.dart';
 
 /// Port of the Google-sign-in flow in mobile/app/index.tsx.
 /// Opens `$SERVER_URL/auth/google` in a web session and waits for the
@@ -39,6 +40,9 @@ class AuthService {
     } else {
       await sp.setString(_tokenKey, value);
     }
+    // Keep the socket handshake identity in lockstep with the stored token so
+    // the server records this user's room history & usage over the socket.
+    SocketService.setAuthToken((value != null && value.isNotEmpty) ? value : null);
   }
 
   /// Returns an [AuthResult] describing the outcome.

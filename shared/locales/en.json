@@ -188,7 +188,7 @@
       "soloSub": "Two languages, one device — flip to switch speaker"
     },
     "fields": {
-      "roomName": "Room Name (optional)",
+      "roomName": "Room Name",
       "roomNamePlaceholder": "e.g. Team Meeting, Conference…",
       "yourName": "Nickname",
       "yourNamePlaceholder": "Nickname",
@@ -221,6 +221,7 @@
     },
     "errors": {
       "nickRequired": "Please enter your name.",
+      "roomNameRequired": "Please enter a room name.",
       "sameLang": "Please choose two different languages."
     },
     "cta": "Create Room",

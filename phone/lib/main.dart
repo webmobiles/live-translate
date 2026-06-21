@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 
 import 'config.dart';
 import 'screens/home_screen.dart';
+import 'services/auth_service.dart';
+import 'services/socket_service.dart';
 import 'state/app_state.dart';
 import 'theme.dart';
 
@@ -11,6 +13,10 @@ Future<void> main() async {
 
   // Startup diagnostics — confirms which server URL the build is actually using.
   debugPrint('[config] SERVER_URL=$kServerUrl');
+
+  // Prime the socket handshake with the persisted bearer token (if any) so a
+  // returning signed-in user is identified on the socket from the first connect.
+  SocketService.setAuthToken(await AuthService.getToken());
 
   final state = AppState();
   await state.init();

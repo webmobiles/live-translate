@@ -47,6 +47,7 @@ function CreateScreen() {
 
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
+  const [roomNameError, setRoomNameError] = useState(false)
 
   const isSolo = roomMode === 'solo_multilang'
 
@@ -65,6 +66,7 @@ function CreateScreen() {
   }
 
   const handleCreate = () => {
+    if (!roomName.trim()) { setRoomNameError(true); return }
     if (!isSolo && !nickname.trim()) { setError(t('create.errors.nickRequired')); return }
     if (isSolo && soloLangA === soloLangB) { setError(t('create.errors.sameLang')); return }
     setError('')
@@ -85,7 +87,7 @@ function CreateScreen() {
             credentials: 'include',
             headers:     { 'Content-Type': 'application/json' },
             body:        JSON.stringify({
-              name: undefined,
+              name: roomName.trim(),
               nickname: 'Solo',
               language: soloLangB,
               config: fullConfig,
@@ -125,7 +127,7 @@ function CreateScreen() {
       socket.emit(
         'room:create',
         {
-          name:     isSolo ? undefined : (roomName.trim() || undefined),
+          name:     roomName.trim(),
           nickname: isSolo ? 'Solo'    : nickname.trim(),
           language: isSolo ? soloLangB : language,
           config:   fullConfig,
@@ -212,22 +214,24 @@ function CreateScreen() {
           </div>
         </div>
 
+        {/* Room name (required, shown for both modes) */}
+        <div className="flex flex-col gap-2">
+          <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
+            {t('create.fields.roomName')}
+          </label>
+          <input
+            className={`bg-lt-card border rounded-xl px-4 py-3.5 text-lt-text text-base placeholder-lt-muted focus:outline-none transition-colors ${roomNameError ? 'border-lt-danger' : 'border-lt-border focus:border-lt-primary'}`}
+            placeholder={t('create.fields.roomNamePlaceholder')}
+            value={roomName}
+            onChange={e => { setRoomName(e.target.value); if (roomNameError) setRoomNameError(false) }}
+            maxLength={40}
+          />
+          {roomNameError && <p className="text-lt-danger text-xs -mt-1">{t('create.errors.roomNameRequired')}</p>}
+        </div>
+
         {/* Normal mode fields */}
         {!isSolo && (
           <div className="flex flex-col gap-5">
-            <div className="flex flex-col gap-2">
-              <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
-                {t('create.fields.roomName')}
-              </label>
-              <input
-                className="bg-lt-card border border-lt-border rounded-xl px-4 py-3.5 text-lt-text text-base placeholder-lt-muted focus:outline-none focus:border-lt-primary transition-colors"
-                placeholder={t('create.fields.roomNamePlaceholder')}
-                value={roomName}
-                onChange={e => setRoomName(e.target.value)}
-                maxLength={40}
-              />
-            </div>
-
             <div className="flex flex-col gap-2">
               <label className="text-lt-muted text-sm font-medium uppercase tracking-wider">
                 {t('create.fields.yourName')}

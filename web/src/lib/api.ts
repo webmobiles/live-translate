@@ -162,3 +162,15 @@ export async function uploadAvatar(file: File): Promise<string> {
 export async function logout(): Promise<void> {
   await fetch('/auth/logout', { method: 'POST', credentials: 'include' })
 }
+
+// The bearer token used to authenticate the Socket.IO handshake. Web clients
+// authenticate over the session cookie (fetch above), then call this to attach
+// the token to their socket so the server can identify the user on the socket
+// too — that's what lets the server record per-user room history & usage.
+export async function fetchAuthToken(): Promise<string | null> {
+  const res = await fetch('/auth/token', { credentials: 'include' })
+  if (res.status === 401) return null
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const data = await res.json()
+  return (data.token as string) ?? null
+}

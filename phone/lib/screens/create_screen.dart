@@ -31,6 +31,7 @@ class _CreateScreenState extends State<CreateScreen> {
   bool _translatedAudio = true;
   bool _loading = false;
   bool _initialised = false;
+  bool _roomNameError = false;
 
   bool get _isSolo => _roomMode == 'solo_multilang';
 
@@ -59,6 +60,10 @@ class _CreateScreenState extends State<CreateScreen> {
     final s = context.appState;
     if (!await AuthService.isSignedIn()) {
       if (mounted) Navigator.of(context).pop();
+      return;
+    }
+    if (_roomName.text.trim().isEmpty) {
+      setState(() => _roomNameError = true);
       return;
     }
     if (!_isSolo && _nickname.text.trim().isEmpty) {
@@ -95,9 +100,7 @@ class _CreateScreenState extends State<CreateScreen> {
       SocketService.emitWithAckLogged(
         'room:create',
         {
-          'name': _isSolo
-              ? null
-              : (_roomName.text.trim().isEmpty ? null : _roomName.text.trim()),
+          'name': _roomName.text.trim(),
           'nickname': _isSolo ? 'Solo' : _nickname.text.trim(),
           'language': _isSolo ? _soloLangB : _language,
           'config': config.toJson(),
@@ -146,7 +149,8 @@ class _CreateScreenState extends State<CreateScreen> {
   Future<void> _createSolo(RoomConfig config) async {
     final s = context.appState;
     try {
-      final room = await SoloApi.createRoom(config: config);
+      final room =
+          await SoloApi.createRoom(name: _roomName.text.trim(), config: config);
       if (!mounted) return;
       setState(() => _loading = false);
       Navigator.of(context).pushReplacement(MaterialPageRoute(
@@ -221,6 +225,23 @@ class _CreateScreenState extends State<CreateScreen> {
               ),
               SizedBox(height: 28),
 
+              // Room name (required, shown for both modes)
+              AppInput(
+                label: s.t('create.fields.roomName'),
+                hint: s.t('create.fields.roomNamePlaceholder'),
+                controller: _roomName,
+                maxLength: 40,
+                onChanged: (_) {
+                  if (_roomNameError) setState(() => _roomNameError = false);
+                },
+              ),
+              if (_roomNameError) ...[
+                const SizedBox(height: 6),
+                Text(s.t('create.errors.roomNameRequired'),
+                    style: TextStyle(color: AppColors.danger, fontSize: 12)),
+              ],
+              SizedBox(height: 20),
+
               if (!_isSolo) ..._normalFields(s),
               if (_isSolo) ..._soloFields(s),
 
@@ -238,12 +259,10 @@ class _CreateScreenState extends State<CreateScreen> {
                         Text(
                           s.t('create.options.realtimeVoice',
                               fallback: 'Realtime voice translation'),
-                          style: TextStyle(
-                              color: AppColors.text, fontSize: 14),
+                          style: TextStyle(color: AppColors.text, fontSize: 14),
                         ),
                         Switch(
-                          value:
-                              _voicePipeline == 'direct-voice-translation',
+                          value: _voicePipeline == 'direct-voice-translation',
                           activeThumbColor: AppColors.text,
                           activeTrackColor: AppColors.primary,
                           inactiveTrackColor: AppColors.border,
@@ -317,13 +336,6 @@ class _CreateScreenState extends State<CreateScreen> {
   }
 
   List<Widget> _normalFields(AppState s) => [
-        AppInput(
-          label: s.t('create.fields.roomName'),
-          hint: s.t('create.fields.roomNamePlaceholder'),
-          controller: _roomName,
-          maxLength: 40,
-        ),
-        SizedBox(height: 20),
         AppInput(
           label: s.t('create.fields.yourName'),
           hint: s.t('create.fields.yourNamePlaceholder'),

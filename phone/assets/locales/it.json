@@ -143,7 +143,7 @@
       "soloSub": "Due lingue, un dispositivo — cambia per alternare chi parla"
     },
     "fields": {
-      "roomName": "Nome stanza (opzionale)",
+      "roomName": "Nome stanza",
       "roomNamePlaceholder": "es. Riunione team, Conferenza…",
       "yourName": "Soprannome",
       "yourNamePlaceholder": "Soprannome",
@@ -175,6 +175,7 @@
     },
     "errors": {
       "nickRequired": "Inserisci il tuo nome.",
+      "roomNameRequired": "Inserisci un nome per la stanza.",
       "sameLang": "Scegli due lingue diverse."
     },
     "cta": "Crea stanza",
