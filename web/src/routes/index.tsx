@@ -68,9 +68,16 @@ function HomeScreen() {
                   : <span className="text-lg leading-none">👤</span>
                 }
               </div>
-              <span className="text-lt-text text-sm font-semibold truncate">
-                {me.nickname ?? me.first_name ?? ''}
-              </span>
+              <div className="flex flex-col min-w-0">
+                <span className="text-lt-text text-sm font-semibold truncate">
+                  {me.nickname ?? me.first_name ?? ''}
+                </span>
+                {me.plan && (
+                  <span className="self-start mt-0.5 rounded-full bg-lt-primary/15 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-lt-primary">
+                    {me.plan}
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Sign out (settings lives in the top-right global controls) */}

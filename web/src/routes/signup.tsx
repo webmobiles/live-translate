@@ -166,7 +166,7 @@ function SignupScreen() {
 
             {/* Verification code + send button */}
             <div className="flex gap-2">
-              <div className="relative flex-1">
+              <div className="relative min-w-0 flex-1">
                 <input
                   value={code}
                   onChange={(e) => handleCodeChange(e.target.value)}
@@ -185,7 +185,7 @@ function SignupScreen() {
                   type="button"
                   onClick={() => void handleSendCode()}
                   disabled={!canSend}
-                  className="shrink-0 rounded-xl border border-lt-border bg-lt-bg px-4 text-sm font-semibold text-lt-primary transition-colors hover:border-lt-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  className="shrink-0 whitespace-nowrap rounded-xl border border-lt-border bg-lt-bg px-4 text-sm font-semibold text-lt-primary transition-colors hover:border-lt-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {cooldown > 0 ? t('signup.resendIn', { seconds: cooldown }) : t('signup.sendCode')}
                 </button>

@@ -35,6 +35,10 @@ class AppButton extends StatelessWidget {
   final bool disabled;
   final Color? labelColor;
   final EdgeInsetsGeometry? margin;
+  // When false, the button sizes to its content instead of expanding to fill
+  // the parent — required inside a Row (alongside an Expanded sibling), where
+  // the default full-width wrapper would force an infinite width and overflow.
+  final bool fullWidth;
 
   const AppButton({
     super.key,
@@ -47,6 +51,7 @@ class AppButton extends StatelessWidget {
     this.disabled = false,
     this.labelColor,
     this.margin,
+    this.fullWidth = true,
   });
 
   @override
@@ -115,8 +120,9 @@ class AppButton extends StatelessWidget {
       ),
     );
 
-    final wrapped =
-        isIcon ? button : SizedBox(width: double.infinity, child: button);
+    final wrapped = (isIcon || !fullWidth)
+        ? button
+        : SizedBox(width: double.infinity, child: button);
     return margin != null ? Padding(padding: margin!, child: wrapped) : wrapped;
   }
 

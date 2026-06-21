@@ -421,6 +421,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       SizedBox(width: 8),
                                       AppButton(
                                         variant: AppButtonVariant.secondary,
+                                        fullWidth: false,
                                         loading: _codeSending,
                                         disabled: !_isValidEmail ||
                                             _resendCooldown > 0,
@@ -657,16 +658,43 @@ class _HomeScreenState extends State<HomeScreen> {
                             _avatar(prefs.avatarUri),
                             SizedBox(width: 12),
                             Expanded(
-                              child: Text(
-                                prefs.nickname.isNotEmpty
-                                    ? prefs.nickname
-                                    : s.t('settings.nicknamePlaceholder'),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    color: AppColors.text,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    prefs.nickname.isNotEmpty
+                                        ? prefs.nickname
+                                        : s.t('settings.nicknamePlaceholder'),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        color: AppColors.text,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500),
+                                  ),
+                                  if (s.plan != null && s.plan!.isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary
+                                            .withValues(alpha: 0.15),
+                                        borderRadius:
+                                            BorderRadius.circular(999),
+                                      ),
+                                      child: Text(
+                                        s.plan!,
+                                        style: TextStyle(
+                                            color: AppColors.primary,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                            letterSpacing: 0.5),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
                           ],

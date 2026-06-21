@@ -101,13 +101,13 @@ function ForgotPasswordScreen() {
               placeholder={t('forgot.codePlaceholder')}
               inputMode="numeric"
               autoComplete="one-time-code"
-              className="flex-1 rounded-xl border border-lt-border bg-lt-bg px-4 py-3 text-lt-text tracking-[0.3em] outline-none transition-colors placeholder:tracking-normal placeholder:text-lt-muted focus:border-lt-primary"
+              className="min-w-0 flex-1 rounded-xl border border-lt-border bg-lt-bg px-4 py-3 text-lt-text tracking-[0.3em] outline-none transition-colors placeholder:tracking-normal placeholder:text-lt-muted focus:border-lt-primary"
             />
             <button
               type="button"
               onClick={() => void handleSendCode()}
               disabled={!canSend}
-              className="shrink-0 rounded-xl border border-lt-border bg-lt-bg px-4 text-sm font-semibold text-lt-primary transition-colors hover:border-lt-primary disabled:cursor-not-allowed disabled:opacity-50"
+              className="shrink-0 whitespace-nowrap rounded-xl border border-lt-border bg-lt-bg px-4 text-sm font-semibold text-lt-primary transition-colors hover:border-lt-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               {cooldown > 0 ? t('forgot.resendIn', { seconds: cooldown }) : t('forgot.sendCode')}
             </button>

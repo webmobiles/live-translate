@@ -8,6 +8,7 @@ export interface User {
   avatar_url: string | null
   mother_language: string | null
   target_language: string | null
+  plan: string
   realtime_provider: string | null
   realtime_seconds_used: number
   realtime_seconds_credit: number

@@ -158,6 +158,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         const SizedBox(width: 8),
                         AppButton(
                           variant: AppButtonVariant.secondary,
+                          fullWidth: false,
                           loading: _sending,
                           disabled: !canSend,
                           onPressed: _sendCode,
