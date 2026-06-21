@@ -18,6 +18,7 @@ const DEFAULT_TEXT_WORDS_CREDIT = nonNegativeEnvInt('DEFAULT_TEXT_WORDS_CREDIT',
 const PUBLIC_USER_COLUMNS = `
   id, nickname, first_name, last_name, country, email, avatar_url,
   mother_language, target_language,
+  plan,
   realtime_provider,
   realtime_seconds_used, realtime_seconds_credit,
   voice_seconds_used, voice_seconds_credit,
@@ -57,6 +58,7 @@ async function initSchema() {
       password_hash    TEXT,
       mother_language  VARCHAR(10),
       target_language  VARCHAR(10),
+      plan             VARCHAR(30)  NOT NULL DEFAULT 'Free',
       realtime_provider VARCHAR(30) DEFAULT '${DEFAULT_REALTIME_PROVIDER.replaceAll("'", "''")}',
       realtime_seconds_used BIGINT NOT NULL DEFAULT 0,
       realtime_seconds_credit BIGINT NOT NULL DEFAULT ${DEFAULT_REALTIME_SECONDS_CREDIT},
@@ -76,6 +78,7 @@ async function initSchema() {
       ADD COLUMN IF NOT EXISTS last_name VARCHAR(100),
       ADD COLUMN IF NOT EXISTS country VARCHAR(2),
       ADD COLUMN IF NOT EXISTS api_token UUID,
+      ADD COLUMN IF NOT EXISTS plan VARCHAR(30) NOT NULL DEFAULT 'Free',
       ADD COLUMN IF NOT EXISTS realtime_provider VARCHAR(30) DEFAULT '${DEFAULT_REALTIME_PROVIDER.replaceAll("'", "''")}',
       ADD COLUMN IF NOT EXISTS realtime_seconds_used BIGINT NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS realtime_seconds_credit BIGINT NOT NULL DEFAULT ${DEFAULT_REALTIME_SECONDS_CREDIT},
@@ -85,6 +88,7 @@ async function initSchema() {
       ADD COLUMN IF NOT EXISTS text_words_credit BIGINT NOT NULL DEFAULT ${DEFAULT_TEXT_WORDS_CREDIT};
 
     ALTER TABLE users
+      ALTER COLUMN plan SET DEFAULT 'Free',
       ALTER COLUMN realtime_provider SET DEFAULT '${DEFAULT_REALTIME_PROVIDER.replaceAll("'", "''")}',
       ALTER COLUMN realtime_seconds_credit SET DEFAULT ${DEFAULT_REALTIME_SECONDS_CREDIT},
       ALTER COLUMN voice_seconds_credit SET DEFAULT ${DEFAULT_VOICE_SECONDS_CREDIT},
