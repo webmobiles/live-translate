@@ -68,6 +68,7 @@ class SoloApi {
           decoded['ok'] != true) {
         throw SoloApiException(
           decoded['error']?.toString() ?? 'Request failed (${res.statusCode})',
+          code: decoded['errorCode']?.toString(),
         );
       }
       return decoded;
@@ -280,7 +281,8 @@ class SoloRoom {
 
 class SoloApiException implements Exception {
   final String message;
-  const SoloApiException(this.message);
+  final String? code;
+  const SoloApiException(this.message, {this.code});
   @override
   String toString() => message;
 }

@@ -241,6 +241,12 @@
       "emptyBody": "Aucun son n'a ete detecte. Reessayez.",
       "dismiss": "Fermer l'alerte"
     },
+    "credits": {
+      "title": "Plus de crédits",
+      "body": "Votre solde de crédits est à zéro. Obtenez des crédits pour continuer.",
+      "getCredits": "Obtenir des crédits",
+      "cancel": "Annuler"
+    },
     "solo": {
       "speaking": "parle"
     },

@@ -5,6 +5,7 @@ import { CircleAlert, Mic, Pause, Play, Send, Square, X } from 'lucide-react'
 import { connectSocket, disconnectSocket, SOLOROOM_SOCKET } from '@/lib/socket'
 import { getLang } from '@/lib/languages'
 import { SoloLanguageToggle } from '@/components/SoloLanguageToggle'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import type { Message, Participant, RoomConfig } from '@/types'
 import type { Socket } from 'socket.io-client'
@@ -339,6 +340,7 @@ function RoomScreen() {
   const [copied, setCopied] = useState(false)
   const [voiceAlertReason, setVoiceAlertReason] = useState<VoiceAlertReason | null>(null)
   const [voiceAutoPlayEnabled, setVoiceAutoPlayEnabled] = useState(true)
+  const [creditsDialogOpen, setCreditsDialogOpen] = useState(false)
 
   // solo_multilang: which language side is currently "speaking"
   const [soloActiveLang, setSoloActiveLang] = useState<string | null>(null)
@@ -825,6 +827,7 @@ function RoomScreen() {
         m.id === id && m.isMine ? { ...m, deliveryStatus: 'read' as const } : m
       ))
     }
+    const onCreditsExhausted = () => setCreditsDialogOpen(true)
 
     // Load chat history sent by server on join
     const onHistory = ({ messages: history }: { messages: Message[] }) => {
@@ -871,6 +874,7 @@ function RoomScreen() {
     socket.on('message:read', onMessageRead)
     socket.on('message:progress', onMessageProgress)
     socket.on('room:history', onHistory)
+    socket.on('credits:exhausted', onCreditsExhausted)
 
     if (socket.connected) {
       syncRoom(hasSyncedRoom.current ? 'reconnect' : 'initial')
@@ -921,6 +925,7 @@ function RoomScreen() {
       socket.off('message:read', onMessageRead)
       socket.off('message:progress', onMessageProgress)
       socket.off('room:history', onHistory)
+      socket.off('credits:exhausted', onCreditsExhausted)
       window.removeEventListener('focus', recoverActiveTab)
       window.removeEventListener('online', recoverActiveTab)
       document.removeEventListener('visibilitychange', recoverActiveTab)
@@ -1022,7 +1027,8 @@ function RoomScreen() {
               targetLang: myLanguageRef.current,
             }),
           })
-          const data = await res.json().catch(() => ({})) as { ok?: boolean; message?: Message }
+          const data = await res.json().catch(() => ({})) as { ok?: boolean; message?: Message; errorCode?: string }
+          if (data.errorCode === 'insufficient_credits') setCreditsDialogOpen(true)
           if (!res.ok || !data.ok || !data.message) throw new Error('Solo text failed')
           const msg1 = data.message!
           setMessages(prev => prev.map(m =>
@@ -1052,7 +1058,8 @@ function RoomScreen() {
     socket.timeout(8000).emit(
       'message:text',
       { text, clientMsgId: id, ...(isSolo ? { senderLang: effectiveSenderLang } : {}) },
-      (err: Error | null, res?: { ok: boolean; id?: string; error?: string }) => {
+      (err: Error | null, res?: { ok: boolean; id?: string; error?: string; errorCode?: string }) => {
+        if (res?.errorCode === 'insufficient_credits') setCreditsDialogOpen(true)
         setMessages(prev => prev.map(m => {
           if (m.id !== id) return m
           if (err || !res?.ok) return { ...m, deliveryStatus: 'failed' as const }
@@ -1083,7 +1090,8 @@ function RoomScreen() {
               senderLang: msg.senderLang, targetLang: msg.targetLang,
             }),
           })
-          const data = await res.json().catch(() => ({})) as { ok?: boolean; message?: Message }
+          const data = await res.json().catch(() => ({})) as { ok?: boolean; message?: Message; errorCode?: string }
+          if (data.errorCode === 'insufficient_credits') setCreditsDialogOpen(true)
           if (!res.ok || !data.ok || !data.message) throw new Error('Retry failed')
           const msg1 = data.message!
           setMessages(prev => prev.map(m =>
@@ -1113,7 +1121,8 @@ function RoomScreen() {
     socket.timeout(8000).emit(
       'message:text',
       { text: msg.original, clientMsgId: msg.id, ...(isSolo ? { senderLang: msg.senderLang } : {}) },
-      (err: Error | null, res?: { ok: boolean; id?: string; error?: string }) => {
+      (err: Error | null, res?: { ok: boolean; id?: string; error?: string; errorCode?: string }) => {
+        if (res?.errorCode === 'insufficient_credits') setCreditsDialogOpen(true)
         setMessages(prev => prev.map(m => {
           if (m.id !== msg.id) return m
           if (err || !res?.ok) return { ...m, deliveryStatus: 'failed' as const, progress: undefined }
@@ -1216,7 +1225,8 @@ function RoomScreen() {
                     targetLang: myLanguageRef.current,
                   }),
                 })
-                const data = await res.json().catch(() => ({})) as { ok?: boolean; message?: Message }
+                const data = await res.json().catch(() => ({})) as { ok?: boolean; message?: Message; errorCode?: string }
+                if (data.errorCode === 'insufficient_credits') setCreditsDialogOpen(true)
                 if (!res.ok || !data.ok || !data.message) throw new Error('Solo audio failed')
                 const msg1 = data.message!
                 setMessages(prev => prev.map(m =>
@@ -1524,6 +1534,15 @@ function RoomScreen() {
           </button>
         )}
       </div>
+      <ConfirmDialog
+        open={creditsDialogOpen}
+        onOpenChange={setCreditsDialogOpen}
+        title={t('room.credits.title')}
+        description={t('room.credits.body')}
+        confirmLabel={t('room.credits.getCredits')}
+        cancelLabel={t('room.credits.cancel')}
+        onConfirm={() => navigate({ to: '/credits' })}
+      />
     </div>
   )
 }

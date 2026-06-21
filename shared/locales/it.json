@@ -241,6 +241,12 @@
       "emptyBody": "Non e stato rilevato alcun suono. Riprova.",
       "dismiss": "Chiudi avviso messaggio vocale"
     },
+    "credits": {
+      "title": "Crediti esauriti",
+      "body": "Il saldo dei crediti è pari a zero. Ottieni altri crediti per continuare.",
+      "getCredits": "Ottieni crediti",
+      "cancel": "Annulla"
+    },
     "solo": {
       "speaking": "sta parlando"
     },

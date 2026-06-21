@@ -241,6 +241,12 @@
       "emptyBody": "No se detecto sonido. Intentalo de nuevo.",
       "dismiss": "Cerrar alerta"
     },
+    "credits": {
+      "title": "No quedan créditos",
+      "body": "Tu saldo de créditos está a cero. Obtén más créditos para continuar.",
+      "getCredits": "Obtener créditos",
+      "cancel": "Cancelar"
+    },
     "solo": {
       "speaking": "habla"
     },

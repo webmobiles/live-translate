@@ -287,6 +287,12 @@
       "emptyBody": "No sound was detected. Try again.",
       "dismiss": "Dismiss voice message alert"
     },
+    "credits": {
+      "title": "No credits left",
+      "body": "Your credit balance is zero. Get more credits to continue.",
+      "getCredits": "Get credits",
+      "cancel": "Cancel"
+    },
     "solo": {
       "speaking": "speaking"
     },

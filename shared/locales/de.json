@@ -241,6 +241,12 @@
       "emptyBody": "Es wurde kein Ton erkannt. Bitte versuchen Sie es erneut.",
       "dismiss": "Hinweis zur Sprachnachricht schließen"
     },
+    "credits": {
+      "title": "Keine Credits mehr",
+      "body": "Dein Credit-Guthaben ist aufgebraucht. Hole dir weitere Credits, um fortzufahren.",
+      "getCredits": "Credits erhalten",
+      "cancel": "Abbrechen"
+    },
     "solo": {
       "speaking": "spricht"
     },

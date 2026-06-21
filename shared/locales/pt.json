@@ -241,6 +241,12 @@
       "emptyBody": "Nenhum som foi detectado. Tente novamente.",
       "dismiss": "Dispensar alerta de mensagem de voz"
     },
+    "credits": {
+      "title": "Sem créditos",
+      "body": "O seu saldo de créditos está a zero. Obtenha mais créditos para continuar.",
+      "getCredits": "Obter créditos",
+      "cancel": "Cancelar"
+    },
     "solo": {
       "speaking": "falando"
     },

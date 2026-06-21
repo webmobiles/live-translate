@@ -21,6 +21,7 @@ import '../theme.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/participant_list.dart';
 import '../widgets/voice_button.dart';
+import 'credits_screen.dart';
 
 const int _minVoiceMs = 400;
 const double _silentVoicePeakDb = -45.0;
@@ -149,6 +150,7 @@ class _RoomScreenState extends State<RoomScreen> {
     socket.on('message:error', _onMessageError);
     socket.on('message:delivered', _onMessageDelivered);
     socket.on('message:read', _onMessageRead);
+    socket.on('credits:exhausted', _onCreditsExhausted);
     socket.on('room:config-updated', _onConfigUpdated);
 
     _isConnected = socket.connected;
@@ -169,6 +171,7 @@ class _RoomScreenState extends State<RoomScreen> {
       socket.off('message:error', _onMessageError);
       socket.off('message:delivered', _onMessageDelivered);
       socket.off('message:read', _onMessageRead);
+      socket.off('credits:exhausted', _onCreditsExhausted);
       socket.off('room:config-updated', _onConfigUpdated);
     }
     _input.dispose();
@@ -186,6 +189,35 @@ class _RoomScreenState extends State<RoomScreen> {
       _isConnected = true;
       _mySocketId = _socket?.id ?? '';
     });
+  }
+
+  void _onCreditsExhausted(dynamic _) => _showCreditsDialog();
+
+  Future<void> _showCreditsDialog() async {
+    if (!mounted) return;
+    final s = context.appState;
+    final getCredits = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(s.t('room.credits.title')),
+        content: Text(s.t('room.credits.body')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(s.t('room.credits.cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(s.t('room.credits.getCredits')),
+          ),
+        ],
+      ),
+    );
+    if (getCredits == true && mounted) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const CreditsScreen()),
+      );
+    }
   }
 
   void _onDisconnect(dynamic _) {
@@ -545,6 +577,9 @@ class _RoomScreenState extends State<RoomScreen> {
     }, ack: (ack) {
       if (!mounted) return;
       final res = SocketService.unwrapAck(ack);
+      if (res['errorCode'] == 'insufficient_credits') {
+        _showCreditsDialog();
+      }
       setState(() {
         final i = _messages.indexWhere((m) => m.id == id);
         if (i < 0) return;
@@ -661,6 +696,10 @@ class _RoomScreenState extends State<RoomScreen> {
       onTimeout: () => <String, dynamic>{'ok': false, 'error': 'timeout'},
     );
     if (res['ok'] != true) {
+      if (res['errorCode'] == 'insufficient_credits') {
+        _showCreditsDialog();
+        return;
+      }
       _snack('Could not start audio upload. Try again.');
       return;
     }
@@ -1263,6 +1302,11 @@ class _RoomScreenState extends State<RoomScreen> {
       if (msg.audioPending) _fetchSoloAudio(msg);
     } catch (e) {
       if (!mounted) return;
+      final creditsExhausted =
+          e is SoloApiException && e.code == 'insufficient_credits';
+      if (creditsExhausted) {
+        _showCreditsDialog();
+      }
       ClientLogService.error('client.solo.text.error', {
         'code': widget.code,
         'error': e.toString(),
@@ -1285,7 +1329,7 @@ class _RoomScreenState extends State<RoomScreen> {
           );
         }
       });
-      _snack('Translation failed: $e');
+      if (!creditsExhausted) _snack('Translation failed: $e');
     }
   }
 
@@ -1355,6 +1399,11 @@ class _RoomScreenState extends State<RoomScreen> {
       if (msg.audioPending) _fetchSoloAudio(msg);
     } catch (e) {
       if (!mounted) return;
+      final creditsExhausted =
+          e is SoloApiException && e.code == 'insufficient_credits';
+      if (creditsExhausted) {
+        _showCreditsDialog();
+      }
       ClientLogService.error('client.solo.audio.error', {
         'code': widget.code,
         'error': e.toString(),
@@ -1378,7 +1427,7 @@ class _RoomScreenState extends State<RoomScreen> {
           );
         }
       });
-      _snack('Voice translation failed: $e');
+      if (!creditsExhausted) _snack('Voice translation failed: $e');
     }
   }
 

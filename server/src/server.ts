@@ -42,6 +42,7 @@ const STREAM_AUDIO_CHANNELS = 1;
 const STREAM_AUDIO_BITS_PER_SAMPLE = 16;
 const STREAM_AUDIO_MAX_CHUNK_BYTES = 256 * 1024;
 const STREAM_AUDIO_MAX_AGE_MS = 10 * 60 * 1000;
+const INSUFFICIENT_CREDITS = 'insufficient_credits';
 
 function ceilSeconds(value: any) {
   const n = Number(value);
@@ -394,7 +395,7 @@ app.post('/api/solo/rooms/:code/text', async (req, res) => {
     }
     const user = req.user as any;
     if (user?.id && !(await hasUsageBalance(user.id, 'text_words'))) {
-      res.status(402).json({ ok: false, id: msgId, error: userBalanceError('text') });
+      res.status(402).json({ ok: false, id: msgId, errorCode: INSUFFICIENT_CREDITS, error: userBalanceError('text') });
       return;
     }
 
@@ -473,6 +474,7 @@ app.post('/api/solo/rooms/:code/audio', async (req, res) => {
       res.status(402).json({
         ok: false,
         id: msgId,
+        errorCode: INSUFFICIENT_CREDITS,
         error: userBalanceError(usageKind === 'realtime_seconds' ? 'realtime' : 'voice'),
       });
       return;
@@ -1105,7 +1107,7 @@ io.on('connection', (socket) => {
       return;
     }
     if (participant.userId && !(await hasUsageBalance(participant.userId, 'text_words'))) {
-      cb?.({ ok: false, error: userBalanceError('text') });
+      cb?.({ ok: false, errorCode: INSUFFICIENT_CREDITS, error: userBalanceError('text') });
       return;
     }
 
@@ -1181,6 +1183,7 @@ io.on('connection', (socket) => {
     if (participant.userId && !(await hasUsageBalance(participant.userId, usageKind))) {
       cb?.({
         ok: false,
+        errorCode: INSUFFICIENT_CREDITS,
         error: userBalanceError(usageKind === 'realtime_seconds' ? 'realtime' : 'voice'),
       });
       return;
@@ -1393,6 +1396,7 @@ io.on('connection', (socket) => {
     const isRealtimeAllowedHere = roomConfig?.mode === 'solo_multilang' || participant.isHost;
     const usageKind = requestedDirectVoice && isRealtimeAllowedHere ? 'realtime_seconds' : 'voice_seconds';
     if (participant.userId && !(await hasUsageBalance(participant.userId, usageKind))) {
+      socket.emit('credits:exhausted', { errorCode: INSUFFICIENT_CREDITS });
       await publishMessageError(roomCode, msgId);
       return;
     }
