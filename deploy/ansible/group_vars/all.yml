@@ -1,0 +1,21 @@
+---
+# Non-secret deploy configuration
+app_domain: livetranslate.hellovia.com
+app_dir: /opt/live-translate
+web_root: /opt/live-translate/web/dist
+compose_dir: /opt/live-translate/server/tprod-docker
+api_port: 4000
+
+# docker-compose profiles to enable (local AI stack + redpanda for email signup)
+compose_profiles:
+  - redpanda
+  - local-stt
+  - local-tts
+  - local-llm
+
+ollama_model: qwen2.5:7b
+letsencrypt_email: cherdave@gmail.com
+cloudflare_credentials_path: /root/.secrets/cloudflare.ini
+
+# Repo root on the control machine (this Mac)
+local_project_root: "{{ playbook_dir }}/../.."

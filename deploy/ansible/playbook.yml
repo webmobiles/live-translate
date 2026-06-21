@@ -1,0 +1,174 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# live-translate production deploy
+#   Control machine (Mac) builds the web bundle, then provisions and deploys to
+#   the Ubuntu droplet: Docker Engine + compose, nginx, certbot (Cloudflare
+#   DNS-01). Same-origin: web static + API behind one nginx vhost.
+#
+#   cd deploy/ansible
+#   ansible-galaxy collection install -r requirements.yml
+#   cp group_vars/vault.example.yml group_vars/vault.yml   # add the CF token
+#   ansible-vault encrypt group_vars/vault.yml
+#   ansible-playbook playbook.yml --ask-vault-pass
+# ─────────────────────────────────────────────────────────────────────────────
+
+- name: Build web frontend on the control machine
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [web, build]
+  vars:
+    local_project_root: "{{ playbook_dir }}/../.."
+  tasks:
+    - name: Build the Vite production bundle (web/dist)
+      command: npm run build
+      args:
+        chdir: "{{ local_project_root }}/web"
+      when: build_web | default(true) | bool
+
+- name: Provision and deploy the server
+  hosts: prod
+  become: true
+  gather_facts: true
+  tasks:
+    # ── base packages ──────────────────────────────────────────────────────
+    - name: Install base packages
+      apt:
+        name: [ca-certificates, curl, gnupg, rsync, nginx, python3]
+        state: present
+        update_cache: true
+
+    # ── docker engine ──────────────────────────────────────────────────────
+    - name: Check whether Docker is installed
+      stat:
+        path: /usr/bin/docker
+      register: docker_bin
+
+    - name: Install Docker Engine + compose plugin
+      shell: curl -fsSL https://get.docker.com | sh
+      when: not docker_bin.stat.exists
+
+    - name: Ensure Docker is running and enabled
+      service:
+        name: docker
+        state: started
+        enabled: true
+
+    # Use Scaleway's GPU OS image so nvidia drivers + container toolkit are present.
+    - name: Verify the NVIDIA GPU is visible on the host
+      command: nvidia-smi -L
+      register: gpu_check
+      changed_when: false
+      failed_when: gpu_check.rc != 0
+
+    - name: Install the Compose v2 standalone binary as docker-compose
+      get_url:
+        url: https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+
+    # ── certbot + cloudflare dns-01 ────────────────────────────────────────
+    - name: Install certbot with the Cloudflare DNS plugin
+      apt:
+        name: [certbot, python3-certbot-dns-cloudflare]
+        state: present
+
+    - name: Create the secrets directory
+      file:
+        path: "{{ cloudflare_credentials_path | dirname }}"
+        state: directory
+        mode: '0700'
+
+    - name: Write Cloudflare API credentials
+      template:
+        src: templates/cloudflare.ini.j2
+        dest: "{{ cloudflare_credentials_path }}"
+        mode: '0600'
+
+    - name: Obtain Let's Encrypt certificate (Cloudflare DNS-01)
+      command: >
+        certbot certonly --non-interactive --agree-tos
+        -m {{ letsencrypt_email }}
+        --dns-cloudflare
+        --dns-cloudflare-credentials {{ cloudflare_credentials_path }}
+        --dns-cloudflare-propagation-seconds 30
+        -d {{ app_domain }}
+        --deploy-hook "systemctl reload nginx"
+      args:
+        creates: "/etc/letsencrypt/live/{{ app_domain }}/fullchain.pem"
+
+    # ── app code ───────────────────────────────────────────────────────────
+    - name: Ensure the app directory exists
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+
+    - name: Sync the project to the server
+      ansible.posix.synchronize:
+        src: "{{ local_project_root }}/"
+        dest: "{{ app_dir }}/"
+        archive: true
+        delete: false
+        rsync_opts:
+          - "--exclude=.git"
+          - "--exclude=node_modules"
+          - "--exclude=server/data"
+          - "--exclude=server/dist"
+          - "--exclude=server/audios"
+          - "--exclude=/server/.env"   # never ship the dev env; we use .env.production
+          - "--exclude=*.log"
+      become: false
+
+    - name: Activate the production env (compose reads server/.env)
+      copy:
+        src: "{{ app_dir }}/server/.env.production"
+        dest: "{{ app_dir }}/server/.env"
+        remote_src: true
+
+    # ── nginx vhost ────────────────────────────────────────────────────────
+    - name: Deploy the nginx site config
+      template:
+        src: templates/nginx-site.conf.j2
+        dest: "/etc/nginx/sites-available/{{ app_domain }}.conf"
+      notify: reload nginx
+
+    - name: Enable the nginx site
+      file:
+        src: "/etc/nginx/sites-available/{{ app_domain }}.conf"
+        dest: "/etc/nginx/sites-enabled/{{ app_domain }}.conf"
+        state: link
+      notify: reload nginx
+
+    - name: Apply nginx changes before starting containers
+      meta: flush_handlers
+
+    # ── containers ─────────────────────────────────────────────────────────
+    - name: Build and start the stack
+      command: >
+        docker-compose
+        {% for p in compose_profiles %}--profile {{ p }} {% endfor %}
+        up -d --build
+      args:
+        chdir: "{{ compose_dir }}"
+
+    - name: Pull the Ollama translation model (can take several minutes)
+      command: docker exec live-translate-ollama ollama pull {{ ollama_model }}
+      register: ollama_pull
+      retries: 15
+      delay: 20
+      until: ollama_pull.rc == 0
+      changed_when: "'success' in ollama_pull.stdout"
+      when: "'local-llm' in compose_profiles"
+
+    - name: Wait for the API to report healthy
+      uri:
+        url: "http://127.0.0.1:{{ api_port }}/health/live"
+        status_code: 200
+      register: api_health
+      retries: 30
+      delay: 6
+      until: api_health.status == 200
+
+  handlers:
+    - name: reload nginx
+      shell: nginx -t && systemctl reload nginx

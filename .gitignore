@@ -1,5 +1,8 @@
 
 server/.env
+server/.env.*
+server/tprod-docker/.env
+!server/.env.example
 node_modules/
 server/dist/
 server/bundle/
@@ -9,3 +12,7 @@ server/audios/
 mobile/.DS_Store
 
 .DS_Store
+
+# Ansible deploy secrets
+deploy/ansible/group_vars/vault.yml
+deploy/ansible/*.retry

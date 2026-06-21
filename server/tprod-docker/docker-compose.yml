@@ -10,6 +10,9 @@ x-node-service: &node-service
   environment: &node-environment
     NODE_ENV: production
     PORT: "4000"
+    # Public URLs from a single PUBLIC_HOST var (set in tprod-docker/.env)
+    FRONTEND_URL: https://${PUBLIC_HOST:?Set PUBLIC_HOST in tprod-docker/.env}
+    GOOGLE_CALLBACK_URL: https://${PUBLIC_HOST:?Set PUBLIC_HOST in tprod-docker/.env}/auth/google/callback
     DB_PROVIDER_AUTH: postgres
     DB_AUTH_URL: postgresql://${POSTGRES_USER:-live_translate}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in server/.env}@postgres:5432/${POSTGRES_DB:-live_translate_auth}
     DB_PROVIDER_ROOM: postgres
@@ -141,12 +144,19 @@ services:
       retries: 10
 
   faster-whisper:
-    image: fedirz/faster-whisper-server:latest-cpu
+    image: fedirz/faster-whisper-server:latest-cuda
     container_name: live-translate-faster-whisper
     profiles: ["local-stt"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
       WHISPER__MODEL: ${FASTER_WHISPER_MODEL:-Systran/faster-whisper-small}
-      WHISPER__INFERENCE_DEVICE: cpu
+      WHISPER__INFERENCE_DEVICE: cuda
       WHISPER__PRELOAD_MODEL: "true"
     volumes:
       - ../data/faster-whisper:/root/.cache/huggingface
@@ -161,9 +171,16 @@ services:
       start_period: 120s
 
   kokoro:
-    image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
+    image: ghcr.io/remsky/kokoro-fastapi-gpu:latest
     container_name: live-translate-kokoro
     profiles: ["local-tts"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     restart: unless-stopped
     networks:
       - live-translate
@@ -196,6 +213,14 @@ services:
     image: ollama/ollama:latest
     container_name: live-translate-ollama
     profiles: ["local-llm"]
+    # GPU access (host needs nvidia drivers + nvidia-container-toolkit)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     volumes:
       - ../data/ollama:/root/.ollama
     restart: unless-stopped

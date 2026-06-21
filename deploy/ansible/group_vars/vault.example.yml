@@ -1,0 +1,9 @@
+---
+# Copy this file to vault.yml, paste your token, then encrypt it:
+#   cp vault.example.yml vault.yml
+#   ansible-vault encrypt vault.yml
+#   ansible-playbook playbook.yml --ask-vault-pass
+#
+# Cloudflare API token: My Profile -> API Tokens -> "Edit zone DNS" template,
+# Zone Resources -> Include -> Specific zone -> hellovia.com
+vault_cloudflare_api_token: "PASTE_CLOUDFLARE_DNS_EDIT_TOKEN_HERE"

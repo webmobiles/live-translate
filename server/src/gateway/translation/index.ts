@@ -12,21 +12,19 @@ const PROVIDERS: Record<string, { translate: (...args: any[]) => Promise<string>
   mock: mockProvider,
 };
 
-function envFlag(name: string) {
-  return ['1', 'true', 'yes', 'on'].includes((process.env[name] || '').trim().toLowerCase());
-}
-
 function getProviderName() {
-  const name = process.env.TRANSLATION_PROVIDER || 'ollama';
-  if (name === 'mock' && envFlag('FORCE_AI_TRANSLATION')) return 'ollama';
-  return name;
+  // First entry of TRANSLATION_PROVIDERS is the default/active provider.
+  return (process.env.TRANSLATION_PROVIDERS || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)[0] || '';
 }
 
 // provider arg overrides the env var — used when room config specifies a user-facing choice.
 function getProvider(provider?: string) {
   const name = provider || getProviderName();
   const p = PROVIDERS[name];
-  if (!p) throw new Error(`Unknown translation provider: "${name}". Valid: openai, ollama`);
+  if (!p) throw new Error(`Unknown translation provider: "${name}". Configured TRANSLATION_PROVIDERS="${process.env.TRANSLATION_PROVIDERS || ''}".`);
   return p;
 }
 

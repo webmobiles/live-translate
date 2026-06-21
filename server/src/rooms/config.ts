@@ -1,3 +1,13 @@
+// Translation providers come entirely from the TRANSLATION_PROVIDERS env var:
+// a comma-separated list (e.g. "openai" or "openai,ollama"). The FIRST entry is
+// the default/active provider; the whole list is what a room may select.
+const TRANSLATION_PROVIDER_LIST = (process.env.TRANSLATION_PROVIDERS || '')
+  .split(',')
+  .map((p) => p.trim().toLowerCase())
+  .filter(Boolean);
+const TRANSLATION_PROVIDERS = new Set(TRANSLATION_PROVIDER_LIST);
+const DEFAULT_TRANSLATION_PROVIDER = TRANSLATION_PROVIDER_LIST[0] || '';
+
 export const DEFAULT_ROOM_CONFIG = {
   mode: 'normal' as 'normal' | 'solo_multilang',
   soloLanguages: null as [string, string] | null,
@@ -7,7 +17,8 @@ export const DEFAULT_ROOM_CONFIG = {
     voice: true,
   },
   voicePipeline: 'stt-text-translate',
-  translationProvider: 'ollama' as 'ollama' | 'openai',
+  // Default = first entry of TRANSLATION_PROVIDERS. No hardcoded provider.
+  translationProvider: DEFAULT_TRANSLATION_PROVIDER as string,
   output: {
     translatedText: true,
     translatedAudio: true,
@@ -15,7 +26,6 @@ export const DEFAULT_ROOM_CONFIG = {
 };
 
 const VOICE_PIPELINES = new Set(['stt-text-translate', 'direct-voice-translation']);
-const TRANSLATION_PROVIDERS = new Set(['ollama', 'openai']);
 const ROOM_MODES = new Set(['normal', 'solo_multilang']);
 
 function bool(value: any, fallback: boolean): boolean {
@@ -52,7 +62,7 @@ function normalizeRoomConfig(config: any = {}) {
       ? config.voicePipeline
       : DEFAULT_ROOM_CONFIG.voicePipeline,
     translationProvider: TRANSLATION_PROVIDERS.has(config.translationProvider)
-      ? (config.translationProvider as 'ollama' | 'openai')
+      ? (config.translationProvider as string)
       : DEFAULT_ROOM_CONFIG.translationProvider,
     output: {
       translatedText: bool(config.output?.translatedText, DEFAULT_ROOM_CONFIG.output.translatedText),
