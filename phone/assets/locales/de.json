@@ -56,6 +56,9 @@
     "cancel": "Abbrechen"
   },
   "home": {
+    "recentRooms": "Letzte Räume",
+    "moreRooms": "Mehr…",
+    "changePlan": "Tarif ändern, um mehr zu sehen",
     "tagline": "KI-Übersetzung in Echtzeit zwischen Sprachen",
     "poweredBy": "Bereitgestellt von",
     "createRoom": "Raum erstellen",
@@ -275,6 +278,14 @@
     "minutesShort": "Min",
     "words": "Wörter",
     "resetsMonthly": "Wird monatlich zurückgesetzt"
+  },
+  "roomHistory": {
+    "title": "Raumverlauf",
+    "empty": "Du hast noch keine Räume betreten."
+  },
+  "plan": {
+    "title": "Tarif",
+    "comingSoon": "Tarifoptionen kommen bald."
   },
   "settings": {
     "title": "Kontoeinstellungen",

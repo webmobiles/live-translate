@@ -96,6 +96,29 @@ export async function resetPassword(email: string, password: string): Promise<vo
   }
 }
 
+// ── Room history ────────────────────────────────────────────────────────────
+
+export interface UserRoom {
+  code: string
+  name: string | null
+  lastVisitedAt: string
+}
+
+export interface UserRoomsResponse {
+  rooms: UserRoom[]
+  total: number
+  planLimit: number
+  capped: boolean
+}
+
+// Recent rooms the signed-in user has entered (capped by plan server-side).
+export async function fetchUserRooms(limit?: number): Promise<UserRoomsResponse> {
+  const qs = limit ? `?limit=${limit}` : ''
+  const res = await fetch(`/auth/rooms${qs}`, { credentials: 'include' })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json()
+}
+
 // firstName/lastName/country are optional here: the onboarding flow saves only
 // nickname + languages, and the server preserves any field that is omitted. The
 // settings screen requires all of them client-side before calling this.

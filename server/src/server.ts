@@ -10,7 +10,8 @@ import cors from 'cors';
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
 import passport from 'passport';
-import { connectAuthDb, pool as authPool, findUserByApiToken } from './auth/db';
+import { connectAuthDb, pool as authPool, findUserByApiToken, recordRoomVisit } from './auth/db';
+import { planLimits } from './auth/plans';
 import { configurePassport } from './auth/passport';
 import { authRouter } from './auth/routes';
 import { internalRouter } from './auth/internalRoutes';
@@ -939,6 +940,13 @@ io.on('connection', (socket) => {
       socket.data.roomId      = room.id;
       socket.data.participant = participant;
 
+      // Best-effort: remember this room in the user's history (re-enter later).
+      if (user?.id) {
+        recordRoomVisit(user.id, room.code, room.name ?? name ?? null).catch(
+          (err: Error) => logger.warn({ event: 'room.visit_record_failed', roomCode: room.code, err }, 'Failed to record room visit'),
+        );
+      }
+
       logger.info({
         event: 'room.created',
         roomCode: room.code,
@@ -982,6 +990,13 @@ io.on('connection', (socket) => {
       socket.data.roomId      = room.id;
       socket.data.participant = participant;
 
+      // Best-effort: remember this room in the user's history (re-enter later).
+      if (user?.id) {
+        recordRoomVisit(user.id, room.code, room.name ?? null).catch(
+          (err: Error) => logger.warn({ event: 'room.visit_record_failed', roomCode: room.code, err }, 'Failed to record room visit'),
+        );
+      }
+
       // Notify other participants only for a new member. Existing sockets can
       // rejoin to refresh state after navigation, reload, or reconnect.
       if (!existingParticipant) {
@@ -995,7 +1010,12 @@ io.on('connection', (socket) => {
       // Load chat history and send to the joining participant, translating any
       // messages that weren't translated into their language when originally sent.
       try {
-        const history = await db.getRecentMessages(room.id, 100);
+        // Plan-capped chat history (Free = 100). Load one extra to detect that
+        // more exist, then keep only the newest `messageLimit`.
+        const messageLimit = planLimits(user?.plan).messages;
+        const loaded = await db.getRecentMessages(room.id, messageLimit + 1);
+        const truncated = loaded.length > messageLimit;
+        const history = truncated ? loaded.slice(loaded.length - messageLimit) : loaded;
         if (history.length > 0) {
           const lang     = language || 'en';
           const provider = room.config?.translationProvider;
@@ -1036,7 +1056,7 @@ io.on('connection', (socket) => {
             translatedAudio: msg.audioOutputs?.[lang] ?? null,
             timestamp:       msg.timestamp,
           }));
-          socket.emit('room:history', { messages: formatted });
+          socket.emit('room:history', { messages: formatted, truncated });
         }
       } catch (err) {
         logger.error({ event: 'room.history_failed', severity: severity.P3, roomCode: room.code, roomId: room.id, socketId: socket.id, err }, 'Failed to load room history');

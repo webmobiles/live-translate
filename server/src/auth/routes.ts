@@ -6,8 +6,9 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { promisify } from 'util';
 import { rateLimitLogin } from './rateLimiter';
-import { createPasswordUser, findUserByEmail, setPasswordForUser, updateProfile, updateAvatarUrl, ensureApiToken, upsertPreuserWithCode, verifyPreuserCode, isEmailValidated, clearPreuser } from './db';
+import { createPasswordUser, findUserByEmail, setPasswordForUser, updateProfile, updateAvatarUrl, ensureApiToken, upsertPreuserWithCode, verifyPreuserCode, isEmailValidated, clearPreuser, getUserRooms, countUserRooms } from './db';
 import { requireAuth } from './middleware';
+import { planLimits } from './plans';
 import { publishVerificationEmail } from '../email/queue';
 
 const IMAGES_DIR = () => process.env.PROFILE_IMAGES_DIR ?? './data/images/profiles';
@@ -385,6 +386,28 @@ router.post('/password/reset', rateLimitLogin, async (req, res, next) => {
 
 router.get('/me', requireAuth, (req, res) => {
   res.json(publicUser(req.user as any));
+});
+
+// Recent rooms the user has entered, capped by plan. `capped` is true when the
+// user has more rooms than their plan can show → the client offers an upsell.
+router.get('/rooms', requireAuth, async (req, res, next) => {
+  try {
+    const user = req.user as any;
+    const limits = planLimits(user.plan);
+    const requested = parseInt(String(req.query.limit ?? ''), 10);
+    const limit = Number.isFinite(requested) && requested > 0
+      ? Math.min(requested, limits.rooms)
+      : limits.rooms;
+
+    const [rooms, total] = await Promise.all([
+      getUserRooms(user.id, limit),
+      countUserRooms(user.id),
+    ]);
+
+    res.json({ rooms, total, planLimit: limits.rooms, capped: total > limits.rooms });
+  } catch (err) {
+    next(err);
+  }
 });
 
 router.post('/logout', requireAuth, (req, res, next) => {

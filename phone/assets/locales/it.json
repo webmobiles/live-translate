@@ -56,6 +56,9 @@
     "cancel": "Annulla"
   },
   "home": {
+    "recentRooms": "Stanze recenti",
+    "moreRooms": "Altro…",
+    "changePlan": "Cambia piano per vedere di più",
     "tagline": "Traduzione IA in tempo reale tra lingue",
     "poweredBy": "Basato su",
     "createRoom": "Crea stanza",
@@ -275,6 +278,14 @@
     "minutesShort": "min",
     "words": "parole",
     "resetsMonthly": "Si azzera ogni mese"
+  },
+  "roomHistory": {
+    "title": "Cronologia stanze",
+    "empty": "Non sei ancora entrato in nessuna stanza."
+  },
+  "plan": {
+    "title": "Piano",
+    "comingSoon": "Le opzioni del piano arriveranno presto."
   },
   "settings": {
     "title": "Impostazioni account",

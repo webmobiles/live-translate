@@ -154,6 +154,17 @@ async function initSchema() {
     );
     CREATE INDEX IF NOT EXISTS usage_log_user_idx ON usage_log (user_id, created_at DESC);
 
+    -- ── User → room history (rooms the user created or joined) ────────────────
+    CREATE TABLE IF NOT EXISTS user_rooms (
+      user_id         UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      room_code       VARCHAR(20)  NOT NULL,
+      room_name       VARCHAR(255),
+      created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+      last_visited_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (user_id, room_code)
+    );
+    CREATE INDEX IF NOT EXISTS user_rooms_recent_idx ON user_rooms (user_id, last_visited_at DESC);
+
     -- ── Billing per user ──────────────────────────────────────────────────────
     CREATE TABLE IF NOT EXISTS user_billing (
       id              UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -424,4 +435,36 @@ export async function isEmailValidated(email: string): Promise<boolean> {
 /** Removes the pre-user row once it has been promoted to a real account. */
 export async function clearPreuser(email: string): Promise<void> {
   await pool.query(`DELETE FROM preusers WHERE email = lower($1)`, [email]);
+}
+
+// ── Room history (rooms a user has entered) ──────────────────────────────────
+
+/** Upserts a user→room visit, refreshing the name and last-visited time. */
+export async function recordRoomVisit(userId: string, roomCode: string, roomName: string | null): Promise<void> {
+  await pool.query(
+    `INSERT INTO user_rooms (user_id, room_code, room_name, last_visited_at)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (user_id, room_code) DO UPDATE
+       SET room_name = COALESCE(NULLIF(EXCLUDED.room_name, ''), user_rooms.room_name),
+           last_visited_at = NOW()`,
+    [userId, roomCode, roomName],
+  );
+}
+
+/** Most-recently-visited rooms for a user, newest first. */
+export async function getUserRooms(userId: string, limit: number): Promise<Array<{ code: string; name: string | null; lastVisitedAt: string }>> {
+  const { rows } = await pool.query(
+    `SELECT room_code, room_name, last_visited_at
+     FROM user_rooms WHERE user_id = $1
+     ORDER BY last_visited_at DESC
+     LIMIT $2`,
+    [userId, limit],
+  );
+  return rows.map(r => ({ code: r.room_code, name: r.room_name ?? null, lastVisitedAt: r.last_visited_at }));
+}
+
+/** Total number of rooms in a user's history (to decide whether to upsell). */
+export async function countUserRooms(userId: string): Promise<number> {
+  const { rows } = await pool.query(`SELECT COUNT(*)::int AS n FROM user_rooms WHERE user_id = $1`, [userId]);
+  return rows[0]?.n ?? 0;
 }

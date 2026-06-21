@@ -1,10 +1,12 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { fetchUser, logout } from '@/lib/api'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { UsageBars } from '@/components/UsageBars'
+import { UiLanguageSelect } from '@/components/UiLanguageSelect'
+import { RecentRooms } from '@/components/RecentRooms'
 
 export const Route = createFileRoute('/')({
   component: HomeScreen,
@@ -57,6 +59,11 @@ function HomeScreen() {
           </div>
         </div>
 
+        {/* Language selector (under the header) */}
+        <div className="flex justify-center">
+          <UiLanguageSelect />
+        </div>
+
         {/* User bar */}
         {me && (
           <div className="flex items-center justify-between gap-3 bg-lt-card border border-lt-border rounded-xl px-3 py-2.5">
@@ -73,9 +80,12 @@ function HomeScreen() {
                   {me.nickname ?? me.first_name ?? ''}
                 </span>
                 {me.plan && (
-                  <span className="self-start mt-0.5 rounded-full bg-lt-primary/15 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-lt-primary">
+                  <Link
+                    to="/plan"
+                    className="self-start mt-0.5 rounded-full bg-lt-primary/15 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-lt-primary transition-colors hover:bg-lt-primary/25"
+                  >
                     {me.plan}
-                  </span>
+                  </Link>
                 )}
               </div>
             </div>
@@ -90,16 +100,7 @@ function HomeScreen() {
           </div>
         )}
 
-        {/* Usage */}
-        {me?.usage_balance && <UsageBars usage={me.usage_balance} />}
-
-        {/* Powered by */}
-        <div className="flex items-center justify-center gap-2 bg-lt-card rounded-xl px-4 py-3 border border-lt-border">
-          <span className="text-lt-muted text-sm">{t('home.poweredBy')}</span>
-          <span className="text-lt-accent font-semibold text-sm">hellovia.app</span>
-        </div>
-
-        {/* Buttons */}
+        {/* Create / Join (before usage) */}
         <div className="flex flex-col gap-4">
           <button
             onClick={() => navigate({ to: '/create' })}
@@ -110,12 +111,24 @@ function HomeScreen() {
           </button>
 
           <button
-            onClick={() => navigate({ to: '/join' })}
+            onClick={() => navigate({ to: '/join', search: { code: '' } })}
             className="border-2 border-lt-primary rounded-2xl py-4 flex flex-col items-center hover:bg-lt-primary-muted transition-colors"
           >
             <span className="text-lt-primary text-lg font-bold">{t('home.joinRoom')}</span>
             <span className="text-lt-muted text-sm mt-0.5">{t('home.joinRoomSub')}</span>
           </button>
+        </div>
+
+        {/* Usage */}
+        {me?.usage_balance && <UsageBars usage={me.usage_balance} />}
+
+        {/* Recent rooms */}
+        <RecentRooms />
+
+        {/* Powered by */}
+        <div className="flex items-center justify-center gap-2 bg-lt-card rounded-xl px-4 py-3 border border-lt-border">
+          <span className="text-lt-muted text-sm">{t('home.poweredBy')}</span>
+          <span className="text-lt-accent font-semibold text-sm">hellovia.app</span>
         </div>
 
         <ConfirmDialog

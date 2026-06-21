@@ -56,6 +56,9 @@
     "cancel": "Annuler"
   },
   "home": {
+    "recentRooms": "Salons récents",
+    "moreRooms": "Plus…",
+    "changePlan": "Changez de forfait pour voir plus",
     "tagline": "Traduction IA en temps réel entre les langues",
     "poweredBy": "Propulsé par",
     "createRoom": "Créer un salon",
@@ -275,6 +278,14 @@
     "minutesShort": "min",
     "words": "mots",
     "resetsMonthly": "Réinitialisé chaque mois"
+  },
+  "roomHistory": {
+    "title": "Historique des salons",
+    "empty": "Vous n'avez encore rejoint aucun salon."
+  },
+  "plan": {
+    "title": "Forfait",
+    "comingSoon": "Les options de forfait arrivent bientôt."
   },
   "settings": {
     "title": "Paramètres du compte",

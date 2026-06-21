@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { CircleAlert, Mic, Pause, Play, Send, Square, X } from 'lucide-react'
 import { connectSocket, disconnectSocket, SOLOROOM_SOCKET } from '@/lib/socket'
@@ -327,6 +327,7 @@ function RoomScreen() {
   const navigate = useNavigate()
 
   const [messages, setMessages] = useState<Message[]>([])
+  const [historyTruncated, setHistoryTruncated] = useState(false)
   const [participants, setParticipants] = useState<Participant[]>([])
   const [inputText, setInputText] = useState('')
   const [isConnected, setIsConnected] = useState(false)
@@ -830,7 +831,8 @@ function RoomScreen() {
     const onCreditsExhausted = () => setCreditsDialogOpen(true)
 
     // Load chat history sent by server on join
-    const onHistory = ({ messages: history }: { messages: Message[] }) => {
+    const onHistory = ({ messages: history, truncated }: { messages: Message[]; truncated?: boolean }) => {
+      setHistoryTruncated(Boolean(truncated))
       setMessages(prev => {
         const prevById = new Map(prev.map(m => [m.id, m]))
         const historyIds = new Set(history.map(h => h.id))
@@ -1435,6 +1437,14 @@ function RoomScreen() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 flex flex-col">
+        {historyTruncated && (
+          <Link
+            to="/plan"
+            className="mb-3 block rounded-xl border border-lt-primary bg-lt-primary-muted px-4 py-2.5 text-center text-lt-primary text-xs font-semibold transition-colors hover:bg-lt-primary/10"
+          >
+            {t('home.changePlan')}
+          </Link>
+        )}
         {messages.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 py-20">
             <span className="text-4xl">{roomConfig.mode === 'solo_multilang' ? '🔄' : '🌐'}</span>

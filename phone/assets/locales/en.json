@@ -56,6 +56,9 @@
     "cancel": "Cancel"
   },
   "home": {
+    "recentRooms": "Recent rooms",
+    "moreRooms": "More…",
+    "changePlan": "Change plan to see more",
     "tagline": "Real-time AI translation across languages",
     "poweredBy": "Powered by",
     "createRoom": "Create Room",
@@ -321,6 +324,14 @@
     "minutesShort": "min",
     "words": "words",
     "resetsMonthly": "Resets monthly"
+  },
+  "roomHistory": {
+    "title": "Room history",
+    "empty": "You haven't entered any rooms yet."
+  },
+  "plan": {
+    "title": "Plan",
+    "comingSoon": "Plan options are coming soon."
   },
   "settings": {
     "title": "Account settings",

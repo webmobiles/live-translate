@@ -9,7 +9,9 @@ import '../widgets/ui.dart';
 import 'room_screen.dart';
 
 class JoinScreen extends StatefulWidget {
-  const JoinScreen({super.key});
+  const JoinScreen({super.key, this.initialCode});
+
+  final String? initialCode;
 
   @override
   State<JoinScreen> createState() => _JoinScreenState();
@@ -28,6 +30,10 @@ class _JoinScreenState extends State<JoinScreen> {
   void initState() {
     super.initState();
     _code.addListener(_onCodeChanged);
+    final initial = widget.initialCode;
+    if (initial != null && initial.isNotEmpty) {
+      _code.text = initial.toUpperCase();
+    }
   }
 
   @override

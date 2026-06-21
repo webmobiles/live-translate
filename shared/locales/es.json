@@ -56,6 +56,9 @@
     "cancel": "Cancelar"
   },
   "home": {
+    "recentRooms": "Salas recientes",
+    "moreRooms": "Más…",
+    "changePlan": "Cambia de plan para ver más",
     "tagline": "Traducción IA en tiempo real entre idiomas",
     "poweredBy": "Desarrollado por",
     "createRoom": "Crear sala",
@@ -275,6 +278,14 @@
     "minutesShort": "min",
     "words": "palabras",
     "resetsMonthly": "Se reinicia cada mes"
+  },
+  "roomHistory": {
+    "title": "Historial de salas",
+    "empty": "Aún no has entrado en ninguna sala."
+  },
+  "plan": {
+    "title": "Plan",
+    "comingSoon": "Las opciones de plan llegarán pronto."
   },
   "settings": {
     "title": "Configuración de cuenta",

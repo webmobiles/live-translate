@@ -7,6 +7,11 @@ import { LanguageSelector, LanguageBadge } from '@/components/LanguageSelector'
 import type { User } from '@/types'
 
 export const Route = createFileRoute('/join')({
+  validateSearch: (s: Record<string, unknown>) => ({
+    code: typeof s.code === 'string'
+      ? s.code.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)
+      : '',
+  }),
   component: JoinScreen,
 })
 
@@ -15,8 +20,9 @@ function JoinScreen() {
   const navigate    = useNavigate()
   const queryClient = useQueryClient()
   const me = queryClient.getQueryData<User | null>(['auth-me'])
+  const { code: codeParam } = Route.useSearch()
 
-  const [code, setCode]           = useState('')
+  const [code, setCode]           = useState(codeParam ?? '')
   const [nickname, setNickname]   = useState(me?.nickname ?? '')
   const [language, setLanguage]   = useState(me?.mother_language ?? 'en')
   const [langWasAutoSet, setLangWasAutoSet] = useState(false)

@@ -11,7 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as RoomhistoryRouteImport } from './routes/roomhistory'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as PlanRouteImport } from './routes/plan'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as JoinRouteImport } from './routes/join'
@@ -31,9 +33,19 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RoomhistoryRoute = RoomhistoryRouteImport.update({
+  id: '/roomhistory',
+  path: '/roomhistory',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlanRoute = PlanRouteImport.update({
+  id: '/plan',
+  path: '/plan',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OnboardingRoute = OnboardingRouteImport.update({
@@ -85,7 +97,9 @@ export interface FileRoutesByFullPath {
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/plan': typeof PlanRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/roomhistory': typeof RoomhistoryRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/room/$code': typeof RoomCodeRoute
@@ -98,7 +112,9 @@ export interface FileRoutesByTo {
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/plan': typeof PlanRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/roomhistory': typeof RoomhistoryRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/room/$code': typeof RoomCodeRoute
@@ -112,7 +128,9 @@ export interface FileRoutesById {
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/plan': typeof PlanRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/roomhistory': typeof RoomhistoryRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/room/$code': typeof RoomCodeRoute
@@ -127,7 +145,9 @@ export interface FileRouteTypes {
     | '/join'
     | '/login'
     | '/onboarding'
+    | '/plan'
     | '/reset-password'
+    | '/roomhistory'
     | '/settings'
     | '/signup'
     | '/room/$code'
@@ -140,7 +160,9 @@ export interface FileRouteTypes {
     | '/join'
     | '/login'
     | '/onboarding'
+    | '/plan'
     | '/reset-password'
+    | '/roomhistory'
     | '/settings'
     | '/signup'
     | '/room/$code'
@@ -153,7 +175,9 @@ export interface FileRouteTypes {
     | '/join'
     | '/login'
     | '/onboarding'
+    | '/plan'
     | '/reset-password'
+    | '/roomhistory'
     | '/settings'
     | '/signup'
     | '/room/$code'
@@ -167,7 +191,9 @@ export interface RootRouteChildren {
   JoinRoute: typeof JoinRoute
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
+  PlanRoute: typeof PlanRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  RoomhistoryRoute: typeof RoomhistoryRoute
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
   RoomCodeRoute: typeof RoomCodeRoute
@@ -189,11 +215,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/roomhistory': {
+      id: '/roomhistory'
+      path: '/roomhistory'
+      fullPath: '/roomhistory'
+      preLoaderRoute: typeof RoomhistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reset-password': {
       id: '/reset-password'
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/plan': {
+      id: '/plan'
+      path: '/plan'
+      fullPath: '/plan'
+      preLoaderRoute: typeof PlanRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/onboarding': {
@@ -263,7 +303,9 @@ const rootRouteChildren: RootRouteChildren = {
   JoinRoute: JoinRoute,
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
+  PlanRoute: PlanRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  RoomhistoryRoute: RoomhistoryRoute,
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
   RoomCodeRoute: RoomCodeRoute,

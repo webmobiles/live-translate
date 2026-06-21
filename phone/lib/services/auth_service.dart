@@ -240,6 +240,28 @@ class AuthService {
 
   /// Fetches the signed-in user's profile from the server. Returns the decoded
   /// JSON (`/auth/me` shape) or null when unauthenticated / on error.
+  /// Recent rooms the user has entered (capped by plan server-side).
+  /// Returns the raw `{ rooms, total, planLimit, capped }` map, or null.
+  static Future<Map<String, dynamic>?> fetchUserRooms({int? limit}) async {
+    final token = await getToken();
+    if (token == null) return null;
+    final qs = limit != null ? '?limit=$limit' : '';
+    final uri = Uri.parse('$kServerUrl/auth/rooms$qs');
+    try {
+      final client = HttpClient();
+      final req = await client.getUrl(uri);
+      req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+      final res = await req.close();
+      final body = await utf8.decoder.bind(res).join();
+      client.close(force: true);
+      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      final decoded = body.isNotEmpty ? jsonDecode(body) : null;
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<Map<String, dynamic>?> fetchMe() async {
     final token = await getToken();
     if (token == null) return null;

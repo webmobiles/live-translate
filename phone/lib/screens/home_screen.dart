@@ -11,10 +11,12 @@ import '../theme.dart';
 import '../widgets/language_selector.dart';
 import '../widgets/ui.dart';
 import '../widgets/usage_bars.dart';
+import '../widgets/recent_rooms.dart';
 import '../utils/validation.dart';
 import 'create_screen.dart';
 import 'forgot_password_screen.dart';
 import 'join_screen.dart';
+import 'plan_screen.dart';
 import 'settings_screen.dart';
 
 const _uiLanguageNames = {
@@ -647,7 +649,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           textAlign: TextAlign.center,
                           style:
                               TextStyle(color: AppColors.muted, fontSize: 16)),
-                      SizedBox(height: 32),
+                      SizedBox(height: 24),
+                      _appLanguageSelector(s),
+                      SizedBox(height: 24),
 
                       // User bar
                       AppCard(
@@ -675,22 +679,28 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                   if (s.plan != null && s.plan!.isNotEmpty) ...[
                                     const SizedBox(height: 2),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.primary
-                                            .withValues(alpha: 0.15),
-                                        borderRadius:
-                                            BorderRadius.circular(999),
+                                    GestureDetector(
+                                      onTap: () => Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                            builder: (_) => const PlanScreen()),
                                       ),
-                                      child: Text(
-                                        s.plan!,
-                                        style: TextStyle(
-                                            color: AppColors.primary,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w600,
-                                            letterSpacing: 0.5),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primary
+                                              .withValues(alpha: 0.15),
+                                          borderRadius:
+                                              BorderRadius.circular(999),
+                                        ),
+                                        child: Text(
+                                          s.plan!,
+                                          style: TextStyle(
+                                              color: AppColors.primary,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                              letterSpacing: 0.5),
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -700,34 +710,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                       ),
-                      if (s.usageBalance != null) ...[
-                        SizedBox(height: 16),
-                        UsageBars(usage: s.usageBalance!),
-                      ],
-                      SizedBox(height: 32),
-
-                      // Powered by
-                      AppCard(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(s.t('home.poweredBy'),
-                                style: TextStyle(
-                                    color: AppColors.muted, fontSize: 14)),
-                            SizedBox(width: 8),
-                            Text('hellovia.app',
-                                style: TextStyle(
-                                    color: AppColors.accent,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14)),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: 32),
-
-                      // Create / Join
+                      // Create / Join (before usage)
                       AppButton(
                         onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute(
@@ -764,6 +747,33 @@ class _HomeScreenState extends State<HomeScreen> {
                             Text(s.t('home.joinRoomSub'),
                                 style: TextStyle(
                                     color: AppColors.muted, fontSize: 14)),
+                          ],
+                        ),
+                      ),
+                      if (s.usageBalance != null) ...[
+                        SizedBox(height: 24),
+                        UsageBars(usage: s.usageBalance!),
+                      ],
+                      SizedBox(height: 16),
+                      const RecentRoomsCard(),
+                      SizedBox(height: 24),
+
+                      // Powered by
+                      AppCard(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(s.t('home.poweredBy'),
+                                style: TextStyle(
+                                    color: AppColors.muted, fontSize: 14)),
+                            SizedBox(width: 8),
+                            Text('hellovia.app',
+                                style: TextStyle(
+                                    color: AppColors.accent,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14)),
                           ],
                         ),
                       ),
