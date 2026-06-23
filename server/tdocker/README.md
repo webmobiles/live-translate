@@ -7,7 +7,12 @@
 ```bash
 docker-compose down --remove-orphans
 docker stop $(docker ps -q) 2>&1; docker rm $(docker ps -aq) 2>&1
-docker-compose --env-file ../.env  --profile local-tts  --profile local-tts --profile local-stt --profile local-llm  --profile grafana  --profile redpanda up -d --force-recreate
+
+```bash no local tts sst 
+docker-compose --env-file ../.env  --profile grafana  --profile redpanda up -d --force-recreate
+
+```bash  local tts sst 
+docker-compose --env-file ../.env  --profile local-stt --profile local-llm  --profile grafana  --profile redpanda up -d --force-recreate
 #        --profile tikv
 # docker-compose --profile observability up -d openobserve
 ```

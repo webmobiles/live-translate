@@ -302,6 +302,7 @@ services:
   # ── Inngest ───────────────────────────────────────────────────────────────
   inngest:
     image: inngest/inngest:latest
+    profiles: ["inngest"]
     container_name: live-translate-inngest
     command: inngest dev -u http://host.docker.internal:4000/api/inngest --no-poll
     ports:

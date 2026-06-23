@@ -18,9 +18,12 @@ x-node-service: &node-service
     DB_PROVIDER_ROOM: postgres
     DB_ROOMS_URL: postgresql://${POSTGRES_USER:-live_translate}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in server/.env}@postgres:5432/${POSTGRES_DB:-live_translate_auth}
     NATS_SERVERS: nats://nats:4222
-    # Shared Redpanda broker lives in peleserver/docker/kafka (hostname: redpanda-0).
-    REDPANDA_BROKERS: redpanda-0:9092
+    REDPANDA_BROKERS: redpanda:9092
     DRAGONFLY_URL: redis://dragonfly:6379
+    FASTER_WHISPER_BASE_URL: http://faster-whisper:8000
+    KOKORO_BASE_URL: http://kokoro:8880
+    PIPER_BASE_URL: http://piper:8881
+    OLLAMA_BASE_URL: http://ollama:11434/v1
     AUDIOS_PATH: /app/data/audios
     PROFILE_IMAGES_DIR: /app/data/images/profiles
     INNGEST: "off"
@@ -31,23 +34,24 @@ x-node-service: &node-service
   restart: unless-stopped
   init: true
   networks:
-    - pelemobil
+    - live-translate
 
 services:
   api:
     <<: *node-service
     container_name: live-translate-api
     command: ["node", "server.js"]
-    # Fronted by the shared pelemobil nginx; reachable in-network as live-translate-api:4000.
-    # Shared postgres + redpanda live in separate composes, so they can't be depended on here;
-    # the server's startup health-check (STARTUP_HEALTHCHECK_RETRIES) waits for them instead.
-    expose:
-      - "4000"
+    ports:
+      - "4000:4000"
     volumes:
       - app-audios:/app/data/audios
       - profile-images:/app/data/images/profiles
     depends_on:
+      postgres:
+        condition: service_healthy
       nats:
+        condition: service_healthy
+      redpanda:
         condition: service_healthy
       dragonfly:
         condition: service_healthy
@@ -63,6 +67,27 @@ services:
     container_name: live-translate-email-worker
     command: ["node", "emailWorker.js"]
     profiles: ["redpanda"]
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: live-translate-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-live_translate}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in server/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-live_translate_auth}
+    volumes:
+      - ../data/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   nats:
     image: nats:2.10-alpine
@@ -72,9 +97,33 @@ services:
       - ../data/nats:/data
     restart: unless-stopped
     networks:
-      - pelemobil
+      - live-translate
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redpanda:
+    image: redpandadata/redpanda:latest
+    container_name: live-translate-redpanda
+    profiles: ["redpanda"]
+    command:
+      - redpanda
+      - start
+      - --kafka-addr=0.0.0.0:9092
+      - --advertise-kafka-addr=redpanda:9092
+      - --rpc-addr=0.0.0.0:33145
+      - --advertise-rpc-addr=redpanda:33145
+      - --smp=1
+      - --default-log-level=warn
+    volumes:
+      - ../data/redpanda:/var/lib/redpanda/data
+    restart: unless-stopped
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "info"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -87,12 +136,102 @@ services:
       - ../data/dragonfly:/data
     restart: unless-stopped
     networks:
-      - pelemobil
+      - live-translate
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 10
+
+  faster-whisper:
+    image: fedirz/faster-whisper-server:latest-cuda
+    container_name: live-translate-faster-whisper
+    profiles: ["local-stt"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      WHISPER__MODEL: ${FASTER_WHISPER_MODEL:-Systran/faster-whisper-small}
+      WHISPER__INFERENCE_DEVICE: cuda
+      WHISPER__PRELOAD_MODEL: "true"
+    volumes:
+      - ../data/faster-whisper:/root/.cache/huggingface
+    restart: unless-stopped
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  kokoro:
+    image: ghcr.io/remsky/kokoro-fastapi-gpu:latest
+    container_name: live-translate-kokoro
+    profiles: ["local-tts"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8880/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  piper:
+    build:
+      context: ./piper
+    image: live-translate-piper:local
+    container_name: live-translate-piper
+    profiles: ["local-tts"]
+    volumes:
+      - ../data/piper/models:/models:ro
+    restart: unless-stopped
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8881/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: live-translate-ollama
+    profiles: ["local-llm"]
+    # GPU access (host needs nvidia drivers + nvidia-container-toolkit)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - ../data/ollama:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - live-translate
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
 
   grafana:
     image: grafana/grafana:latest
@@ -113,7 +252,7 @@ services:
       - prometheus
     restart: unless-stopped
     networks:
-      - pelemobil
+      - live-translate
 
   loki:
     image: grafana/loki:latest
@@ -125,7 +264,7 @@ services:
       - ./grafana/loki.yml:/etc/loki/local-config.yml:ro
     restart: unless-stopped
     networks:
-      - pelemobil
+      - live-translate
 
   tempo:
     image: grafana/tempo:latest
@@ -137,7 +276,7 @@ services:
       - ./grafana/tempo.yml:/etc/tempo.yml:ro
     restart: unless-stopped
     networks:
-      - pelemobil
+      - live-translate
 
   prometheus:
     image: prom/prometheus:latest
@@ -149,7 +288,7 @@ services:
       - ./grafana/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     restart: unless-stopped
     networks:
-      - pelemobil
+      - live-translate
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
@@ -167,7 +306,7 @@ services:
       - /dev/kmsg
     restart: unless-stopped
     networks:
-      - pelemobil
+      - live-translate
 
   blackbox-exporter:
     image: prom/blackbox-exporter:latest
@@ -175,7 +314,7 @@ services:
     profiles: ["grafana"]
     restart: unless-stopped
     networks:
-      - pelemobil
+      - live-translate
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
@@ -188,11 +327,11 @@ services:
       - tempo
     restart: unless-stopped
     networks:
-      - pelemobil
+      - live-translate
 
 networks:
-  pelemobil:
-    external: true
+  live-translate:
+    driver: bridge
 
 volumes:
   app-audios:
