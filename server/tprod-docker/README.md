@@ -1,3 +1,9 @@
+# Run
+docker-compose \
+  --env-file /var/workfolder/projects/pelemobil/peleserver/.env \
+  --env-file .env \
+  up -d
+
 # Production Docker stack
 
 This stack runs the two JavaScript bundles from `server/bundle` (the API and the
@@ -72,9 +78,10 @@ These are not in code and must be done on the host before the API can serve:
    CREATE DATABASE live_translate_auth OWNER live_translate;
    ```
 
-2. **Provide the `hellovia.com` TLS cert** under
-   `workfolder/acme-certificates` so nginx finds it at the path in
-   `livetranslate.conf` (`hellovia.com_ecc/`).
+2. **Issue the `hellovia.com` TLS cert** via the certbot service in the
+   pelemobil stack (Let's Encrypt + Cloudflare DNS-01) — see
+   `peleserver/docker/certbot/README.md`. `livetranslate.conf` reads it from
+   `/etc/letsencrypt/live/hellovia.com/`.
 3. **Place the web build** (`live-translate/web/dist`) into
    `workfolder/builds/frontends/livetranslate` so nginx can serve the SPA.
 
@@ -87,7 +94,6 @@ then the combined stack from peleserver:
 docker network create pelemobil            # once, if it doesn't exist
 
 cd ~/projects/pelemobil/peleserver/docker/postgres && docker-compose up -d   # shared postgres
-cd ~/projects/pelemobil/peleserver/docker/kafka    && docker-compose up -d   # shared redpanda
 
 cd ~/projects/pelemobil/peleserver/docker          && docker-compose up -d --build   # both apps
 docker exec pelemobil-nginx nginx -s reload        # pick up livetranslate.conf

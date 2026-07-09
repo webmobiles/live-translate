@@ -18,8 +18,8 @@ x-node-service: &node-service
     DB_PROVIDER_ROOM: postgres
     DB_ROOMS_URL: postgresql://${POSTGRES_USER:-live_translate}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in server/.env}@postgres:5432/${POSTGRES_DB:-live_translate_auth}
     NATS_SERVERS: nats://nats:4222
-    # Shared Redpanda broker lives in peleserver/docker/kafka (hostname: redpanda-0).
-    REDPANDA_BROKERS: redpanda-0:9092
+    # Shared Redpanda broker lives in peleserver/docker/kafka (hostname: redpanda).
+    REDPANDA_BROKERS: redpanda:9092
     DRAGONFLY_URL: redis://dragonfly:6379
     AUDIOS_PATH: /app/data/audios
     PROFILE_IMAGES_DIR: /app/data/images/profiles
@@ -38,6 +38,10 @@ services:
     <<: *node-service
     container_name: live-translate-api
     command: ["node", "server.js"]
+    networks:
+      pelemobil:
+        aliases:
+          - live-translate-api
     # Fronted by the shared pelemobil nginx; reachable in-network as live-translate-api:4000.
     # Shared postgres + redpanda live in separate composes, so they can't be depended on here;
     # the server's startup health-check (STARTUP_HEALTHCHECK_RETRIES) waits for them instead.
@@ -68,6 +72,11 @@ services:
     image: nats:2.10-alpine
     container_name: live-translate-nats
     command: ["-js", "-sd", "/data", "-m", "8222"]
+    ports:
+      # NATS client port for host-side dev server: NATS_SERVERS=nats://localhost:4222
+      - "127.0.0.1:4222:4222"
+      # Optional: NATS monitoring endpoint for local debugging.
+      - "127.0.0.1:8222:8222"
     volumes:
       - ../data/nats:/data
     restart: unless-stopped
@@ -83,6 +92,9 @@ services:
     image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
     container_name: live-translate-dragonfly
     command: ["--logtostderr", "--proactor_threads=1", "--maxmemory=256mb"]
+    ports:
+      # Redis-compatible Dragonfly port for host-side dev server: DRAGONFLY_URL=redis://localhost:6379
+      - "127.0.0.1:6379:6379"
     volumes:
       - ../data/dragonfly:/data
     restart: unless-stopped
