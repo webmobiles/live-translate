@@ -1,6 +1,6 @@
 # Deploying live-translate to production
 
-Target: Ubuntu droplet **164.90.203.37**, domain **livetranslate.hellovia.com**
+Target: Ubuntu droplet **164.90.203.37**, domain **livetranslate.hellovia.app**
 (same-origin — web static + API behind one nginx vhost). TLS via Let's Encrypt
 **DNS-01 through Cloudflare**. Local AI containers (kokoro / piper / ollama /
 faster-whisper).
@@ -14,13 +14,13 @@ faster-whisper).
 ## One-time prerequisites
 1. SSH as root to `164.90.203.37` (or edit `inventory.ini` for a sudo user).
 2. **Cloudflare API token:** My Profile → API Tokens → *Edit zone DNS* template,
-   scoped to `hellovia.com`. Keep it handy.
-3. **Cloudflare DNS:** A record `livetranslate.hellovia.com → 164.90.203.37`,
+   scoped to `hellovia.app`. Keep it handy.
+3. **Cloudflare DNS:** A record `livetranslate.hellovia.app → 164.90.203.37`,
    set to **DNS only (grey cloud)** so the browser sees your Let's Encrypt cert
    and the websocket stays direct.
 4. **Google Cloud console** → your OAuth client: add
-   `https://livetranslate.hellovia.com` (JS origin) and
-   `https://livetranslate.hellovia.com/auth/google/callback` (redirect URI).
+   `https://livetranslate.hellovia.app` (JS origin) and
+   `https://livetranslate.hellovia.app/auth/google/callback` (redirect URI).
 
 ## Configure
 ```bash
@@ -31,11 +31,10 @@ cp group_vars/vault.example.yml group_vars/vault.yml
 ansible-vault encrypt group_vars/vault.yml
 ```
 Secrets already set for you (git-ignored):
-- `server/.env.production`    — app secrets + prod values (SESSION_SECRET, etc.)
-- `server/tprod-docker/.env`  — `PUBLIC_HOST`, `POSTGRES_PASSWORD`
+- `server/.env.production`    — all app and compose prod values
 
 The playbook copies `.env.production` → `.env` on the server, because compose's
-`env_file:` reads `server/.env`.
+`env_file:` and `--env-file ../.env` both read `server/.env`.
 
 ## Run
 ```bash

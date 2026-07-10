@@ -1,6 +1,6 @@
 ---
 # Non-secret deploy configuration
-app_domain: livetranslate.hellovia.com
+app_domain: livetranslate.hellovia.app
 app_dir: /opt/live-translate
 web_root: /opt/live-translate/web/dist
 compose_dir: /opt/live-translate/server/tprod-docker

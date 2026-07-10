@@ -1,22 +1,18 @@
 name: live-translate-prod
 
 x-node-service: &node-service
-  image: live-translate-server-bundle:${APP_VERSION:-local}
-  build:
-    context: ..
-    dockerfile: tprod-docker/Dockerfile
+  image: node:22-bookworm-slim
+  working_dir: /app
   env_file:
     - ../.env
   environment: &node-environment
     NODE_ENV: production
     PORT: "4000"
-    # Public URLs from a single PUBLIC_HOST var (set in tprod-docker/.env)
-    FRONTEND_URL: https://${PUBLIC_HOST:?Set PUBLIC_HOST in tprod-docker/.env}
-    GOOGLE_CALLBACK_URL: https://${PUBLIC_HOST:?Set PUBLIC_HOST in tprod-docker/.env}/auth/google/callback
+    # Public URLs from a single PUBLIC_HOST var (set in server/.env)
+    FRONTEND_URL: https://${PUBLIC_HOST:?Set PUBLIC_HOST in server/.env}
+    GOOGLE_CALLBACK_URL: https://${PUBLIC_HOST:?Set PUBLIC_HOST in server/.env}/auth/google/callback
     DB_PROVIDER_AUTH: postgres
-    DB_AUTH_URL: postgresql://${POSTGRES_USER:-live_translate}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in server/.env}@postgres:5432/${POSTGRES_DB:-live_translate_auth}
     DB_PROVIDER_ROOM: postgres
-    DB_ROOMS_URL: postgresql://${POSTGRES_USER:-live_translate}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in server/.env}@postgres:5432/${POSTGRES_DB:-live_translate_auth}
     NATS_SERVERS: nats://nats:4222
     REDPANDA_BROKERS: redpanda:9092
     DRAGONFLY_URL: redis://dragonfly:6379
@@ -44,8 +40,9 @@ services:
     ports:
       - "4000:4000"
     volumes:
-      - app-audios:/app/data/audios
-      - profile-images:/app/data/images/profiles
+      - ../bundle:/app:ro
+      - /var/workfolder/livetranslate/audios:/app/data/audios
+      - /var/workfolder/livetranslate/profile-images:/app/data/images/profiles
     depends_on:
       postgres:
         condition: service_healthy
@@ -66,7 +63,8 @@ services:
     <<: *node-service
     container_name: live-translate-email-worker
     command: ["node", "emailWorker.js"]
-    profiles: ["redpanda"]
+    volumes:
+      - ../bundle:/app:ro
     depends_on:
       redpanda:
         condition: service_healthy
@@ -107,7 +105,6 @@ services:
   redpanda:
     image: redpandadata/redpanda:latest
     container_name: live-translate-redpanda
-    profiles: ["redpanda"]
     command:
       - redpanda
       - start
@@ -332,7 +329,3 @@ services:
 networks:
   live-translate:
     driver: bridge
-
-volumes:
-  app-audios:
-  profile-images:

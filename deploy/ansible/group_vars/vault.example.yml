@@ -5,5 +5,5 @@
 #   ansible-playbook playbook.yml --ask-vault-pass
 #
 # Cloudflare API token: My Profile -> API Tokens -> "Edit zone DNS" template,
-# Zone Resources -> Include -> Specific zone -> hellovia.com
+# Zone Resources -> Include -> Specific zone -> hellovia.app
 vault_cloudflare_api_token: "PASTE_CLOUDFLARE_DNS_EDIT_TOKEN_HERE"
