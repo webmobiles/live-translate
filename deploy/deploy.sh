@@ -26,8 +26,9 @@ Options:
                             Default: /var/workfolder/builds/frontends/livetranslate
   --nginx-conf-dir PATH      Remote shared nginx conf dir.
                             Default: /var/workfolder/nginxconf
-  --profile NAME             Compose profile to enable. Can be repeated.
-                            Example: --profile grafana
+  --profile NAME             Additional Compose profile to enable (the "prod"
+                            profile — api + email-worker — is always included).
+                            Can be repeated. Example: --profile grafana
   --with-env                 Copy server/.env. This is the default.
   --no-env                   Do not copy server/.env.
   --skip-build               Do not run npm builds before staging.
@@ -53,10 +54,12 @@ Environment overrides:
   DRY_RUN=1
 
 Examples:
-  deploy/deploy.sh --host root@164.90.203.37
+  deploy/deploy.sh --host root@188.166.42.137
 
+  # Deploys api + email-worker (profile "prod" is automatic) and reloads nginx.
   deploy/deploy.sh --host root@188.166.42.137 --remote-up --reload-nginx
 
+  # Also brings up the grafana profile alongside prod.
   deploy/deploy.sh --host root@164.90.203.37 --with-env --profile grafana --remote-up
 USAGE
 }
@@ -92,7 +95,7 @@ SKIP_NGINX_CONF_COPY="${SKIP_NGINX_CONF_COPY:-0}"
 REMOTE_UP="${REMOTE_UP:-0}"
 RELOAD_NGINX="${RELOAD_NGINX:-0}"
 DRY_RUN="${DRY_RUN:-0}"
-COMPOSE_PROFILES=()
+COMPOSE_PROFILES=("prod")
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -191,6 +194,8 @@ log "Staging artifact-only deploy at ${STAGE_DIR}"
 rm -rf "$STAGE_DIR"
 mkdir -p \
   "$STAGE_DIR/server/bundle" \
+  "$STAGE_DIR/server/bundle/data/audios" \
+  "$STAGE_DIR/server/bundle/data/images/profiles" \
   "$STAGE_DIR/server/tprod-docker" \
   "$STAGE_DIR/web/dist" \
   "$STAGE_DIR/nginx"

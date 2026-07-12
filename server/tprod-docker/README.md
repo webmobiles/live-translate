@@ -93,8 +93,12 @@ These are not in code and must be done on the host before the API can serve:
 
    ```sql
    CREATE ROLE live_translate LOGIN PASSWORD '<password from DB_AUTH_URL>';
-   CREATE DATABASE live_translate_auth OWNER live_translate;
+   CREATE DATABASE live_translate OWNER live_translate;
    ```
+
+   Use the same database name (`live_translate`) as local dev — `DB_AUTH_URL`
+   and `DB_ROOMS_URL` only need to differ in host (`postgres` vs `localhost`),
+   not in database name.
 
 2. **Issue the `hellovia.app` TLS cert** via the certbot service in the
    pelemobil stack (Let's Encrypt + Cloudflare DNS-01) — see
